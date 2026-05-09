@@ -2,7 +2,6 @@ import type { HomepageConfig } from "../domain/homepage-config";
 import { defaultHomepageConfig } from "../domain/homepage-config";
 import type { ContentItem, HeroItem } from "../domain/content-types";
 import type { HomepageSectionKey } from "../domain/section-types";
-import { homepageSectionOrder } from "../domain/section-types";
 import { getMockHomepageData, type MockHomepageData } from "./mock-data-provider";
 
 export type HomepageData = {

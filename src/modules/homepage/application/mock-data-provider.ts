@@ -1,5 +1,4 @@
 import type { ContentItem, HeroItem } from "../domain/content-types";
-import type { HomepageSectionKey } from "../domain/section-types";
 
 export type MockHomepageData = {
   heroBanner: HeroItem[];
