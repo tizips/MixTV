@@ -3,7 +3,7 @@ import { defaultHomepageConfig } from "../domain/homepage-config";
 import type { ContentItem, HeroItem } from "../domain/content-types";
 import type { HomepageSectionKey } from "../domain/section-types";
 import { homepageSectionOrder } from "../domain/section-types";
-import { getMockHomepageData } from "./mock-data-provider";
+import { getMockHomepageData, type MockHomepageData } from "./mock-data-provider";
 
 export type HomepageData = {
   heroBanner: HeroItem[];
@@ -22,7 +22,7 @@ type SectionConfig = {
   configKey: keyof HomepageConfig;
 };
 
-const sectionConfigs: SectionConfig[] = [
+export const sectionConfigs: SectionConfig[] = [
   {
     key: "continueWatching",
     title: "继续观看",
@@ -67,9 +67,10 @@ const sectionConfigs: SectionConfig[] = [
 ];
 
 export async function getHomepageData(
-  config: HomepageConfig = defaultHomepageConfig
+  config: HomepageConfig = defaultHomepageConfig,
+  dataProvider?: () => MockHomepageData
 ): Promise<HomepageData> {
-  const mockData = getMockHomepageData();
+  const mockData = dataProvider ? dataProvider() : getMockHomepageData();
 
   // Filter sections based on config and non-empty items
   const sections = sectionConfigs

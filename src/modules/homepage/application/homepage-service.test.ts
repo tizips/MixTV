@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultHomepageConfig } from "../domain/homepage-config";
-import { getHomepageData } from "./homepage-service";
+import { homepageSectionOrder } from "../domain/section-types";
+import { getHomepageData, sectionConfigs } from "./homepage-service";
 
 describe("getHomepageData", () => {
   it("filters disabled sections out of the result", async () => {
@@ -15,13 +16,32 @@ describe("getHomepageData", () => {
   });
 
   it("excludes sections with empty items", async () => {
-    // Mock the data provider to return empty arrays for some sections
-    const data = await getHomepageData(defaultHomepageConfig);
+    // Create mock data with some empty sections
+    const mockDataWithEmptySections = {
+      heroBanner: [],
+      continueWatching: [{ id: "1", title: "Test", coverUrl: "", rating: 8, year: 2024, type: "movie" as const }],
+      upcomingReleases: [], // Empty
+      hotMovies: [{ id: "2", title: "Test Movie", coverUrl: "", rating: 7, year: 2024, type: "movie" as const }],
+      hotTvShows: [], // Empty
+      newAnime: [{ id: "3", title: "Test Anime", coverUrl: "", rating: 9, year: 2024, type: "anime" as const }],
+      hotVariety: [], // Empty
+      hotShortDramas: [{ id: "4", title: "Test Drama", coverUrl: "", rating: 8, year: 2024, type: "shortdrama" as const }],
+    };
+
+    const data = await getHomepageData(defaultHomepageConfig, () => mockDataWithEmptySections);
     
-    // All sections should have items since mock data provides them
-    data.sections.forEach((section) => {
-      expect(section.items.length).toBeGreaterThan(0);
-    });
+    const sectionKeys = data.sections.map((section) => section.key);
+    
+    // Should include sections with items
+    expect(sectionKeys).toContain("continueWatching");
+    expect(sectionKeys).toContain("hotMovies");
+    expect(sectionKeys).toContain("newAnime");
+    expect(sectionKeys).toContain("hotShortDramas");
+    
+    // Should NOT include empty sections
+    expect(sectionKeys).not.toContain("upcomingReleases");
+    expect(sectionKeys).not.toContain("hotTvShows");
+    expect(sectionKeys).not.toContain("hotVariety");
   });
 
   it("returns empty hero banner when showHeroBanner is false", async () => {
@@ -55,5 +75,18 @@ describe("getHomepageData", () => {
     );
     
     expect(actualOrder).toEqual(filteredExpectedOrder);
+  });
+
+  it("sectionConfigs order matches homepageSectionOrder from domain", () => {
+    // Extract keys from sectionConfigs
+    const configKeys = sectionConfigs.map((config) => config.key);
+    
+    // Filter homepageSectionOrder to exclude heroBanner (not in sectionConfigs)
+    const domainOrderWithoutHero = homepageSectionOrder.filter(
+      (key) => key !== "heroBanner"
+    );
+    
+    // Verify the order matches
+    expect(configKeys).toEqual(domainOrderWithoutHero);
   });
 });
