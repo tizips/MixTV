@@ -14,3 +14,13 @@ export type {
   HomepageSectionKey,
 } from "./domain/section-types";
 export { homepageSectionOrder } from "./domain/section-types";
+
+export type {
+  HomepageData,
+} from "./application/homepage-service";
+export { getHomepageData } from "./application/homepage-service";
+
+export type {
+  MockHomepageData,
+} from "./application/mock-data-provider";
+export { getMockHomepageData } from "./application/mock-data-provider";
