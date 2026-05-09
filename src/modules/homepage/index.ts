@@ -24,3 +24,5 @@ export type {
   MockHomepageData,
 } from "./application/mock-data-provider";
 export { getMockHomepageData } from "./application/mock-data-provider";
+
+export { HomepageShell } from "./ui/homepage-shell";
