@@ -1,5 +1,11 @@
 export type ContentType = "movie" | "tv" | "anime" | "variety" | "shortdrama";
 
+export type ContinueWatchingInfo = {
+  currentEpisode: number;
+  latestEpisode: number;
+  sourceName: string;
+};
+
 export type ContentItem = {
   id: string;
   title: string;
@@ -10,6 +16,7 @@ export type ContentItem = {
   type: ContentType;
   description?: string;
   genres?: string[];
+  continueWatching?: ContinueWatchingInfo;
 };
 
 export type HeroItem = {

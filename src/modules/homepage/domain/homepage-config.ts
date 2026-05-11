@@ -1,5 +1,6 @@
 export type HomepageConfig = {
   showHeroBanner: boolean;
+  showWelcomeBanner: boolean;
   showContinueWatching: boolean;
   showUpcomingReleases: boolean;
   showHotMovies: boolean;
@@ -11,6 +12,7 @@ export type HomepageConfig = {
 
 export const defaultHomepageConfig: HomepageConfig = {
   showHeroBanner: true,
+  showWelcomeBanner: true,
   showContinueWatching: true,
   showUpcomingReleases: true,
   showHotMovies: true,

@@ -14,24 +14,61 @@ type HomepageShellProps = {
 
 export function HomepageShell({ data, userName }: HomepageShellProps) {
   const [isLoading] = useState(false);
+  const [sections, setSections] = useState(data.sections);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => new Set());
+
+  const toggleFavorite = (itemId: string) => {
+    setFavoriteIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+
+      return next;
+    });
+  };
+
+  const deleteContinueWatchingItem = (itemId: string) => {
+    setSections((currentSections) =>
+      currentSections.map((section) =>
+        section.key === "continueWatching"
+          ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
+          : section,
+      ),
+    );
+    setFavoriteIds((current) => {
+      const next = new Set(current);
+      next.delete(itemId);
+      return next;
+    });
+  };
 
   return (
-    <div className="min-h-screen bg-gray-900 p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen p-4 text-[var(--homepage-text)] md:p-6 lg:p-12">
       <LoadingOverlay isLoading={isLoading} />
-      
-      <WelcomeBanner userName={userName} />
-      
+
+      {data.showWelcomeBanner ? <WelcomeBanner userName={userName} /> : null}
+
       {data.heroBanner.length > 0 && (
         <HeroBanner items={data.heroBanner} />
       )}
-      
+
       <div className="space-y-8">
-        {data.sections.map((section) => (
+        {sections.map((section) => (
           <ContentCarousel
             key={section.key}
             title={section.title}
+            icon={section.icon}
+            iconClass={section.iconClass}
             items={section.items}
             moreLink={section.moreLink}
+            variant={section.key === "continueWatching" ? "continueWatching" : "default"}
+            favoriteIds={favoriteIds}
+            onFavorite={section.key === "continueWatching" ? toggleFavorite : undefined}
+            onDelete={section.key === "continueWatching" ? deleteContinueWatchingItem : undefined}
           />
         ))}
       </div>

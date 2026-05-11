@@ -4,6 +4,17 @@ import { homepageSectionOrder } from "../domain/section-types";
 import { getHomepageData, sectionConfigs } from "./homepage-service";
 
 describe("getHomepageData", () => {
+  it("returns the welcome banner toggle from config", async () => {
+    const enabled = await getHomepageData(defaultHomepageConfig);
+    const disabled = await getHomepageData({
+      ...defaultHomepageConfig,
+      showWelcomeBanner: false,
+    });
+
+    expect(enabled.showWelcomeBanner).toBe(true);
+    expect(disabled.showWelcomeBanner).toBe(false);
+  });
+
   it("filters disabled sections out of the result", async () => {
     const data = await getHomepageData({
       ...defaultHomepageConfig,
@@ -70,8 +81,8 @@ describe("getHomepageData", () => {
     const actualOrder = data.sections.map((section) => section.key);
     
     // Filter expected order to only include sections that should be present
-    const filteredExpectedOrder = expectedOrder.filter((key) => 
-      actualOrder.includes(key)
+    const filteredExpectedOrder = expectedOrder.filter((key) =>
+      actualOrder.includes(key as (typeof actualOrder)[number]),
     );
     
     expect(actualOrder).toEqual(filteredExpectedOrder);

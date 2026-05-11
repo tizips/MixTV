@@ -1,18 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Button,
-  Card,
-  Chip,
-  Description,
-  Input,
-  Label,
-  Separator,
-  Switch,
-  Tabs,
-  TextArea,
-} from "@heroui/react";
+import { Button, Card, Chip, Separator, Tabs } from "@heroui/react";
+import { ConfigFilesPanel } from "./config-files-panel";
 import { SiteConfigPanel } from "./site-config-panel";
 
 type AdminTabKey =
@@ -159,155 +149,6 @@ const adminTabs: AdminTab[] = [
   },
 ];
 
-function formatLastUpdated(date: Date | null) {
-  if (!date) {
-    return "未拉取";
-  }
-
-  return new Intl.DateTimeFormat("zh-CN", {
-    dateStyle: "medium",
-    timeStyle: "medium",
-  }).format(date);
-}
-
-const defaultSubscriptionUrl = "https://pz.v88.qzz.io?format=2&source=jingjian";
-
-function ConfigFilesPanel() {
-  const [subscriptionUrl, setSubscriptionUrl] = useState(defaultSubscriptionUrl);
-  const [configText, setConfigText] = useState(`# 订阅配置\nsource=${defaultSubscriptionUrl}\nenabled=true\n`);
-  const [autoUpdate, setAutoUpdate] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(new Date());
-  const [status, setStatus] = useState("尚未执行拉取");
-
-  const pullConfig = () => {
-    setConfigText(`## 拉取结果\nsubscription=${subscriptionUrl}\nupdatedBy=manual-pull\n`);
-    setLastUpdated(new Date());
-    setStatus("已完成手动拉取");
-  };
-
-  const saveConfig = () => {
-    setLastUpdated(new Date());
-    setStatus("已保存到 Mock API");
-  };
-
-  return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-      <Card className="border border-default-200/70 bg-background/70" variant="secondary">
-        <Card.Header className="flex flex-col gap-4 p-6 pb-0 md:p-8 md:pb-0">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <i aria-hidden="true" className="bi bi-folder2-open text-2xl text-cyan-300" />
-                <div>
-                  <p className="text-sm font-medium uppercase tracking-[0.24em] text-default-500">配置文件</p>
-                  <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">订阅配置</h2>
-                </div>
-              </div>
-              <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
-                这里显示拉取下来的内容，也可以手动修改后保存。
-              </p>
-            </div>
-
-            <Chip color={autoUpdate ? "success" : "default"} variant="flat">
-              {autoUpdate ? "自动更新开启" : "自动更新关闭"}
-            </Chip>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-default-200/80 bg-background/60 px-4 py-3">
-            <div>
-              <p className="text-sm font-medium text-foreground">自动更新</p>
-              <p className="text-xs text-default-500">开启后可自动同步订阅内容。</p>
-            </div>
-            <Switch isSelected={autoUpdate} onChange={setAutoUpdate} aria-label="自动更新">
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
-            </Switch>
-          </div>
-        </Card.Header>
-
-        <Card.Content className="gap-5 p-6 pt-5 md:p-8 md:pt-5">
-          <div className="space-y-3">
-            <Label htmlFor="subscription-url">订阅链接</Label>
-            <Input
-              id="subscription-url"
-              className="w-full"
-              value={subscriptionUrl}
-              onChange={(event) => setSubscriptionUrl(event.target.value)}
-              placeholder="输入订阅链接"
-              variant="secondary"
-            />
-            <Description>最后更新时间 {formatLastUpdated(lastUpdated)}</Description>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Button color="primary" onPress={pullConfig}>
-              拉取配置
-            </Button>
-            <Button variant="bordered" onPress={saveConfig}>
-              保存
-            </Button>
-          </div>
-
-          <div className="space-y-3">
-            <Label htmlFor="config-content">配置内容</Label>
-            <TextArea
-              id="config-content"
-              className="w-full"
-              value={configText}
-              onChange={(event) => setConfigText(event.target.value)}
-              placeholder="配置内容将显示在这里"
-              variant="secondary"
-              rows={11}
-            />
-            <Description>支持 JSON 格式，用于配置视频源。</Description>
-          </div>
-
-          <p className="text-xs leading-5 text-default-500">输入配置文件的订阅地址，要求 JSON 格式，且使用 Base58 编码。</p>
-        </Card.Content>
-      </Card>
-
-      <div className="space-y-4">
-        <Card className="border border-default-200/70 bg-background/70" variant="secondary">
-          <Card.Header className="flex items-center gap-3 px-5 pb-2 pt-5">
-            <i aria-hidden="true" className="bi bi-info-circle text-xl text-primary" />
-            <div>
-              <p className="text-sm font-medium text-default-500">同步状态</p>
-              <p className="text-base font-semibold text-foreground">{status}</p>
-            </div>
-          </Card.Header>
-          <Separator />
-          <Card.Content className="px-5 py-4">
-            <p className="text-sm leading-6 text-default-600">
-              该面板保留了原有的订阅拉取与配置编辑职责，只是把外层 chrome 换成了 HeroUI 卡片和输入组件。
-            </p>
-          </Card.Content>
-        </Card>
-
-        <Card className="border border-default-200/70 bg-background/70" variant="secondary">
-          <Card.Header className="px-5 pb-2 pt-5">
-            <div>
-              <p className="text-sm font-medium text-default-500">快捷动作</p>
-              <p className="text-base font-semibold text-foreground">配置维护</p>
-            </div>
-          </Card.Header>
-          <Separator />
-          <Card.Content className="grid gap-3 px-5 py-4">
-            <div className="rounded-2xl border border-default-200/80 bg-background/60 p-4 text-sm text-default-600">
-              <p className="font-medium text-foreground">订阅链接</p>
-              <p className="mt-1 break-all">{subscriptionUrl}</p>
-            </div>
-            <div className="rounded-2xl border border-default-200/80 bg-background/60 p-4 text-sm text-default-600">
-              <p className="font-medium text-foreground">最后更新时间</p>
-              <p className="mt-1">{formatLastUpdated(lastUpdated)}</p>
-            </div>
-          </Card.Content>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
 function PlaceholderAdminPanel({ tab }: { tab: AdminTab }) {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -325,8 +166,8 @@ function PlaceholderAdminPanel({ tab }: { tab: AdminTab }) {
 
         <Card.Content className="gap-5 p-6 pt-5 md:p-8 md:pt-5">
           <div className="flex flex-wrap gap-3">
-            <Button color="primary">进入管理</Button>
-            <Button variant="bordered">刷新状态</Button>
+            <Button variant="primary">进入管理</Button>
+            <Button variant="outline">刷新状态</Button>
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
@@ -354,7 +195,7 @@ function PlaceholderAdminPanel({ tab }: { tab: AdminTab }) {
           </Card.Header>
           <Separator />
           <Card.Content className="grid gap-3 px-5 py-4">
-            <Chip color="primary" variant="flat">
+            <Chip color="accent" variant="soft">
               HeroUI tab panel
             </Chip>
             <p className="text-sm leading-6 text-default-600">
@@ -372,10 +213,10 @@ function PlaceholderAdminPanel({ tab }: { tab: AdminTab }) {
           </Card.Header>
           <Separator />
           <Card.Content className="grid gap-3 px-5 py-4">
-            <Button color="primary" variant="solid">
+            <Button variant="primary">
               保存草稿
             </Button>
-            <Button variant="bordered">导出配置</Button>
+            <Button variant="outline">导出配置</Button>
           </Card.Content>
         </Card>
       </div>
@@ -393,30 +234,34 @@ export function AdminTabs() {
       onSelectionChange={(key) => setActiveTab(String(key) as AdminTabKey)}
       variant="secondary"
     >
-      <Tabs.ListContainer className="overflow-x-auto rounded-2xl border border-default-200/80 bg-background/70 p-2 shadow-sm">
-        <Tabs.List aria-label="Admin navigation" className="gap-2">
-          {adminTabs.map((tab) => (
-            <Tabs.Tab key={tab.key} id={tab.key} className="px-4 py-3 text-sm font-medium">
-              <span className="inline-flex items-center gap-2 whitespace-nowrap">
-                <i aria-hidden="true" className={`bi ${tab.icon} text-base ${tab.accent}`} />
-                <span>{tab.label}</span>
-              </span>
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
-      </Tabs.ListContainer>
+      <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <Tabs.ListContainer className="rounded-2xl border border-default-200/80 bg-background/70 p-2 shadow-sm lg:sticky lg:top-24 lg:self-start">
+          <Tabs.List aria-label="Admin navigation" className="gap-2 bg-transparent lg:flex-col">
+            {adminTabs.map((tab) => (
+              <Tabs.Tab key={tab.key} id={tab.key} className="w-full justify-start px-4 py-3 text-sm font-medium">
+                <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                  <i aria-hidden="true" className={`bi ${tab.icon} text-base ${tab.accent}`} />
+                  <span>{tab.label}</span>
+                </span>
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs.ListContainer>
 
-      {adminTabs.map((tab) => (
-        <Tabs.Panel key={tab.key} id={tab.key} className="mt-6">
-          {tab.key === "config-files" ? (
-            <ConfigFilesPanel />
-          ) : tab.key === "site-config" ? (
-            <SiteConfigPanel />
-          ) : (
-            <PlaceholderAdminPanel tab={tab} />
-          )}
-        </Tabs.Panel>
-      ))}
+        <div className="min-w-0">
+          {adminTabs.map((tab) => (
+            <Tabs.Panel key={tab.key} id={tab.key}>
+              {tab.key === "config-files" ? (
+                <ConfigFilesPanel />
+              ) : tab.key === "site-config" ? (
+                <SiteConfigPanel />
+              ) : (
+                <PlaceholderAdminPanel tab={tab} />
+              )}
+            </Tabs.Panel>
+          ))}
+        </div>
+      </div>
     </Tabs>
   );
 }

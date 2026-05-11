@@ -72,6 +72,11 @@ export function getMockHomepageData(): MockHomepageData {
         rating: 8.1,
         year: 2024,
         type: "tv",
+        continueWatching: {
+          currentEpisode: 12,
+          latestEpisode: 16,
+          sourceName: "腾讯视频",
+        },
       },
       {
         id: "cw-2",
@@ -80,6 +85,11 @@ export function getMockHomepageData(): MockHomepageData {
         rating: 8.8,
         year: 2023,
         type: "anime",
+        continueWatching: {
+          currentEpisode: 16,
+          latestEpisode: 23,
+          sourceName: "Bilibili",
+        },
       },
       {
         id: "cw-3",
@@ -88,6 +98,11 @@ export function getMockHomepageData(): MockHomepageData {
         rating: 7.8,
         year: 2023,
         type: "movie",
+        continueWatching: {
+          currentEpisode: 1,
+          latestEpisode: 1,
+          sourceName: "爱奇艺",
+        },
       },
       {
         id: "cw-4",
@@ -96,6 +111,11 @@ export function getMockHomepageData(): MockHomepageData {
         rating: 7.5,
         year: 2023,
         type: "variety",
+        continueWatching: {
+          currentEpisode: 8,
+          latestEpisode: 12,
+          sourceName: "芒果TV",
+        },
       },
       {
         id: "cw-5",
@@ -104,6 +124,11 @@ export function getMockHomepageData(): MockHomepageData {
         rating: 8.0,
         year: 2024,
         type: "shortdrama",
+        continueWatching: {
+          currentEpisode: 18,
+          latestEpisode: 24,
+          sourceName: "腾讯视频",
+        },
       },
     ],
     upcomingReleases: [

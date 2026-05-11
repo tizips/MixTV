@@ -1,18 +1,19 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type Key, useState } from "react";
 import {
   Button,
   Card,
   Chip,
   Description,
+  Form,
   Input,
   Label,
   ListBox,
   Select,
-  Separator,
   Switch,
   TextArea,
+  TextField,
 } from "@heroui/react";
 
 type ProxyMode =
@@ -37,7 +38,7 @@ export type SiteConfigFormValues = {
 };
 
 const proxyOptions: Array<{ value: ProxyMode; label: string }> = [
-  { value: "direct", label: "直连" },
+  { value: "direct", label: "直连（服务器直接请求豆瓣）" },
   { value: "zwei", label: "Cors Proxy By Zwei" },
   { value: "official-ali", label: "豆瓣官方精品CDN（阿里云）" },
   { value: "cml-tencent", label: "豆瓣 CDN By CMLiussss （腾讯云）" },
@@ -46,8 +47,8 @@ const proxyOptions: Array<{ value: ProxyMode; label: string }> = [
 ];
 
 const imageProxyOptions: Array<{ value: ProxyMode; label: string }> = [
-  { value: "direct", label: "直连" },
-  { value: "zwei", label: "服务器代理" },
+  { value: "direct", label: "直连（浏览器直接请求豆瓣）" },
+  { value: "zwei", label: "服务器代理（由服务器代理请求豆瓣）" },
   { value: "official-ali", label: "豆瓣官方精品CDN（阿里云）" },
   { value: "cml-tencent", label: "豆瓣 CDN By CMLiussss（腾讯云）" },
   { value: "cml-ali", label: "豆瓣 CDN By CMLiussss（阿里云）" },
@@ -71,27 +72,53 @@ function mergeInitialValues(initialValues?: Partial<SiteConfigFormValues>) {
   return { ...defaultValues, ...initialValues };
 }
 
-function formatProxyLabel(options: Array<{ value: ProxyMode; label: string }>, mode: ProxyMode) {
-  return options.find((option) => option.value === mode)?.label ?? "未知";
-}
-
-function FieldGroup({
-  htmlFor,
+function ProxySelect({
+  name,
   label,
   description,
-  children,
+  options,
+  selectedKey,
+  onSelectionChange,
 }: {
-  htmlFor: string;
+  name: string;
   label: string;
-  description?: string;
-  children: ReactNode;
+  description: string;
+  options: Array<{ value: ProxyMode; label: string }>;
+  selectedKey: ProxyMode;
+  onSelectionChange: (mode: ProxyMode) => void;
 }) {
+  const handleSelectionChange = (key: Key | null) => {
+    if (key == null) {
+      return;
+    }
+
+    onSelectionChange(String(key) as ProxyMode);
+  };
+
   return (
-    <div className="space-y-3">
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
-      {description ? <Description>{description}</Description> : null}
-    </div>
+    <Select
+      fullWidth
+      name={name}
+      selectedKey={selectedKey}
+      onSelectionChange={handleSelectionChange}
+      placeholder="选择代理模式"
+    >
+      <Label>{label}</Label>
+      <Select.Trigger>
+        <Select.Value />
+        <Select.Indicator />
+      </Select.Trigger>
+      <Description>{description}</Description>
+      <Select.Popover>
+        <ListBox>
+          {options.map((option) => (
+            <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
+              {option.label}
+            </ListBox.Item>
+          ))}
+        </ListBox>
+      </Select.Popover>
+    </Select>
   );
 }
 
@@ -114,7 +141,6 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
             <div className="flex items-center gap-3">
               <i aria-hidden="true" className="bi bi-sliders text-2xl text-emerald-300" />
               <div>
-                <p className="text-sm font-medium uppercase tracking-[0.24em] text-default-500">站点配置</p>
                 <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">站点配置</h2>
               </div>
             </div>
@@ -123,107 +149,74 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
             </p>
           </div>
 
-          <Chip color="primary" variant="flat">
+          <Chip color="accent" variant="soft">
             {saveMessage}
           </Chip>
         </div>
       </Card.Header>
 
       <Card.Content className="grid gap-6 p-6 pt-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] md:p-8 md:pt-5">
-        <form
+        <Form
           className="space-y-6"
           onSubmit={(event) => {
             event.preventDefault();
             saveConfig();
           }}
         >
-          <FieldGroup htmlFor="site-name" label="站点名称">
+          <TextField fullWidth name="siteName">
+            <Label>站点名称</Label>
             <Input
               id="site-name"
               value={values.siteName}
               onChange={(event) => setValues((current) => ({ ...current, siteName: event.target.value }))}
               placeholder="输入站点名称"
-              variant="secondary"
             />
-          </FieldGroup>
+          </TextField>
 
-          <FieldGroup htmlFor="site-announcement" label="站点公告">
+          <TextField fullWidth name="siteAnnouncement">
+            <Label>站点公告</Label>
             <TextArea
               id="site-announcement"
               value={values.siteAnnouncement}
               onChange={(event) => setValues((current) => ({ ...current, siteAnnouncement: event.target.value }))}
               placeholder="输入站点公告"
-              variant="secondary"
               rows={5}
             />
-          </FieldGroup>
+          </TextField>
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Select
-              className="w-full"
-              placeholder="选择代理模式"
-              value={values.doubanDataProxyMode}
-              onChange={(value) => {
-                const nextValue = Array.isArray(value) ? value[0] : value;
-
-                if (nextValue == null) {
-                  return;
-                }
-
+          <div className="space-y-6">
+            <ProxySelect
+              name="doubanDataProxyMode"
+              label="豆瓣数据代理"
+              description="用于管理站点抓取豆瓣数据时的代理策略。"
+              options={proxyOptions}
+              selectedKey={values.doubanDataProxyMode}
+              onSelectionChange={(mode) =>
                 setValues((current) => ({
                   ...current,
-                  doubanDataProxyMode: String(nextValue) as ProxyMode,
-                }));
-              }}
-              variant="secondary"
-            >
-              <Label>豆瓣数据代理</Label>
-              <Description>用于管理站点抓取豆瓣数据时的代理策略。</Description>
-              <Select.Popover>
-                <ListBox>
-                  {proxyOptions.map((option) => (
-                    <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
-                      {option.label}
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-            </Select>
+                  doubanDataProxyMode: mode,
+                }))
+              }
+            />
 
-            <Select
-              className="w-full"
-              placeholder="选择代理模式"
-              value={values.doubanImageProxyMode}
-              onChange={(value) => {
-                const nextValue = Array.isArray(value) ? value[0] : value;
-
-                if (nextValue == null) {
-                  return;
-                }
-
+            <ProxySelect
+              name="doubanImageProxyMode"
+              label="豆瓣图片代理"
+              description="用于管理图片资源的代理策略。"
+              options={imageProxyOptions}
+              selectedKey={values.doubanImageProxyMode}
+              onSelectionChange={(mode) =>
                 setValues((current) => ({
                   ...current,
-                  doubanImageProxyMode: String(nextValue) as ProxyMode,
-                }));
-              }}
-              variant="secondary"
-            >
-              <Label>豆瓣图片代理</Label>
-              <Description>用于管理图片资源的代理策略。</Description>
-              <Select.Popover>
-                <ListBox>
-                  {imageProxyOptions.map((option) => (
-                    <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
-                      {option.label}
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-            </Select>
+                  doubanImageProxyMode: mode,
+                }))
+              }
+            />
           </div>
 
           {isDataProxyCustom ? (
-            <FieldGroup htmlFor="douban-data-proxy-url" label="豆瓣代理地址">
+            <TextField fullWidth name="doubanDataProxyUrl">
+              <Label>豆瓣代理地址</Label>
               <Input
                 id="douban-data-proxy-url"
                 value={values.doubanDataProxyUrl}
@@ -234,13 +227,13 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
                   }))
                 }
                 placeholder="输入地址"
-                variant="secondary"
               />
-            </FieldGroup>
+            </TextField>
           ) : null}
 
           {isImageProxyCustom ? (
-            <FieldGroup htmlFor="douban-image-proxy-url" label="图片代理地址">
+            <TextField fullWidth name="doubanImageProxyUrl">
+              <Label>图片代理地址</Label>
               <Input
                 id="douban-image-proxy-url"
                 value={values.doubanImageProxyUrl}
@@ -251,26 +244,26 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
                   }))
                 }
                 placeholder="输入地址"
-                variant="secondary"
               />
-            </FieldGroup>
+            </TextField>
           ) : null}
 
-          <FieldGroup htmlFor="douban-auth" label="豆瓣认证" description="用于模拟保存豆瓣认证字符串，后续可替换为真实配置接口。">
+          <TextField fullWidth name="doubanAuth">
+            <Label>豆瓣认证</Label>
             <TextArea
               id="douban-auth"
               value={values.doubanAuth}
               onChange={(event) => setValues((current) => ({ ...current, doubanAuth: event.target.value }))}
               placeholder="输入豆瓣认证信息"
-              variant="secondary"
               rows={5}
             />
-          </FieldGroup>
+            <Description>用于模拟保存豆瓣认证字符串，后续可替换为真实配置接口。</Description>
+          </TextField>
 
-          <Button color="primary" type="submit">
+          <Button variant="primary" fullWidth type="submit">
             保存配置
           </Button>
-        </form>
+        </Form>
 
         <aside className="space-y-6 rounded-3xl border border-default-200/70 bg-background/50 p-5">
           <div className="space-y-3">
@@ -343,14 +336,6 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
                 </Switch.Control>
               </Switch>
             </div>
-          </div>
-
-          <Separator />
-
-          <div className="space-y-3 rounded-2xl border border-default-200/80 bg-background/60 p-4 text-sm text-default-500">
-            <p>当前站点：{values.siteName}</p>
-            <p>数据代理：{formatProxyLabel(proxyOptions, values.doubanDataProxyMode)}</p>
-            <p>图片代理：{formatProxyLabel(imageProxyOptions, values.doubanImageProxyMode)}</p>
           </div>
         </aside>
       </Card.Content>

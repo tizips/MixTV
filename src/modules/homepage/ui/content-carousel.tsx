@@ -6,27 +6,58 @@ import { ContentCard } from "./content-card";
 
 type ContentCarouselProps = {
   title: string;
+  icon: string;
+  iconClass: string;
   items: ContentItem[];
   moreLink?: string;
+  variant?: "default" | "continueWatching";
+  favoriteIds?: Set<string>;
+  onFavorite?: (itemId: string) => void;
+  onDelete?: (itemId: string) => void;
 };
 
-export function ContentCarousel({ title, items, moreLink }: ContentCarouselProps) {
+export function ContentCarousel({
+  title,
+  icon,
+  iconClass,
+  items,
+  moreLink,
+  variant = "default",
+  favoriteIds,
+  onFavorite,
+  onDelete,
+}: ContentCarouselProps) {
   return (
     <section className="mb-8">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-white text-2xl font-bold">{title}</h2>
+        <h2 className="inline-flex items-center gap-2 text-2xl font-bold text-[var(--homepage-text)]">
+          <i aria-hidden="true" className={`bi ${icon} text-[1.15em] ${iconClass}`} />
+          <span>{title}</span>
+        </h2>
         {moreLink && (
           <Link
             href={moreLink}
-            className="text-gray-400 hover:text-white text-sm transition-colors"
+            className="inline-flex items-center gap-1 text-sm text-[var(--homepage-muted)] transition-colors hover:text-[var(--homepage-text)]"
           >
-            查看更多 →
+            <span>查看更多</span>
+            <i
+              aria-hidden="true"
+              className="bi bi-chevron-right text-[0.95em]"
+              style={{ WebkitTextStroke: "0.7px currentColor" }}
+            />
           </Link>
         )}
       </div>
       <div className="flex overflow-x-auto scrollbar-hide gap-4 pb-4">
         {items.map((item) => (
-          <ContentCard key={item.id} item={item} />
+          <ContentCard
+            key={item.id}
+            item={item}
+            variant={variant}
+            isFavorite={favoriteIds?.has(item.id)}
+            onFavorite={onFavorite ? () => onFavorite(item.id) : undefined}
+            onDelete={onDelete ? () => onDelete(item.id) : undefined}
+          />
         ))}
       </div>
     </section>
