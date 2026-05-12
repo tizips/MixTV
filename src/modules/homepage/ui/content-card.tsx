@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { Chip } from "@heroui/react";
 import Image from "next/image";
+import Link from "next/link";
 import type { ContentItem } from "../domain/content-types";
 
 type ContentCardProps = {
@@ -24,12 +26,12 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
     : 0;
 
   return (
-    <div className="group w-48 flex-shrink-0" onClick={onClick}>
+    <Link className="group block w-48 flex-shrink-0" href="/play" onClick={onClick}>
       <div className="relative">
         {isContinueWatching && progress && (
-          <div className="absolute right-1.5 top-1.5 z-20 rounded-full bg-danger px-3 py-1.5 text-sm font-semibold leading-none text-danger-foreground shadow-lg backdrop-blur-sm">
+          <Chip className="absolute right-1.5 top-1.5 z-20 shadow-lg backdrop-blur-sm" color="danger" variant="primary">
             +{extraEpisodes}
-          </div>
+          </Chip>
         )}
         <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-surface-secondary transition-transform duration-300 hover:scale-105 hover:shadow-2xl">
           <Image
@@ -63,6 +65,7 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
                   aria-pressed={isFavorite}
                   className={`inline-flex h-10 w-10 items-center justify-center text-accent-foreground transition-colors hover:text-danger ${isFavorite ? "text-danger" : ""}`}
                   onClick={(event) => {
+                    event.preventDefault();
                     event.stopPropagation();
                     onFavorite?.();
                   }}
@@ -77,6 +80,7 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
                   aria-label="删除"
                   className="inline-flex h-10 w-10 items-center justify-center text-accent-foreground transition-colors hover:text-danger"
                   onClick={(event) => {
+                    event.preventDefault();
                     event.stopPropagation();
                     onDelete?.();
                   }}
@@ -115,6 +119,6 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
           {item.year && <p className="text-xs text-muted">{item.year}</p>}
         </>
       )}
-    </div>
+    </Link>
   );
 }
