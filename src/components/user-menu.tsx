@@ -51,7 +51,7 @@ export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
   return (
     <Dropdown isOpen={open} onOpenChange={setOpen}>
       <Button aria-label="打开个人中心" className="h-10 w-10 rounded-full p-0" isIconOnly variant="ghost">
-        <span className="bi bi-person-circle text-2xl" aria-hidden="true" />
+        <span className="bi bi-person text-2xl" aria-hidden="true" />
       </Button>
       <Dropdown.Popover className="w-60" placement="bottom end">
         <div className="px-4 py-4">
@@ -60,7 +60,7 @@ export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
               <p className="text-sm text-default-500">当前用户</p>
               <p className="mt-1 text-base font-semibold text-foreground">{userName}</p>
             </div>
-            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+            <span className="rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent-soft-foreground">
               {permissionLabel}
             </span>
           </div>

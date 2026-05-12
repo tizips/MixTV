@@ -42,12 +42,12 @@ export function HomepageConfigPanel() {
   const enabledCount = homepageModuleItems.filter((item) => moduleStates[item.key]).length;
 
   return (
-    <Card className="border border-default-200/70 bg-background/70" variant="secondary">
+    <Card>
       <Card.Header className="flex flex-col gap-3 p-6 pb-0 md:p-8 md:pb-0">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <i aria-hidden="true" className="bi bi-layout-text-window-reverse text-2xl text-violet-300" />
+              <i aria-hidden="true" className="bi bi-layout-text-window-reverse text-2xl text-accent" />
               <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">首页模块配置</h2>
             </div>
             <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
@@ -62,13 +62,13 @@ export function HomepageConfigPanel() {
       </Card.Header>
 
       <Card.Content className="grid gap-6 p-6 pt-5 md:p-8 md:pt-5">
-        <ListBox aria-label="Homepage modules" className="space-y-3 rounded-3xl bg-background/50 p-4">
+        <ListBox aria-label="Homepage modules" className="space-y-3 rounded-3xl p-4">
           {homepageModuleItems.map((item) => (
             <ListBox.Item
               key={item.key}
               id={item.key}
               textValue={item.label}
-              className="w-full rounded-2xl border border-default-200/80 bg-background/60 px-4 py-3"
+              className="w-full rounded-2xl border px-4 py-3"
             >
               <div className="flex w-full items-center justify-between gap-4">
                 <div>

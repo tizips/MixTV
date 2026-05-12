@@ -58,12 +58,12 @@ export function CloudSearchPanel() {
   };
 
   return (
-    <Card className="border border-default-200/70 bg-background/70" variant="secondary">
+    <Card>
       <Card.Header className="flex flex-col gap-4 p-6 pb-0 md:p-8 md:pb-0">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <i aria-hidden="true" className="bi bi-cloud-arrow-down text-2xl text-fuchsia-300" />
+              <i aria-hidden="true" className="bi bi-cloud-arrow-down text-2xl text-accent" />
               <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">网盘搜索</h2>
             </div>
             <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
@@ -169,7 +169,7 @@ export function CloudSearchPanel() {
 
           <ListBox
             aria-label="支持的网盘类型"
-            className="gap-2 rounded-2xl border border-default-200/80 bg-background/60 p-2"
+            className="gap-2 rounded-2xl bg-[var(--layout-panel-background)] p-2"
             selectedKeys={selectedDriveTypeKeys}
             selectionMode="multiple"
             onSelectionChange={handleDriveTypeSelectionChange}
@@ -183,7 +183,7 @@ export function CloudSearchPanel() {
               >
                 <div className="flex min-h-8 items-center justify-between gap-3">
                   <span className="flex items-center gap-3 text-sm font-medium text-foreground">
-                    <i aria-hidden="true" className={`bi ${option.icon} text-fuchsia-300`} />
+                    <i aria-hidden="true" className={`bi ${option.icon} text-accent`} />
                     {option.label}
                   </span>
                   <ListBox.ItemIndicator>

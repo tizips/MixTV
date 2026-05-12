@@ -31,7 +31,10 @@ describe("SiteHeader", () => {
     expect(html).toContain("打开个人中心");
     expect(html.indexOf("主题切换初始化中")).toBeLessThan(html.indexOf("打开个人中心"));
     expect(html).not.toContain("bg-white/70");
-    expect(html).toContain("bi-person-circle");
+    expect(html).toContain("bg-[var(--layout-panel-background)]");
+    expect(html).toContain("border-[var(--layout-panel-border)]");
+    expect(html).toContain("shadow-[var(--layout-panel-shadow)]");
+    expect(html).toContain("bi-person");
     expect(html).toContain("aria-label=\"打开个人中心\"");
   });
 
@@ -45,7 +48,7 @@ describe("SiteHeader", () => {
     const html = renderToStaticMarkup(<SiteHeader />);
 
     expect(html).toContain('aria-label="主导航"');
-    expect(html).toContain("border-primary");
+    expect(html).toContain("border-accent");
     expect(html).toContain("border-transparent");
     expect(html).toContain("rounded-full");
     expect(html).toContain("hover:bg-foreground/5");

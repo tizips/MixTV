@@ -9,10 +9,9 @@ describe("HeroBanner", () => {
     const html = renderToStaticMarkup(<HeroBanner items={data.heroBanner} />);
 
     expect(html).toContain(data.heroBanner[0].title);
-    expect(html).toContain("bg-[var(--homepage-surface)]");
-    expect(html).toContain("text-[var(--homepage-text)]");
+    expect(html).toContain("bg-surface");
+    expect(html).toContain("text-foreground");
     expect(html).not.toContain("bg-black/30");
-    expect(html).not.toContain("bg-gray-900");
-    expect(html).not.toContain("border-[var(--homepage-border)]");
+    expect(html).not.toContain("homepage-");
   });
 });

@@ -27,8 +27,8 @@ describe("ContentCarousel", () => {
     expect(html).toContain("EP.12");
     expect(html).toContain("16");
     expect(html).toContain("腾讯视频");
-    expect(html).toContain("text-[var(--homepage-text)]");
-    expect(html).toContain("text-[var(--homepage-muted)]");
+    expect(html).toContain("text-foreground");
+    expect(html).toContain("text-muted");
     expect(html).not.toContain("text-gray-400");
   });
 });

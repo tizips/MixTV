@@ -115,10 +115,10 @@ export function UserConfigPanel() {
 
   return (
     <>
-      <Card className="bg-background/70" variant="secondary">
+      <Card>
         <Card.Header className="p-6 pb-0 md:p-8 md:pb-0">
           <div className="flex items-center gap-3">
-            <i aria-hidden="true" className="bi bi-people text-2xl text-amber-300" />
+            <i aria-hidden="true" className="bi bi-people text-2xl text-accent" />
             <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">用户配置</h2>
           </div>
         </Card.Header>
@@ -127,7 +127,7 @@ export function UserConfigPanel() {
           <Card variant="transparent" className="p-1">
             <Card.Header className="p-0">
               <div className="flex items-center gap-3">
-                <i aria-hidden="true" className="bi bi-bar-chart text-xl text-amber-300" />
+                <i aria-hidden="true" className="bi bi-bar-chart text-xl text-accent" />
                 <h3 className="text-lg font-semibold tracking-tight text-foreground">用户统计</h3>
               </div>
             </Card.Header>
@@ -161,7 +161,7 @@ export function UserConfigPanel() {
           <Card variant="transparent" className="p-1">
             <Card.Header className="flex flex-col gap-4 pb-0 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-3">
-                <i aria-hidden="true" className="bi bi-list-ul text-xl text-amber-300" />
+                <i aria-hidden="true" className="bi bi-list-ul text-xl text-accent" />
                 <h3 className="text-lg font-semibold tracking-tight text-foreground">用户列表</h3>
               </div>
 
@@ -317,7 +317,7 @@ export function UserConfigPanel() {
                         <Select.Indicator />
                       </Select.Trigger>
                       <Select.Popover>
-                        <ListBox>
+                        <ListBox className="bg-[var(--layout-panel-background)]">
                           <ListBox.Item id="owner" key="owner" textValue="站长">
                             站长
                           </ListBox.Item>
@@ -343,7 +343,7 @@ export function UserConfigPanel() {
                         <Select.Indicator />
                       </Select.Trigger>
                       <Select.Popover>
-                        <ListBox>
+                        <ListBox className="bg-[var(--layout-panel-background)]">
                           <ListBox.Item id="active" key="active" textValue="正常">
                             正常
                           </ListBox.Item>

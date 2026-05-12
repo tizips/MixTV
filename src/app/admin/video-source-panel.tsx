@@ -193,12 +193,12 @@ export function VideoSourcePanel() {
 
   return (
     <>
-      <Card className="border border-default-200/70 bg-background/70" variant="secondary">
+      <Card>
         <Card.Header className="flex flex-col gap-4 p-6 pb-0 md:p-8 md:pb-0">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <i aria-hidden="true" className="bi bi-broadcast text-2xl text-sky-300" />
+                <i aria-hidden="true" className="bi bi-broadcast text-2xl text-accent" />
                 <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">视频源配置</h2>
               </div>
               <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
@@ -423,7 +423,7 @@ export function VideoSourcePanel() {
                           <Select.Indicator />
                         </Select.Trigger>
                         <Select.Popover>
-                          <ListBox>
+                          <ListBox className="bg-[var(--layout-panel-background)]">
                             <ListBox.Item id="enabled" key="enabled" textValue="启用">
                               启用
                             </ListBox.Item>
@@ -449,7 +449,7 @@ export function VideoSourcePanel() {
                           <Select.Indicator />
                         </Select.Trigger>
                         <Select.Popover>
-                          <ListBox>
+                          <ListBox className="bg-[var(--layout-panel-background)]">
                             <ListBox.Item id="normal" key="normal" textValue="普通">
                               普通
                             </ListBox.Item>
@@ -475,7 +475,7 @@ export function VideoSourcePanel() {
                           <Select.Indicator />
                         </Select.Trigger>
                         <Select.Popover>
-                          <ListBox>
+                          <ListBox className="bg-[var(--layout-panel-background)]">
                             <ListBox.Item id="no" key="no" textValue="否">
                               否
                             </ListBox.Item>

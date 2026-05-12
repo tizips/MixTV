@@ -10,11 +10,10 @@ describe("ContentCard", () => {
     const html = renderToStaticMarkup(<ContentCard item={item} />);
 
     expect(html).toContain(item.title);
-    expect(html).toContain("bg-[var(--homepage-surface-strong)]");
-    expect(html).toContain("text-[var(--homepage-text)]");
+    expect(html).toContain("bg-surface-secondary");
+    expect(html).toContain("text-foreground");
     expect(html).toContain("bi-play-circle");
-    expect(html).not.toContain("bg-gray-800");
-    expect(html).not.toContain("border-[var(--homepage-border)]");
+    expect(html).not.toContain("homepage-");
   });
 
   it("renders continue-watching progress and actions", async () => {

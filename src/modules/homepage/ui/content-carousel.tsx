@@ -30,14 +30,14 @@ export function ContentCarousel({
   return (
     <section className="mb-8">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="inline-flex items-center gap-2 text-2xl font-bold text-[var(--homepage-text)]">
+        <h2 className="inline-flex items-center gap-2 text-2xl font-bold text-foreground">
           <i aria-hidden="true" className={`bi ${icon} text-[1.15em] ${iconClass}`} />
           <span>{title}</span>
         </h2>
         {moreLink && (
           <Link
             href={moreLink}
-            className="inline-flex items-center gap-1 text-sm text-[var(--homepage-muted)] transition-colors hover:text-[var(--homepage-text)]"
+            className="inline-flex items-center gap-1 text-sm text-muted transition-colors hover:text-foreground"
           >
             <span>查看更多</span>
             <i

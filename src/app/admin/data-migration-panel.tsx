@@ -51,12 +51,12 @@ export function DataMigrationPanel() {
   };
 
   return (
-    <Card className="border border-default-200/70 bg-background/70" variant="secondary">
+    <Card>
       <Card.Header className="flex flex-col gap-4 p-6 pb-0 md:p-8 md:pb-0">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <i aria-hidden="true" className="bi bi-arrow-repeat text-2xl text-orange-300" />
+              <i aria-hidden="true" className="bi bi-arrow-repeat text-2xl text-accent" />
               <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">数据迁移</h2>
             </div>
             <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
@@ -72,9 +72,9 @@ export function DataMigrationPanel() {
 
       <Card.Content className="grid gap-6 p-6 pt-5 md:p-8 md:pt-5">
         <section className="grid gap-4 lg:grid-cols-2">
-          <Card className="border border-default-200/80 bg-background/60" variant="secondary">
+          <Card className="border border-default-200/80 bg-background/20">
             <Card.Header className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-3 px-5 pb-3 pt-5">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-default-200 bg-background text-orange-300">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-default-200 bg-background text-accent">
                 <i aria-hidden="true" className="bi bi-box-arrow-up text-lg" />
               </span>
               <div className="grid min-w-0 gap-1">
@@ -109,9 +109,9 @@ export function DataMigrationPanel() {
             </Card.Content>
           </Card>
 
-          <Card className="border border-default-200/80 bg-background/60" variant="secondary">
+          <Card className="border border-default-200/80 bg-background/20">
             <Card.Header className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-3 px-5 pb-3 pt-5">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-default-200 bg-background text-sky-300">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-default-200 bg-background text-accent">
                 <i aria-hidden="true" className="bi bi-box-arrow-in-down text-lg" />
               </span>
               <div className="grid min-w-0 gap-1">
@@ -169,9 +169,9 @@ export function DataMigrationPanel() {
             {backupItems.map((item) => (
               <div
                 key={item.title}
-                className="flex items-center gap-3 rounded-xl border border-orange-100/80 bg-orange-50/70 px-4 py-3"
+                className="flex items-center gap-3 rounded-xl border border-warning-soft bg-warning-soft px-4 py-3"
               >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background/80 text-orange-500">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background/80 text-warning-soft-foreground">
                   <i aria-hidden="true" className={`bi ${item.icon}`} />
                 </span>
                 <span className="text-sm font-medium text-foreground">{item.title}</span>

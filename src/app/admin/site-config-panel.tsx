@@ -110,7 +110,7 @@ function ProxySelect({
       </Select.Trigger>
       <Description>{description}</Description>
       <Select.Popover>
-        <ListBox>
+        <ListBox className="bg-[var(--layout-panel-background)]">
           {options.map((option) => (
             <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
               {option.label}
@@ -134,12 +134,12 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
   };
 
   return (
-    <Card className="border border-default-200/70 bg-background/70" variant="secondary">
+    <Card>
       <Card.Header className="flex flex-col gap-3 p-6 pb-0 md:p-8 md:pb-0">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <i aria-hidden="true" className="bi bi-sliders text-2xl text-emerald-300" />
+              <i aria-hidden="true" className="bi bi-sliders text-2xl text-accent" />
               <div>
                 <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">站点配置</h2>
               </div>
@@ -265,7 +265,7 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
           </Button>
         </Form>
 
-        <aside className="space-y-6 rounded-3xl border border-default-200/70 bg-background/50 p-5">
+        <aside className="space-y-6 rounded-3xl border border-default-200/70  bg-background/50 p-5">
           <div className="space-y-3">
             <h3 className="text-lg font-semibold tracking-tight text-foreground">全站开关</h3>
             <p className="text-sm leading-6 text-default-500">
@@ -274,7 +274,7 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
           </div>
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-background/60 px-4 py-3">
+            <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-[var(--layout-panel-background)] px-4 py-3">
               <div>
                 <p className="text-sm font-medium text-foreground">启用关键词过滤</p>
                 <p className="text-xs text-default-500">过滤低质量搜索结果。</p>
@@ -295,7 +295,7 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
               </Switch>
             </div>
 
-            <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-background/60 px-4 py-3">
+            <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-[var(--layout-panel-background)] px-4 py-3">
               <div>
                 <p className="text-sm font-medium text-foreground">显示成人内容</p>
                 <p className="text-xs text-default-500">适配成人内容展示场景。</p>
@@ -316,7 +316,7 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
               </Switch>
             </div>
 
-            <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-background/60 px-4 py-3">
+            <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-[var(--layout-panel-background)] px-4 py-3">
               <div>
                 <p className="text-sm font-medium text-foreground">启用流式搜索</p>
                 <p className="text-xs text-default-500">让搜索结果更快呈现给用户。</p>

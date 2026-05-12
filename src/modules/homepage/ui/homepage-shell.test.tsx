@@ -12,9 +12,8 @@ describe("HomepageShell", () => {
     expect(html).toContain("MixTV");
     expect(html).toContain("欢迎");
     expect(html).toContain(data.heroBanner[0].title);
-    expect(html).toContain("min-h-screen p-4 text-[var(--homepage-text)]");
-    expect(html).not.toContain("bg-[var(--homepage-bg)]");
-    expect(html).not.toContain("bg-gray-900");
+    expect(html).toContain("min-h-screen p-4 text-foreground");
+    expect(html).not.toContain("homepage-");
     expect(html).not.toContain("bg-black/30");
   });
 

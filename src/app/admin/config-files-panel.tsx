@@ -33,12 +33,12 @@ export function ConfigFilesPanel() {
 
   return (
     <div>
-      <Card className="border border-default-200/70 bg-background/70" variant="secondary">
+      <Card>
         <Card.Header className="flex flex-col gap-4 p-6 pb-0 md:p-8 md:pb-0">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <i aria-hidden="true" className="bi bi-folder2-open text-2xl text-cyan-300" />
+                <i aria-hidden="true" className="bi bi-folder2-open text-2xl text-accent" />
                 <div>
                   {/* <p className="text-sm font-medium uppercase tracking-[0.24em] text-default-500">配置文件</p> */}
                   <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">配置文件</h2>

@@ -6,11 +6,11 @@ describe("LoadingOverlay", () => {
   it("renders tokenized loading chrome when visible", () => {
     const html = renderToStaticMarkup(<LoadingOverlay isLoading />);
 
-    expect(html).toContain("color-mix(in srgb, var(--homepage-bg) 80%, transparent)");
-    expect(html).toContain("background-color:var(--homepage-surface)");
-    expect(html).toContain("border-color:var(--homepage-border)");
-    expect(html).toContain("border-top-color:var(--homepage-text)");
-    expect(html).toContain("color:var(--homepage-text)");
+    expect(html).toContain("bg-backdrop");
+    expect(html).toContain("bg-surface");
+    expect(html).toContain("border-border");
+    expect(html).toContain("border-t-accent");
+    expect(html).toContain("text-foreground");
   });
 
   it("renders nothing when hidden", () => {

@@ -121,7 +121,7 @@ describe("UserMenu", () => {
     expect(html).toContain('aria-label="打开个人中心"');
     expect(html).toContain('data-variant="ghost"');
     expect(html).toContain('data-icon-only="true"');
-    expect(html).toContain("bi-person-circle");
+    expect(html).toContain("bi-person");
     expect(html).toContain('role="listbox"');
     expect(html).toContain("当前用户");
     expect(html).toContain("橘子");

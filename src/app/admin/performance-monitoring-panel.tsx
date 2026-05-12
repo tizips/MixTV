@@ -20,7 +20,7 @@ const metrics: Metric[] = [
     title: "进程 CPU",
     value: "18%",
     detail: "2 核 · Intel(R) Xeon(R) Platinum 82",
-    tone: "text-lime-500",
+    tone: "text-accent",
   },
   {
     key: "process-memory",
@@ -29,7 +29,7 @@ const metrics: Metric[] = [
     value: "412 MB",
     detail: "堆内存: 52.55 MB",
     detailAccent: "/ 68.05 MB",
-    tone: "text-sky-500",
+    tone: "text-accent",
   },
   {
     key: "system-memory",
@@ -38,7 +38,7 @@ const metrics: Metric[] = [
     value: "867.42 MB",
     detail: "总共 1.95 GB",
     detailAccent: "(43.5%)",
-    tone: "text-indigo-500",
+    tone: "text-accent",
   },
   {
     key: "db-query",
@@ -47,7 +47,7 @@ const metrics: Metric[] = [
     value: "1,248",
     detail: "平均: 5.2 次/请求",
     detailAccent: "(良好)",
-    tone: "text-emerald-500",
+    tone: "text-success",
   },
   {
     key: "request",
@@ -56,7 +56,7 @@ const metrics: Metric[] = [
     value: "3,906",
     detail: "平均响应: 417ms",
     detailAccent: "(可接受)",
-    tone: "text-amber-500",
+    tone: "text-warning",
   },
   {
     key: "api-traffic",
@@ -65,7 +65,7 @@ const metrics: Metric[] = [
     value: "86 MB",
     detail: "最近 1 分钟出入站流量",
     detailAccent: "(非常轻量)",
-    tone: "text-fuchsia-500",
+    tone: "text-accent",
   },
 ];
 
@@ -77,12 +77,12 @@ export function PerformanceMonitoringPanel() {
   };
 
   return (
-    <Card className="border border-default-200/70 bg-background/70" variant="secondary">
+    <Card>
       <Card.Header className="flex flex-col gap-4 p-6 pb-0 md:p-8 md:pb-0">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <i aria-hidden="true" className="bi bi-speedometer2 text-2xl text-lime-300" />
+              <i aria-hidden="true" className="bi bi-speedometer2 text-2xl text-accent" />
               <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">性能监控</h2>
             </div>
             <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
@@ -111,11 +111,11 @@ export function PerformanceMonitoringPanel() {
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {metrics.map((metric) => (
-              <Card key={metric.key} className="border border-default-200/80 bg-background/60" variant="secondary">
+              <Card key={metric.key} className="border border-default-200/80">
                 <Card.Header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 pb-2 pt-4">
                   <p className="min-w-0 text-base font-bold text-foreground">{metric.title}</p>
                   <span
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-default-200 bg-background ${metric.tone}`}
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${metric.tone}`}
                   >
                     <i aria-hidden="true" className={`bi ${metric.icon} text-base`} />
                   </span>

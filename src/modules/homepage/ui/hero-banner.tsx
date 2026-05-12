@@ -30,7 +30,7 @@ export function HeroBanner({ items }: HeroBannerProps) {
   const currentItem = items[currentIndex];
 
   return (
-    <div className="relative mb-8 h-[70vh] w-full overflow-hidden rounded-lg bg-[var(--homepage-surface-strong)]">
+    <div className="relative mb-8 h-[70vh] w-full overflow-hidden rounded-lg bg-surface-secondary">
       {/* Backdrop Image */}
       <div className="absolute inset-0">
         <Image
@@ -42,27 +42,25 @@ export function HeroBanner({ items }: HeroBannerProps) {
           sizes="100vw"
           onError={() => setImageError(true)}
         />
-        {/* Gradient Overlay */}
-        {/* <div className="absolute inset-0 bg-gradient-to-t from-[var(--homepage-bg)] via-[var(--homepage-bg)]/10 to-transparent" /> */}
       </div>
 
       {/* Content */}
       <div className="relative h-full flex items-end p-8 md:p-12">
         <div className="max-w-2xl">
           {/* Frosted Info Panel */}
-          <div className="rounded-lg bg-[var(--homepage-surface)] p-6 backdrop-blur-md">
-            <h2 className="mb-4 text-4xl font-bold text-[var(--homepage-text)] md:text-5xl">
+          <div className="rounded-lg bg-surface/85 p-6 shadow-surface backdrop-blur-md">
+            <h2 className="mb-4 text-4xl font-bold text-foreground md:text-5xl">
               {currentItem.title}
             </h2>
             <div className="flex items-center gap-4 mb-4">
-              <span className="text-lg font-semibold text-[var(--homepage-accent)]">
+              <span className="text-lg font-semibold text-accent">
                 ⭐ {currentItem.rating.toFixed(1)}
               </span>
-              <span className="text-sm uppercase text-[var(--homepage-muted)]">
+              <span className="text-sm uppercase text-muted">
                 {currentItem.type}
               </span>
             </div>
-            <p className="text-base leading-relaxed text-[var(--homepage-muted)] line-clamp-3">
+            <p className="text-base leading-relaxed text-muted line-clamp-3">
               {currentItem.description}
             </p>
           </div>
@@ -81,8 +79,8 @@ export function HeroBanner({ items }: HeroBannerProps) {
               }}
               className={`w-2 h-2 rounded-full transition-all ${
                 index === currentIndex
-                  ? "bg-[var(--homepage-accent)] w-8"
-                  : "bg-[var(--homepage-muted)]/50 hover:bg-[var(--homepage-muted)]/75"
+                  ? "bg-accent w-8"
+                  : "bg-muted/50 hover:bg-muted/75"
               }`}
               aria-label={`Go to slide ${index + 1}`}
             />

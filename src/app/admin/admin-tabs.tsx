@@ -41,7 +41,7 @@ const adminTabs: AdminTab[] = [
     key: "config-files",
     label: "配置文件",
     icon: "bi-folder2-open",
-    accent: "text-cyan-300",
+    accent: "text-accent",
     description: "统一查看和管理站点配置文件、导入导出和备份入口。",
     cards: [
       { title: "当前状态", value: "已连接" },
@@ -53,7 +53,7 @@ const adminTabs: AdminTab[] = [
     key: "site-config",
     label: "站点配置",
     icon: "bi-sliders",
-    accent: "text-emerald-300",
+    accent: "text-accent",
     description: "管理全站开关、公告、主题和站点基础信息。",
     cards: [
       { title: "站点名称", value: "MixTV" },
@@ -65,7 +65,7 @@ const adminTabs: AdminTab[] = [
     key: "homepage",
     label: "首页模块",
     icon: "bi-layout-text-window-reverse",
-    accent: "text-violet-300",
+    accent: "text-accent",
     description: "控制首页各模块开关、排序和首页展示策略。",
     cards: [
       { title: "模块开关", value: "8 项配置" },
@@ -77,7 +77,7 @@ const adminTabs: AdminTab[] = [
     key: "user-config",
     label: "用户配置",
     icon: "bi-people",
-    accent: "text-amber-300",
+    accent: "text-accent",
     description: "查看用户权限、登录方式、账号策略和管理操作入口。",
     cards: [
       { title: "管理员数量", value: "--" },
@@ -89,7 +89,7 @@ const adminTabs: AdminTab[] = [
     key: "video-source",
     label: "视频源配置",
     icon: "bi-broadcast",
-    accent: "text-sky-300",
+    accent: "text-accent",
     description: "集中管理站点内容源、健康状态和同步信息。",
     cards: [
       { title: "源数量", value: "--" },
@@ -101,7 +101,7 @@ const adminTabs: AdminTab[] = [
     key: "cloud-search",
     label: "网盘搜索",
     icon: "bi-cloud-arrow-down",
-    accent: "text-fuchsia-300",
+    accent: "text-accent",
     description: "管理网盘搜索入口、索引结果和搜索策略。",
     cards: [
       { title: "搜索模式", value: "关键词 / 链接" },
@@ -113,7 +113,7 @@ const adminTabs: AdminTab[] = [
     key: "danmaku",
     label: "弹幕配置",
     icon: "bi-chat-square-text",
-    accent: "text-rose-300",
+    accent: "text-accent",
     description: "控制弹幕开关、过滤规则和展示策略。",
     cards: [
       { title: "弹幕开关", value: "默认开启" },
@@ -125,7 +125,7 @@ const adminTabs: AdminTab[] = [
     key: "timing-management",
     label: "定时管理",
     icon: "bi-clock-history",
-    accent: "text-indigo-300",
+    accent: "text-accent",
     description: "集中管理定时任务、触发策略和执行记录。",
     cards: [
       { title: "任务数量", value: "--" },
@@ -137,7 +137,7 @@ const adminTabs: AdminTab[] = [
     key: "cache",
     label: "缓存管理",
     icon: "bi-database-fill-gear",
-    accent: "text-teal-300",
+    accent: "text-accent",
     description: "查看缓存命中、清理入口和缓存刷新动作。",
     cards: [
       { title: "缓存命中", value: "--" },
@@ -149,7 +149,7 @@ const adminTabs: AdminTab[] = [
     key: "migration",
     label: "数据迁移",
     icon: "bi-arrow-repeat",
-    accent: "text-orange-300",
+    accent: "text-accent",
     description: "承载数据导入、迁移任务、回滚和进度信息。",
     cards: [
       { title: "迁移任务", value: "0" },
@@ -161,7 +161,7 @@ const adminTabs: AdminTab[] = [
     key: "performance",
     label: "性能监控",
     icon: "bi-speedometer2",
-    accent: "text-lime-300",
+    accent: "text-accent",
     description: "展示接口耗时、错误率和系统运行情况。",
     cards: [
       { title: "请求耗时", value: "-- ms" },
@@ -257,7 +257,7 @@ export function AdminTabs() {
       variant="secondary"
     >
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <Tabs.ListContainer className="rounded-2xl border border-default-200/80 bg-background/70 p-2 shadow-sm lg:sticky lg:top-24 lg:self-start">
+        <Tabs.ListContainer className="rounded-2xl bg-[var(--layout-panel-background)] p-2 shadow-sm lg:sticky lg:top-24 lg:self-start">
           <Tabs.List aria-label="Admin navigation" className="gap-2 bg-transparent lg:flex-col">
             {adminTabs.map((tab) => (
               <Tabs.Tab key={tab.key} id={tab.key} className="w-full justify-start px-4 py-3 text-sm font-medium">

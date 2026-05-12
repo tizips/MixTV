@@ -102,12 +102,12 @@ export function CacheManagementPanel() {
   };
 
   return (
-    <Card className="border border-default-200/70 bg-background/70" variant="secondary">
+    <Card>
       <Card.Header className="flex flex-col gap-4 p-6 pb-0 md:p-8 md:pb-0">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <i aria-hidden="true" className="bi bi-database-fill-gear text-2xl text-teal-300" />
+              <i aria-hidden="true" className="bi bi-database-fill-gear text-2xl text-accent" />
               <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">缓存管理</h2>
             </div>
             <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
@@ -135,9 +135,9 @@ export function CacheManagementPanel() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
-            <Card className="overflow-hidden border border-sky-100/80 bg-sky-50/80" variant="secondary">
+            <Card className="overflow-hidden border border-accent-soft bg-accent-soft" variant="secondary">
               <Card.Header className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-3 px-5 pb-3 pt-5">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background/80 text-sky-500">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background/80 text-accent-soft-foreground">
                   <i aria-hidden="true" className="bi bi-stack text-lg" />
                 </span>
                 <div className="grid min-w-0 gap-1">
@@ -155,9 +155,9 @@ export function CacheManagementPanel() {
               </Card.Content>
             </Card>
 
-            <Card className="overflow-hidden border border-indigo-100/80 bg-indigo-50/70" variant="secondary">
+            <Card className="overflow-hidden border border-accent-soft bg-accent-soft" variant="secondary">
               <Card.Header className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-3 px-5 pb-3 pt-5">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background/80 text-indigo-500">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background/80 text-accent-soft-foreground">
                   <i aria-hidden="true" className="bi bi-hdd text-lg" />
                 </span>
                 <div className="grid min-w-0 gap-1">
@@ -175,9 +175,9 @@ export function CacheManagementPanel() {
               </Card.Content>
             </Card>
 
-            <Card className="overflow-hidden border border-teal-100/80 bg-teal-50/70" variant="secondary">
+            <Card className="overflow-hidden border border-accent-soft bg-accent-soft" variant="secondary">
               <Card.Header className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-3 px-5 pb-3 pt-5">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background/80 text-teal-500">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background/80 text-accent-soft-foreground">
                   <i aria-hidden="true" className="bi bi-grid-3x3-gap text-lg" />
                 </span>
                 <div className="grid min-w-0 gap-1">
@@ -207,9 +207,9 @@ export function CacheManagementPanel() {
 
           <div className="grid gap-4 lg:grid-cols-2">
             {cacheCategories.map((category) => (
-              <Card key={category.key} className="border border-default-200/80 bg-background/60" variant="secondary">
+              <Card key={category.key}>
                 <Card.Header className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-3 px-5 pb-3 pt-5">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-default-200 bg-background text-teal-300">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-default-200 bg-background text-accent">
                     <i aria-hidden="true" className={`bi ${category.icon} text-lg`} />
                   </span>
                   <div className="grid min-w-0 gap-1">
@@ -219,11 +219,11 @@ export function CacheManagementPanel() {
                 </Card.Header>
                 <Card.Content className="grid gap-4 px-5 pt-0">
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-sky-100/80 bg-sky-50/80 px-3 py-2">
+                    <div className="rounded-xl border border-accent-soft bg-accent-soft px-3 py-2">
                       <p className="text-xs text-default-500">缓存项</p>
                       <p className="text-base font-semibold text-foreground">{category.items}</p>
                     </div>
-                    <div className="rounded-xl border border-sky-100/80 bg-sky-50/80 px-3 py-2">
+                    <div className="rounded-xl border border-accent-soft bg-accent-soft px-3 py-2">
                       <p className="text-xs text-default-500">存储大小</p>
                       <p className="text-base font-semibold text-foreground">{formatSize(category.sizeKb)}</p>
                     </div>
