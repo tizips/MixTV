@@ -6,6 +6,7 @@ import { ConfigFilesPanel } from "./config-files-panel";
 import { HomepageConfigPanel } from "./homepage-config-panel";
 import { SiteConfigPanel } from "./site-config-panel";
 import { UserConfigPanel } from "./user-config-panel";
+import { VideoSourcePanel } from "./video-source-panel";
 
 type AdminTabKey =
   | "config-files"
@@ -164,7 +165,6 @@ const adminTabs: AdminTab[] = [
   },
 ];
 
-
 function PlaceholderAdminPanel({ tab }: { tab: AdminTab }) {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -275,6 +275,8 @@ export function AdminTabs() {
                 <HomepageConfigPanel />
               ) : tab.key === "user-config" ? (
                 <UserConfigPanel />
+              ) : tab.key === "video-source" ? (
+                <VideoSourcePanel />
               ) : (
                 <PlaceholderAdminPanel tab={tab} />
               )}
