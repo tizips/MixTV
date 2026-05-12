@@ -23,3 +23,16 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+[data-mixtv-artplayer] .art-bottom,
+[data-mixtv-artplayer] .art-controls,
+[data-mixtv-artplayer] .art-control,
+[data-mixtv-artplayer] .art-progress,
+[data-mixtv-artplayer] .art-mask {
+  display: none !important;
+}
+
+[data-mixtv-artplayer] .art-video-player {
+  height: 100% !important;
+  width: 100% !important;
+}
