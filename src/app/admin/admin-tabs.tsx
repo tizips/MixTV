@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button, Card, Chip, Separator, Tabs } from "@heroui/react";
 import { ConfigFilesPanel } from "./config-files-panel";
+import { CloudSearchPanel } from "./cloud-search-panel";
 import { HomepageConfigPanel } from "./homepage-config-panel";
 import { SiteConfigPanel } from "./site-config-panel";
 import { UserConfigPanel } from "./user-config-panel";
@@ -277,6 +278,8 @@ export function AdminTabs() {
                 <UserConfigPanel />
               ) : tab.key === "video-source" ? (
                 <VideoSourcePanel />
+              ) : tab.key === "cloud-search" ? (
+                <CloudSearchPanel />
               ) : (
                 <PlaceholderAdminPanel tab={tab} />
               )}
