@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  Alert,
   Button,
   Card,
   Chip,
@@ -62,6 +63,9 @@ export function UserConfigPanel() {
   const [newRole, setNewRole] = useState<UserRole>("user");
   const [newStatus, setNewStatus] = useState<UserStatus>("active");
   const [formError, setFormError] = useState("");
+  const activeUserCount = users.filter((user) => user.status === "active").length;
+  const bannedUserCount = users.filter((user) => user.status === "banned").length;
+  const ownerCount = users.filter((user) => user.role === "owner").length;
 
   const resetForm = () => {
     setNewUsername("");
@@ -128,10 +132,29 @@ export function UserConfigPanel() {
               </div>
             </Card.Header>
             <Card.Content>
-              <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-5">
-                <p className="text-3xl font-semibold tracking-tight text-emerald-700">{users.length}</p>
-                <p className="mt-2 text-sm font-medium text-emerald-300">用户总数</p>
-              </div>
+              <Alert status="accent">
+                <Alert.Indicator />
+                <Alert.Content className="gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <Alert.Title className="text-2xl font-semibold tracking-tight">{users.length}</Alert.Title>
+                    <Alert.Description>用户总数</Alert.Description>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-sm sm:min-w-80">
+                    <div>
+                      <p className="font-semibold text-foreground">{activeUserCount}</p>
+                      <p className="text-default-500">正常</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">{bannedUserCount}</p>
+                      <p className="text-default-500">封禁</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">{ownerCount}</p>
+                      <p className="text-default-500">站长</p>
+                    </div>
+                  </div>
+                </Alert.Content>
+              </Alert>
             </Card.Content>
           </Card>
 
