@@ -2,10 +2,15 @@
 
 import { useState } from "react";
 import { Button, Card, Chip, Separator, Tabs } from "@heroui/react";
+import { CacheManagementPanel } from "./cache-management-panel";
 import { ConfigFilesPanel } from "./config-files-panel";
 import { CloudSearchPanel } from "./cloud-search-panel";
+import { DanmakuPanel } from "./danmaku-panel";
+import { DataMigrationPanel } from "./data-migration-panel";
 import { HomepageConfigPanel } from "./homepage-config-panel";
+import { PerformanceMonitoringPanel } from "./performance-monitoring-panel";
 import { SiteConfigPanel } from "./site-config-panel";
+import { TimingManagementPanel } from "./timing-management-panel";
 import { UserConfigPanel } from "./user-config-panel";
 import { VideoSourcePanel } from "./video-source-panel";
 
@@ -280,6 +285,16 @@ export function AdminTabs() {
                 <VideoSourcePanel />
               ) : tab.key === "cloud-search" ? (
                 <CloudSearchPanel />
+              ) : tab.key === "danmaku" ? (
+                <DanmakuPanel />
+              ) : tab.key === "timing-management" ? (
+                <TimingManagementPanel />
+              ) : tab.key === "cache" ? (
+                <CacheManagementPanel />
+              ) : tab.key === "migration" ? (
+                <DataMigrationPanel />
+              ) : tab.key === "performance" ? (
+                <PerformanceMonitoringPanel />
               ) : (
                 <PlaceholderAdminPanel tab={tab} />
               )}
