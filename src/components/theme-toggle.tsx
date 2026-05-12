@@ -1,85 +1,72 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
 import { Button } from "@heroui/react";
+import { useTheme } from "next-themes";
+import { useSyncExternalStore } from "react";
 
-type ThemeMode = "auto" | "light" | "dark";
+type ThemeMode = "system" | "light" | "dark";
 
-const storageKey = "mixtv-theme-mode";
-const themeModes: ThemeMode[] = ["auto", "light", "dark"];
+const themeModes: ThemeMode[] = ["system", "light", "dark"];
 
 const modeConfig: Record<ThemeMode, { icon: string; label: string }> = {
-  auto: { icon: "bi-circle-half", label: "自动" },
+  system: { icon: "bi-circle-half", label: "自动" },
   light: { icon: "bi-sun-fill", label: "浅色" },
   dark: { icon: "bi-moon-stars-fill", label: "深色" },
 };
-
-const themeModeListeners = new Set<() => void>();
-
-function isThemeMode(value: string | null): value is ThemeMode {
-  return value === "auto" || value === "light" || value === "dark";
-}
-
-function applyThemeMode(mode: ThemeMode) {
-  if (mode === "auto") {
-    document.documentElement.removeAttribute("data-theme");
-    return;
-  }
-
-  document.documentElement.dataset.theme = mode;
-}
 
 function getNextMode(mode: ThemeMode): ThemeMode {
   const currentIndex = themeModes.indexOf(mode);
   return themeModes[(currentIndex + 1) % themeModes.length];
 }
 
-function getThemeModeSnapshot(): ThemeMode {
-  const storedMode = localStorage.getItem(storageKey);
-  return isThemeMode(storedMode) ? storedMode : "auto";
+function getThemeMode(theme?: string): ThemeMode {
+  return theme === "light" || theme === "dark" || theme === "system" ? theme : "system";
 }
 
-function getServerThemeModeSnapshot(): ThemeMode {
-  return "auto";
-}
-
-function subscribeToThemeMode(onStoreChange: () => void) {
-  function handleStorage(event: StorageEvent) {
-    if (event.key === storageKey) {
-      onStoreChange();
-    }
-  }
-
-  themeModeListeners.add(onStoreChange);
-  window.addEventListener("storage", handleStorage);
+function subscribeToClientMount(onStoreChange: () => void) {
+  const timeoutId = window.setTimeout(onStoreChange, 0);
 
   return () => {
-    themeModeListeners.delete(onStoreChange);
-    window.removeEventListener("storage", handleStorage);
+    window.clearTimeout(timeoutId);
   };
 }
 
-function setStoredThemeMode(mode: ThemeMode) {
-  localStorage.setItem(storageKey, mode);
-  themeModeListeners.forEach((listener) => listener());
+function getClientMountSnapshot() {
+  return true;
+}
+
+function getServerMountSnapshot() {
+  return false;
 }
 
 export function ThemeToggle() {
-  const mode = useSyncExternalStore(
-    subscribeToThemeMode,
-    getThemeModeSnapshot,
-    getServerThemeModeSnapshot,
+  const { setTheme, theme } = useTheme();
+  const mounted = useSyncExternalStore(
+    subscribeToClientMount,
+    getClientMountSnapshot,
+    getServerMountSnapshot,
   );
+  const mode = getThemeMode(theme);
   const config = modeConfig[mode];
-
-  useEffect(() => {
-    applyThemeMode(mode);
-  }, [mode]);
 
   function handlePress() {
     const nextMode = getNextMode(mode);
 
-    setStoredThemeMode(nextMode);
+    setTheme(nextMode);
+  }
+
+  if (!mounted) {
+    return (
+      <Button
+        aria-label="主题切换初始化中"
+        className="h-10 w-10 rounded-full p-0"
+        isDisabled
+        isIconOnly
+        variant="ghost"
+      >
+        <i aria-hidden="true" className="bi bi-circle-half text-base" />
+      </Button>
+    );
   }
 
   return (

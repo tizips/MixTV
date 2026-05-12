@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { Button, Card, Chip, Separator, Tabs } from "@heroui/react";
 import { ConfigFilesPanel } from "./config-files-panel";
+import { HomepageConfigPanel } from "./homepage-config-panel";
 import { SiteConfigPanel } from "./site-config-panel";
+import { UserConfigPanel } from "./user-config-panel";
 
 type AdminTabKey =
   | "config-files"
@@ -13,6 +15,7 @@ type AdminTabKey =
   | "video-source"
   | "cloud-search"
   | "danmaku"
+  | "timing-management"
   | "cache"
   | "migration"
   | "performance";
@@ -58,7 +61,7 @@ const adminTabs: AdminTab[] = [
     accent: "text-violet-300",
     description: "控制首页各模块开关、排序和首页展示策略。",
     cards: [
-      { title: "模块开关", value: "9 项配置" },
+      { title: "模块开关", value: "8 项配置" },
       { title: "缓存刷新", value: "待接入" },
       { title: "展示预览", value: "可切换" },
     ],
@@ -112,6 +115,18 @@ const adminTabs: AdminTab[] = [
     ],
   },
   {
+    key: "timing-management",
+    label: "定时管理",
+    icon: "bi-clock-history",
+    accent: "text-indigo-300",
+    description: "集中管理定时任务、触发策略和执行记录。",
+    cards: [
+      { title: "任务数量", value: "--" },
+      { title: "运行状态", value: "待接入" },
+      { title: "最近执行", value: "--" },
+    ],
+  },
+  {
     key: "cache",
     label: "缓存管理",
     icon: "bi-database-fill-gear",
@@ -148,6 +163,7 @@ const adminTabs: AdminTab[] = [
     ],
   },
 ];
+
 
 function PlaceholderAdminPanel({ tab }: { tab: AdminTab }) {
   return (
@@ -255,6 +271,10 @@ export function AdminTabs() {
                 <ConfigFilesPanel />
               ) : tab.key === "site-config" ? (
                 <SiteConfigPanel />
+              ) : tab.key === "homepage" ? (
+                <HomepageConfigPanel />
+              ) : tab.key === "user-config" ? (
+                <UserConfigPanel />
               ) : (
                 <PlaceholderAdminPanel tab={tab} />
               )}

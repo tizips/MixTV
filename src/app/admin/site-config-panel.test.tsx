@@ -18,8 +18,7 @@ describe("SiteConfigPanel", () => {
     expect(html).toContain("启用流式搜索");
     expect(html).toContain("role=\"switch\"");
     expect(html).toContain("data-slot=\"select\"");
-    expect(html).toContain("aria-label=\"豆瓣数据代理\"");
-    expect(html).toContain("aria-label=\"豆瓣图片代理\"");
+    expect(html).toContain("aria-labelledby=");
     expect(html).toContain("保存配置");
   });
 

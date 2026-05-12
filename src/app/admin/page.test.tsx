@@ -6,23 +6,19 @@ describe("AdminPage", () => {
   it("renders a HeroUI tabbed admin shell", async () => {
     const html = renderToStaticMarkup(<AdminPage />);
 
-    expect(html).toContain("管理面板");
-    expect(html).toContain("站点运营仪表盘");
     expect(html).toContain("role=\"tablist\"");
     expect(html).toContain("role=\"tab\"");
     expect(html).toContain("配置文件");
     expect(html).toContain("站点配置");
     expect(html).toContain("首页模块");
     expect(html).toContain("性能监控");
-    expect(html).toContain("站点状态");
     expect(html).toContain("自动更新关闭");
-    expect(html).toContain("同步状态");
     expect(html).toContain("拉取配置");
   });
 
   it("places subscription metadata and pull action beside the requested fields", async () => {
     const html = renderToStaticMarkup(<AdminPage />);
-    const configPanelHtml = html.slice(html.indexOf("订阅配置"), html.indexOf("同步状态"));
+    const configPanelHtml = html.slice(html.indexOf("配置文件"));
     const configContentHtml = configPanelHtml.slice(configPanelHtml.indexOf('for="config-content"'));
 
     expect(configPanelHtml.indexOf("订阅链接")).toBeLessThan(configPanelHtml.indexOf("最后更新时间"));

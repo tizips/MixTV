@@ -27,9 +27,9 @@ describe("SiteHeader", () => {
     expect(html).toContain("搜索");
     expect(html).toContain("源浏览器");
     expect(html).toContain("电影");
-    expect(html).toContain("切换主题，当前自动");
+    expect(html).toContain("主题切换初始化中");
     expect(html).toContain("打开个人中心");
-    expect(html.indexOf("切换主题，当前自动")).toBeLessThan(html.indexOf("打开个人中心"));
+    expect(html.indexOf("主题切换初始化中")).toBeLessThan(html.indexOf("打开个人中心"));
     expect(html).not.toContain("bg-white/70");
     expect(html).toContain("bi-person-circle");
     expect(html).toContain("aria-label=\"打开个人中心\"");
