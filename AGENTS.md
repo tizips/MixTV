@@ -16,6 +16,14 @@
 - Before changing Next-specific APIs, check the local docs under `node_modules/next/dist/docs/` and heed deprecations.
 - `src/app/` is the App Router entrypoint; there is no root `app/` directory.
 
+## Runtime Requirement
+
+- Edge Runtime / Worker Runtime compatibility is a mandatory requirement for this project, not an optional optimization.
+- When adding or changing auth, middleware, route handlers, data access, caching, crypto, or request interception, prefer Web Platform APIs (`fetch`, `crypto.subtle`, Web Streams, standard `URL`) and designs that can run in Edge-like runtimes.
+- Do not introduce Node-only runtime dependencies into code paths that may be used by `middleware.ts`, auth session/token validation, or other request-bound infrastructure expected to run in Edge/Worker environments.
+- If a feature cannot fully run in Edge/Worker environments, isolate the Node-only part behind a narrow server-only boundary and keep the request gating / token validation path Edge-compatible.
+- Treat this as an enforceable architecture rule: new implementations must preserve or improve Edge/Worker compatibility, not regress it.
+
 ## Architecture
 
 - The intended architecture is a single Next.js deployment with modular-monolith boundaries. The detailed rationale is in `docs/superpowers/specs/2026-05-09-mixtv-nextjs-monolith-design.md`.
