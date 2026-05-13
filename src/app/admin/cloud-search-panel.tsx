@@ -169,7 +169,7 @@ export function CloudSearchPanel() {
 
           <ListBox
             aria-label="支持的网盘类型"
-            className="gap-2 rounded-2xl bg-[var(--layout-panel-background)] p-2"
+            className="gap-2 rounded-2xl bg-[var(--surface)] p-2"
             selectedKeys={selectedDriveTypeKeys}
             selectionMode="multiple"
             onSelectionChange={handleDriveTypeSelectionChange}

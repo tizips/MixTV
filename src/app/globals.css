@@ -1,12 +1,6 @@
 @import "tailwindcss";
 @import "@heroui/styles";
 
-:root {
-  --layout-panel-background: var(--surface);
-  --layout-panel-border: var(--border);
-  --layout-panel-shadow: var(--surface-shadow);
-}
-
 body {
   background: var(--background);
   color: var(--foreground);

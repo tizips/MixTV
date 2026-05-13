@@ -423,7 +423,7 @@ export function VideoSourcePanel() {
                           <Select.Indicator />
                         </Select.Trigger>
                         <Select.Popover>
-                          <ListBox className="bg-[var(--layout-panel-background)]">
+                          <ListBox className="bg-[var(--surface)]">
                             <ListBox.Item id="enabled" key="enabled" textValue="启用">
                               启用
                             </ListBox.Item>
@@ -449,7 +449,7 @@ export function VideoSourcePanel() {
                           <Select.Indicator />
                         </Select.Trigger>
                         <Select.Popover>
-                          <ListBox className="bg-[var(--layout-panel-background)]">
+                          <ListBox className="bg-[var(--surface)]">
                             <ListBox.Item id="normal" key="normal" textValue="普通">
                               普通
                             </ListBox.Item>
@@ -475,7 +475,7 @@ export function VideoSourcePanel() {
                           <Select.Indicator />
                         </Select.Trigger>
                         <Select.Popover>
-                          <ListBox className="bg-[var(--layout-panel-background)]">
+                          <ListBox className="bg-[var(--surface)]">
                             <ListBox.Item id="no" key="no" textValue="否">
                               否
                             </ListBox.Item>

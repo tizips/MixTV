@@ -31,9 +31,10 @@ describe("SiteHeader", () => {
     expect(html).toContain("打开个人中心");
     expect(html.indexOf("主题切换初始化中")).toBeLessThan(html.indexOf("打开个人中心"));
     expect(html).not.toContain("bg-white/70");
-    expect(html).toContain("bg-[var(--layout-panel-background)]");
-    expect(html).toContain("border-[var(--layout-panel-border)]");
-    expect(html).toContain("shadow-[var(--layout-panel-shadow)]");
+    expect(html).not.toContain("border-[var(--border)]");
+    expect(html).toContain("bg-[color-mix(in_oklab,var(--surface)_78%,transparent)]");
+    expect(html).toContain("backdrop-blur-2xl");
+    expect(html).toContain("backdrop-saturate-150");
     expect(html).toContain("bi-person");
     expect(html).toContain("aria-label=\"打开个人中心\"");
   });

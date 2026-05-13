@@ -21,7 +21,7 @@ export function SiteHeader() {
   const isAdmin = true;
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b border-[var(--layout-panel-border)] bg-[var(--layout-panel-background)] shadow-[var(--layout-panel-shadow)] backdrop-blur-xl">
+    <header className="fixed inset-x-0 top-0 z-50 bg-[color-mix(in_oklab,var(--surface)_78%,transparent)] shadow-[0_14px_40px_color-mix(in_oklab,var(--foreground)_8%,transparent)] backdrop-blur-2xl backdrop-saturate-150">
       <div className="mx-auto flex h-16 w-full items-center gap-4 px-4 md:px-6 lg:px-12">
         <div className="min-w-0 shrink-0">
           <Link

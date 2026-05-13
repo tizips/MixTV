@@ -110,7 +110,7 @@ function ProxySelect({
       </Select.Trigger>
       <Description>{description}</Description>
       <Select.Popover>
-        <ListBox className="bg-[var(--layout-panel-background)]">
+        <ListBox className="bg-[var(--surface)]">
           {options.map((option) => (
             <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
               {option.label}
@@ -274,7 +274,7 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
           </div>
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-[var(--layout-panel-background)] px-4 py-3">
+            <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-[var(--surface)] px-4 py-3">
               <div>
                 <p className="text-sm font-medium text-foreground">启用关键词过滤</p>
                 <p className="text-xs text-default-500">过滤低质量搜索结果。</p>
@@ -295,7 +295,7 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
               </Switch>
             </div>
 
-            <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-[var(--layout-panel-background)] px-4 py-3">
+            <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-[var(--surface)] px-4 py-3">
               <div>
                 <p className="text-sm font-medium text-foreground">显示成人内容</p>
                 <p className="text-xs text-default-500">适配成人内容展示场景。</p>
@@ -316,7 +316,7 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
               </Switch>
             </div>
 
-            <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-[var(--layout-panel-background)] px-4 py-3">
+            <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-[var(--surface)] px-4 py-3">
               <div>
                 <p className="text-sm font-medium text-foreground">启用流式搜索</p>
                 <p className="text-xs text-default-500">让搜索结果更快呈现给用户。</p>

@@ -317,7 +317,7 @@ export function UserConfigPanel() {
                         <Select.Indicator />
                       </Select.Trigger>
                       <Select.Popover>
-                        <ListBox className="bg-[var(--layout-panel-background)]">
+                        <ListBox className="bg-[var(--surface)]">
                           <ListBox.Item id="owner" key="owner" textValue="站长">
                             站长
                           </ListBox.Item>
@@ -343,7 +343,7 @@ export function UserConfigPanel() {
                         <Select.Indicator />
                       </Select.Trigger>
                       <Select.Popover>
-                        <ListBox className="bg-[var(--layout-panel-background)]">
+                        <ListBox className="bg-[var(--surface)]">
                           <ListBox.Item id="active" key="active" textValue="正常">
                             正常
                           </ListBox.Item>

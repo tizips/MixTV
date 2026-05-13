@@ -257,7 +257,7 @@ export function AdminTabs() {
       variant="secondary"
     >
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <Tabs.ListContainer className="rounded-2xl bg-[var(--layout-panel-background)] p-2 shadow-sm lg:sticky lg:top-24 lg:self-start">
+        <Tabs.ListContainer className="rounded-2xl bg-[var(--surface)] p-2 shadow-sm lg:sticky lg:top-24 lg:self-start">
           <Tabs.List aria-label="Admin navigation" className="gap-2 bg-transparent lg:flex-col">
             {adminTabs.map((tab) => (
               <Tabs.Tab key={tab.key} id={tab.key} className="w-full justify-start px-4 py-3 text-sm font-medium">
