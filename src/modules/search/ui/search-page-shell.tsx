@@ -260,6 +260,79 @@ function SearchResultItem({ result, viewMode }: { result: SearchResult; viewMode
   );
 }
 
+function SearchHistoryPanel({
+  keywords,
+  onDelete,
+  onSearch,
+}: {
+  keywords: string[];
+  onDelete: (keyword: string) => void;
+  onSearch: (keyword: string) => void;
+}) {
+  return (
+    <div className="grid gap-4 rounded-[1.2rem] bg-[var(--surface)] p-4 shadow-[0_18px_58px_rgba(15,23,42,0.07)] backdrop-blur-xl md:p-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-normal text-foreground">搜索历史</h1>
+          <p className="mt-1 text-sm text-default-600">点击关键词直接搜索。</p>
+        </div>
+        <span className="rounded-full bg-default-100 px-3 py-1 text-xs font-medium text-default-600">
+          {keywords.length} 条
+        </span>
+      </div>
+
+      {keywords.length > 0 ? (
+        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
+          {keywords.map((keyword) => (
+            <article
+              key={keyword}
+              className="group grid min-w-0 grid-cols-[1.75rem_minmax(0,1fr)_1.75rem] items-center gap-2 rounded-xl bg-surface-secondary/64 px-2.5 py-2 text-left shadow-[0_8px_24px_rgba(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:bg-surface-secondary hover:shadow-[0_14px_34px_rgba(15,23,42,0.10)]"
+            >
+              <button
+                aria-label={`搜索 ${keyword}`}
+                className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg bg-accent/10 text-sm text-accent transition group-hover:bg-accent group-hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                type="button"
+                onClick={() => onSearch(keyword)}
+              >
+                <i aria-hidden="true" className="bi bi-clock-history" />
+              </button>
+              <button
+                className="min-w-0 cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                type="button"
+                onClick={() => onSearch(keyword)}
+              >
+                <span className="block truncate text-sm font-semibold leading-5 text-foreground transition-colors group-hover:text-accent">
+                  {keyword}
+                </span>
+              </button>
+              <button
+                aria-label={`删除搜索历史 ${keyword}`}
+                className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-xs text-default-400 transition hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
+                type="button"
+                onClick={() => onDelete(keyword)}
+              >
+                <i aria-hidden="true" className="bi bi-trash3" />
+              </button>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="grid min-h-44 place-items-center rounded-[1rem] border border-dashed border-default-200 bg-background/50 p-8 text-center">
+          <div className="grid justify-items-center gap-3">
+            <span className="grid h-12 w-12 place-items-center rounded-full bg-default-100 text-xl text-default-500">
+              <i aria-hidden="true" className="bi bi-clock-history" />
+            </span>
+            <div>
+              <p className="font-medium text-foreground">暂无搜索历史</p>
+              <p className="mt-1 text-sm text-default-600">搜索后会自动记录关键词。</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function VirtualizedResults({
   resetKey,
   results,
@@ -339,13 +412,14 @@ export function SearchPageShell() {
     const type = getUrlSearchParams().get("type");
     return isSearchType(type) ? type : "media";
   });
-  const [queryInput, setQueryInput] = useState(() => getUrlSearchParams().get("q") ?? "");
-  const [activeQuery, setActiveQuery] = useState(() => getUrlSearchParams().get("q")?.trim() ?? "");
+  const [queryInput, setQueryInput] = useState("");
+  const [activeQuery, setActiveQuery] = useState("");
   const [searchRequestId, setSearchRequestId] = useState(0);
   const [streamStatus, setStreamStatus] = useState<SearchStreamStatus>("idle");
   const [streamedResults, setStreamedResults] = useState<SearchResult[]>([]);
   const [completedSources, setCompletedSources] = useState(0);
   const [totalSources, setTotalSources] = useState(0);
+  const [searchHistory, setSearchHistory] = useState(historyKeywords);
   const [titleFilter, setTitleFilter] = useState(() => getUrlSearchParams().get("category") ?? "全部");
   const [sortMode, setSortMode] = useState<SortMode>(() => {
     const sort = getUrlSearchParams().get("sort");
@@ -360,6 +434,17 @@ export function SearchPageShell() {
   const baseResults = streamedResults;
   const isStreaming = streamStatus === "searching";
   const resultResetKey = `${searchType}-${activeQuery}-${searchRequestId}`;
+
+  function clearSearch() {
+    setQueryInput("");
+    setActiveQuery("");
+    setStreamStatus("idle");
+    setStreamedResults([]);
+    setCompletedSources(0);
+    setTotalSources(0);
+    setTitleFilter("全部");
+    setSortMode("relevance");
+  }
 
   useEffect(() => {
     const normalizedQuery = activeQuery.trim();
@@ -407,10 +492,6 @@ export function SearchPageShell() {
 
     const params = new URLSearchParams();
 
-    if (activeQuery.trim()) {
-      params.set("q", activeQuery.trim());
-    }
-
     if (searchType !== "media") {
       params.set("type", searchType);
     }
@@ -431,7 +512,7 @@ export function SearchPageShell() {
     const nextUrl = nextSearch ? `${window.location.pathname}?${nextSearch}` : window.location.pathname;
 
     window.history.replaceState(null, "", nextUrl);
-  }, [activeQuery, searchType, sortMode, titleFilter, viewMode]);
+  }, [searchType, sortMode, titleFilter, viewMode]);
 
   const visibleResults = useMemo(() => {
     const filtered = baseResults.filter((result) => {
@@ -460,6 +541,10 @@ export function SearchPageShell() {
 
     setQueryInput(normalizedKeyword);
     setActiveQuery(normalizedKeyword);
+    setSearchHistory((currentHistory) => [
+      normalizedKeyword,
+      ...currentHistory.filter((keyword) => keyword !== normalizedKeyword),
+    ]);
     setStreamStatus("searching");
     setStreamedResults([]);
     setCompletedSources(0);
@@ -467,6 +552,10 @@ export function SearchPageShell() {
     setTitleFilter("全部");
     setSortMode("relevance");
     setSearchRequestId((value) => value + 1);
+  }
+
+  function deleteHistoryKeyword(keyword: string) {
+    setSearchHistory((currentHistory) => currentHistory.filter((currentKeyword) => currentKeyword !== keyword));
   }
 
   return (
@@ -510,7 +599,7 @@ export function SearchPageShell() {
                   aria-label="清除搜索关键词"
                   className="grid h-14 w-11 cursor-pointer place-items-center bg-transparent text-base text-default-400 transition hover:text-foreground focus-visible:outline-none focus-visible:text-accent"
                   type="button"
-                  onClick={() => setQueryInput("")}
+                  onClick={clearSearch}
                 >
                   <i aria-hidden="true" className="bi bi-x-circle-fill" />
                 </button>
@@ -644,20 +733,7 @@ export function SearchPageShell() {
               ) : null}
             </div>
           ) : (
-            <div className="grid gap-4 rounded-[1.2rem] border border-default-200/70 bg-surface/72 p-4 shadow-[0_18px_58px_rgba(15,23,42,0.07)] ring-1 ring-white/40 backdrop-blur-xl dark:ring-white/10 md:p-5">
-              <div>
-                <h1 className="text-2xl font-semibold tracking-normal text-foreground">搜索历史</h1>
-                <p className="mt-1 text-sm text-default-500">点击关键词直接搜索。</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {historyKeywords.map((keyword) => (
-                  <Button key={keyword} className="rounded-full" type="button" variant="ghost" onPress={() => runSearch(keyword)}>
-                    <i aria-hidden="true" className="bi bi-clock-history" />
-                    {keyword}
-                  </Button>
-                ))}
-              </div>
-            </div>
+            <SearchHistoryPanel keywords={searchHistory} onDelete={deleteHistoryKeyword} onSearch={runSearch} />
           )}
         </div>
       </div>
