@@ -43,8 +43,8 @@
 ## Current Baseline
 
 - Implemented modules are still minimal: `auth`, `search`, and `playback` currently expose small public APIs/placeholders.
-- Existing shared contracts: `AppError`, `StoragePort`, `CachePort`, auth `Session`/`Permission` types.
-- Existing tests cover architecture folders, shared errors/storage contract, auth permissions, and memory adapters.
+- Existing shared contracts: DB ports/types.
+- Existing tests cover architecture folders, shared DB contracts, auth permissions, and memory adapters.
 - The Phase 1 plan lives at `docs/superpowers/plans/2026-05-09-mixtv-foundation-phase1.md`; verify against current source because plan checkboxes may lag behind implemented files.
 
 ## Tooling Quirks

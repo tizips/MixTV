@@ -9,12 +9,9 @@ const requiredPaths = [
   "src/modules/auth/infrastructure",
   "src/modules/auth/server",
   "src/modules/auth/ui",
-  "src/shared/errors",
-  "src/shared/storage",
-  "src/shared/cache",
+  "src/shared/db",
   "src/integrations/tmdb",
-  "src/infrastructure/storage",
-  "src/infrastructure/cache",
+  "src/infrastructure/db",
 ];
 
 describe("folder layout", () => {
