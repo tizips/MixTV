@@ -2,6 +2,7 @@
 export type Permission = string;
 
 export type Session = {
-  userId: string;
-  permissions: Permission[];
+  admin: boolean;
+  id: string;
+  name: string;
 };
