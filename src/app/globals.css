@@ -1,6 +1,16 @@
 @import "tailwindcss";
 @import "@heroui/styles";
 
+:root {
+  --accent: oklch(0.696 0.17 162);
+  --accent-foreground: oklch(0.985 0.004 95);
+}
+
+.dark {
+  --accent: oklch(0.74 0.16 162);
+  --accent-foreground: oklch(0.145 0.02 162);
+}
+
 body {
   background:
     radial-gradient(circle at 12% 14%, rgba(132, 216, 198, 0.28), transparent 34%),

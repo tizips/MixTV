@@ -17,6 +17,10 @@ const navItems = [
 
 export function SiteHeader() {
   const pathname = usePathname();
+  if (pathname === "/login") {
+    return null;
+  }
+
   const userName = "MixTV 用户";
   const isAdmin = true;
 
