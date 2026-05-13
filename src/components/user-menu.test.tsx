@@ -17,6 +17,8 @@ type MockButtonProps = {
   children: ReactNode;
   className?: string;
   isIconOnly?: boolean;
+  onPress?: () => void;
+  slot?: string;
   variant?: string;
 };
 
@@ -46,6 +48,10 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+vi.mock("next-auth/react", () => ({
+  signOut: vi.fn(),
+}));
+
 vi.mock("@heroui/react", () => {
   function Dropdown({ children }: MockDropdownProps) {
     return <div data-testid="dropdown">{children}</div>;
@@ -57,12 +63,13 @@ vi.mock("@heroui/react", () => {
 
   Dropdown.Popover = DropdownPopover;
 
-  function Button({ "aria-label": ariaLabel, children, className, isIconOnly, variant }: MockButtonProps) {
+  function Button({ "aria-label": ariaLabel, children, className, isIconOnly, slot, variant }: MockButtonProps) {
     return (
       <button
         aria-label={ariaLabel}
         className={className}
         data-icon-only={isIconOnly ? "true" : undefined}
+        data-slot={slot}
         data-variant={variant}
         type="button"
       >
@@ -105,12 +112,59 @@ vi.mock("@heroui/react", () => {
     return <li aria-hidden="true" className="border-y border-default-200" role="separator" />;
   }
 
+  function AlertDialog({ children }: MockDropdownProps) {
+    return <div data-testid="alert-dialog">{children}</div>;
+  }
+
+  function AlertDialogBackdrop({ children }: MockDropdownProps) {
+    return <div data-testid="alert-dialog-backdrop">{children}</div>;
+  }
+
+  function AlertDialogContainer({ children }: MockDropdownProps) {
+    return <div data-testid="alert-dialog-container">{children}</div>;
+  }
+
+  function AlertDialogDialog({ children }: MockDropdownProps) {
+    return <div data-testid="alert-dialog-dialog">{children}</div>;
+  }
+
+  function AlertDialogHeader({ children, className }: { children: ReactNode; className?: string }) {
+    return <div className={className} data-testid="alert-dialog-header">{children}</div>;
+  }
+
+  function AlertDialogHeading({ children, className }: { children: ReactNode; className?: string }) {
+    return <h2 className={className}>{children}</h2>;
+  }
+
+  function AlertDialogBody({ children, className }: { children: ReactNode; className?: string }) {
+    return <div className={className}>{children}</div>;
+  }
+
+  function AlertDialogFooter({ children, className }: { children: ReactNode; className?: string }) {
+    return <div className={className}>{children}</div>;
+  }
+
+  function AlertDialogIcon({ children }: MockDropdownProps) {
+    return <div>{children}</div>;
+  }
+
+  AlertDialog.Backdrop = AlertDialogBackdrop;
+  AlertDialog.Container = AlertDialogContainer;
+  AlertDialog.Dialog = AlertDialogDialog;
+  AlertDialog.Header = AlertDialogHeader;
+  AlertDialog.Heading = AlertDialogHeading;
+  AlertDialog.Body = AlertDialogBody;
+  AlertDialog.Footer = AlertDialogFooter;
+  AlertDialog.Icon = AlertDialogIcon;
+
   return {
+    AlertDialog,
     Button,
     Dropdown,
     Label,
     ListBox,
     Separator,
+    useOverlayState: () => ({ close: vi.fn(), open: vi.fn() }),
   };
 });
 
@@ -141,6 +195,14 @@ describe("UserMenu", () => {
     expect(html).toContain("bi-bar-chart");
     expect(html).toContain("bi-calendar-event");
     expect(html).toContain("登出");
+    expect(html).toContain("确认登出");
+    expect(html).toContain("确定要退出当前账号吗？");
+    expect(html).toContain("取消");
+    expect(html).toContain("space-y-2");
+    expect(html).toContain("text-[11px] text-default-300");
+    expect(html).toContain("flex items-center justify-between gap-3");
+    expect(html).toContain("text-center");
+    expect(html).toContain("data-slot=\"close\"");
     expect(html).toContain("bi-box-arrow-right");
     expect(html).toContain("text-danger");
     expect(html).toContain("border-y border-default-200");

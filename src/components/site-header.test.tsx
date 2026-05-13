@@ -18,9 +18,13 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+vi.mock("next-auth/react", () => ({
+  signOut: vi.fn(),
+}));
+
 describe("SiteHeader", () => {
   it("renders the shared navigation with the theme toggle before the user menu", () => {
-    const html = renderToStaticMarkup(<SiteHeader />);
+    const html = renderToStaticMarkup(<SiteHeader isAdmin userName="橘子" />);
 
     expect(html).toContain("MixTV");
     expect(html).toContain("首页");
@@ -40,13 +44,13 @@ describe("SiteHeader", () => {
   });
 
   it("preserves the active navigation destination", () => {
-    const html = renderToStaticMarkup(<SiteHeader />);
+    const html = renderToStaticMarkup(<SiteHeader isAdmin userName="橘子" />);
 
     expect(html).toContain('href="/movies"');
   });
 
   it("renders native navigation with an active underline and hover capsules", () => {
-    const html = renderToStaticMarkup(<SiteHeader />);
+    const html = renderToStaticMarkup(<SiteHeader isAdmin userName="橘子" />);
 
     expect(html).toContain('aria-label="主导航"');
     expect(html).toContain("border-accent");

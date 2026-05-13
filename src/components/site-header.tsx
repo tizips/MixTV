@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 
@@ -15,14 +16,77 @@ const navItems = [
   { label: "综艺", href: "/variety", icon: "bi-stars", iconClass: "text-muted" },
 ];
 
-export function SiteHeader() {
+type SiteHeaderProps = {
+  accessToken?: string;
+  isAdmin?: boolean;
+  userName?: string;
+};
+
+export function SiteHeader({
+  accessToken,
+  userName = "MixTV 用户",
+  isAdmin = false,
+}: SiteHeaderProps) {
   const pathname = usePathname();
+  const [resolvedUserName, setResolvedUserName] = useState(userName);
+  const [resolvedIsAdmin, setResolvedIsAdmin] = useState(isAdmin);
+
+  useEffect(() => {
+    setResolvedUserName(userName);
+    setResolvedIsAdmin(isAdmin);
+  }, [isAdmin, userName]);
+
+  useEffect(() => {
+    if (!accessToken) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function hydrateUserProfile() {
+      try {
+        const response = await fetch("/api/account", {
+          cache: "no-store",
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const account = (await response.json()) as {
+          admin?: boolean;
+          name?: string;
+        };
+
+        if (cancelled) {
+          return;
+        }
+
+        if (typeof account.name === "string" && account.name) {
+          setResolvedUserName(account.name);
+        }
+
+        if (typeof account.admin === "boolean") {
+          setResolvedIsAdmin(account.admin);
+        }
+      } catch {
+        return;
+      }
+    }
+
+    void hydrateUserProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken]);
+
   if (pathname === "/login") {
     return null;
   }
-
-  const userName = "MixTV 用户";
-  const isAdmin = true;
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 bg-[color-mix(in_oklab,var(--surface)_78%,transparent)] shadow-[0_14px_40px_color-mix(in_oklab,var(--foreground)_8%,transparent)] backdrop-blur-2xl backdrop-saturate-150">
@@ -62,7 +126,7 @@ export function SiteHeader() {
 
         <div className="ml-auto flex shrink-0 items-center gap-3">
           <ThemeToggle />
-          <UserMenu userName={userName} isAdmin={isAdmin} />
+          <UserMenu userName={resolvedUserName} isAdmin={resolvedIsAdmin} />
         </div>
       </div>
     </header>

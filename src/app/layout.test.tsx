@@ -3,6 +3,16 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import RootLayout from "./layout";
 
+vi.mock("@/auth", () => ({
+  auth: vi.fn(async () => ({
+    user: {
+      name: "橘子",
+      admin: true,
+      id: "orange",
+    },
+  })),
+}));
+
 vi.mock("@/components/site-header", () => ({
   SiteHeader: () => <header data-testid="site-header" />,
 }));
@@ -16,11 +26,11 @@ vi.mock("@/app/providers", () => ({
 }));
 
 describe("RootLayout", () => {
-  it("mounts the fixed header and page content", () => {
+  it("mounts the fixed header and page content", async () => {
     const html = renderToStaticMarkup(
-      <RootLayout>
-        <div data-testid="page-child">child</div>
-      </RootLayout>,
+      await RootLayout({
+        children: <div data-testid="page-child">child</div>,
+      }),
     );
 
     expect(html).toContain('data-storage-key="mixtv-theme-mode"');
