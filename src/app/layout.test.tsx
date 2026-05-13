@@ -24,7 +24,7 @@ describe("RootLayout", () => {
     );
 
     expect(html).toContain('data-storage-key="mixtv-theme-mode"');
-    expect(html).toContain('class="bg-background text-foreground"');
+    expect(html).toContain('class="text-foreground"');
     expect(html).toContain('class="min-h-[calc(100dvh+4rem)] pt-16"');
     expect(html).toContain("site-header");
     expect(html).toContain("page-child");

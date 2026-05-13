@@ -28,8 +28,8 @@ export function ContentCarousel({
   onDelete,
 }: ContentCarouselProps) {
   return (
-    <section className="mb-8">
-      <div className="flex items-center justify-between mb-4">
+    <section className="pb-8">
+      <div className="flex items-center justify-between">
         <h2 className="inline-flex items-center gap-2 text-2xl font-bold text-foreground">
           <i aria-hidden="true" className={`bi ${icon} text-[1.15em] ${iconClass}`} />
           <span>{title}</span>
@@ -48,7 +48,7 @@ export function ContentCarousel({
           </Link>
         )}
       </div>
-      <div className="flex overflow-x-auto scrollbar-hide gap-4 pb-4">
+      <div className="flex overflow-x-auto scrollbar-hide gap-4 pt-4 pb-4">
         {items.map((item) => (
           <ContentCard
             key={item.id}

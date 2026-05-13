@@ -26,7 +26,7 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
     : 0;
 
   return (
-    <article className="group grid w-48 flex-shrink-0 content-start overflow-hidden rounded-[1.15rem] bg-surface/78 text-left shadow-[0_14px_40px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:bg-surface hover:shadow-[0_22px_60px_rgba(15,23,42,0.16)]">
+    <article className="group grid w-48 flex-shrink-0 content-start overflow-hidden rounded-[1.15rem] bg-surface/78 text-left transition duration-300 hover:-translate-y-1 hover:bg-surface hover:shadow-[0_6px_12px_rgba(15,23,42,0.14)]">
       <div className="relative aspect-[2/3] overflow-hidden bg-surface-secondary">
         <Link
           aria-label={`播放 ${item.title}`}

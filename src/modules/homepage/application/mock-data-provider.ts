@@ -1,5 +1,16 @@
 import type { ContentItem, HeroItem } from "../domain/content-types";
 
+const MOCK_IMAGE_BASE_URL = "http://localhost:3000";
+
+const mockImageUrl = (variant: "backdrop" | "poster", title: string, color: string) =>
+  `${MOCK_IMAGE_BASE_URL}/mock-image/${variant}/${encodeURIComponent(title)}.svg?color=${color}`;
+
+const mockBackdropUrl = (title: string, color: string) =>
+  mockImageUrl("backdrop", title, color);
+
+const mockPosterUrl = (title: string, color: string) =>
+  mockImageUrl("poster", title, color);
+
 export type MockHomepageData = {
   heroBanner: HeroItem[];
   continueWatching: ContentItem[];
@@ -18,7 +29,7 @@ export function getMockHomepageData(): MockHomepageData {
         id: "hero-1",
         title: "流浪地球2",
         description: "太阳即将毁灭，人类在地球表面建造出巨大的推进器，寻找新的家园。",
-        backdropUrl: "https://via.placeholder.com/1920x1080/1a1a2e/ffffff?text=流浪地球2",
+        backdropUrl: mockBackdropUrl("流浪地球2", "1a1a2e"),
         rating: 8.3,
         type: "movie",
         trailerUrl: "https://example.com/trailer/wandering-earth-2",
@@ -27,7 +38,7 @@ export function getMockHomepageData(): MockHomepageData {
         id: "hero-2",
         title: "三体",
         description: "地球文明向宇宙发出第一声啼鸣，取得了文明的联系，但也暴露了地球的坐标。",
-        backdropUrl: "https://via.placeholder.com/1920x1080/16213e/ffffff?text=三体",
+        backdropUrl: mockBackdropUrl("三体", "16213e"),
         rating: 8.7,
         type: "tv",
       },
@@ -35,7 +46,7 @@ export function getMockHomepageData(): MockHomepageData {
         id: "hero-3",
         title: "长安三万里",
         description: "盛唐时期，诗人高适与李白的传奇友谊和人生际遇。",
-        backdropUrl: "https://via.placeholder.com/1920x1080/0f3460/ffffff?text=长安三万里",
+        backdropUrl: mockBackdropUrl("长安三万里", "0f3460"),
         rating: 8.2,
         type: "movie",
       },
@@ -43,7 +54,7 @@ export function getMockHomepageData(): MockHomepageData {
         id: "hero-4",
         title: "狂飙",
         description: "一个普通人在时代洪流中的沉浮，以及正义与邪恶的较量。",
-        backdropUrl: "https://via.placeholder.com/1920x1080/533483/ffffff?text=狂飙",
+        backdropUrl: mockBackdropUrl("狂飙", "533483"),
         rating: 9.1,
         type: "tv",
       },
@@ -51,7 +62,7 @@ export function getMockHomepageData(): MockHomepageData {
         id: "hero-5",
         title: "鬼灭之刃 锻刀村篇",
         description: "炭治郎前往锻刀村修复日轮刀，遭遇上弦之鬼的袭击。",
-        backdropUrl: "https://via.placeholder.com/1920x1080/6a2c70/ffffff?text=鬼灭之刃",
+        backdropUrl: mockBackdropUrl("鬼灭之刃", "6a2c70"),
         rating: 8.9,
         type: "anime",
       },
@@ -59,7 +70,7 @@ export function getMockHomepageData(): MockHomepageData {
         id: "hero-6",
         title: "漫长的季节",
         description: "一桩陈年旧案牵扯出三个家庭的命运纠葛。",
-        backdropUrl: "https://via.placeholder.com/1920x1080/2d4059/ffffff?text=漫长的季节",
+        backdropUrl: mockBackdropUrl("漫长的季节", "2d4059"),
         rating: 9.4,
         type: "tv",
       },
@@ -68,7 +79,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "cw-1",
         title: "繁城之下",
-        coverUrl: "https://via.placeholder.com/300x450/1a1a2e/ffffff?text=繁城之下",
+        coverUrl: mockPosterUrl("繁城之下", "1a1a2e"),
         rating: 8.1,
         year: 2024,
         type: "tv",
@@ -81,7 +92,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "cw-2",
         title: "咒术回战 第二季",
-        coverUrl: "https://via.placeholder.com/300x450/16213e/ffffff?text=咒术回战",
+        coverUrl: mockPosterUrl("咒术回战", "16213e"),
         rating: 8.8,
         year: 2023,
         type: "anime",
@@ -94,7 +105,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "cw-3",
         title: "封神第一部",
-        coverUrl: "https://via.placeholder.com/300x450/0f3460/ffffff?text=封神",
+        coverUrl: mockPosterUrl("封神", "0f3460"),
         rating: 7.8,
         year: 2023,
         type: "movie",
@@ -107,7 +118,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "cw-4",
         title: "向往的生活 第七季",
-        coverUrl: "https://via.placeholder.com/300x450/533483/ffffff?text=向往的生活",
+        coverUrl: mockPosterUrl("向往的生活", "533483"),
         rating: 7.5,
         year: 2023,
         type: "variety",
@@ -120,7 +131,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "cw-5",
         title: "无双",
-        coverUrl: "https://via.placeholder.com/300x450/6a2c70/ffffff?text=无双",
+        coverUrl: mockPosterUrl("无双", "6a2c70"),
         rating: 8.0,
         year: 2024,
         type: "shortdrama",
@@ -135,42 +146,42 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "ur-1",
         title: "流浪地球3",
-        coverUrl: "https://via.placeholder.com/300x450/2d4059/ffffff?text=流浪地球3",
+        coverUrl: mockPosterUrl("流浪地球3", "2d4059"),
         year: 2026,
         type: "movie",
       },
       {
         id: "ur-2",
         title: "三体II：黑暗森林",
-        coverUrl: "https://via.placeholder.com/300x450/1a1a2e/ffffff?text=三体II",
+        coverUrl: mockPosterUrl("三体II", "1a1a2e"),
         year: 2026,
         type: "tv",
       },
       {
         id: "ur-3",
         title: "进击的巨人 最终季 完结篇",
-        coverUrl: "https://via.placeholder.com/300x450/16213e/ffffff?text=进击的巨人",
+        coverUrl: mockPosterUrl("进击的巨人", "16213e"),
         year: 2026,
         type: "anime",
       },
       {
         id: "ur-4",
         title: "奔跑吧 第十一季",
-        coverUrl: "https://via.placeholder.com/300x450/0f3460/ffffff?text=奔跑吧",
+        coverUrl: mockPosterUrl("奔跑吧", "0f3460"),
         year: 2026,
         type: "variety",
       },
       {
         id: "ur-5",
         title: "长相思 第三季",
-        coverUrl: "https://via.placeholder.com/300x450/533483/ffffff?text=长相思",
+        coverUrl: mockPosterUrl("长相思", "533483"),
         year: 2026,
         type: "tv",
       },
       {
         id: "ur-6",
         title: "满江红",
-        coverUrl: "https://via.placeholder.com/300x450/6a2c70/ffffff?text=满江红",
+        coverUrl: mockPosterUrl("满江红", "6a2c70"),
         year: 2026,
         type: "movie",
       },
@@ -179,7 +190,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hm-1",
         title: "消失的她",
-        coverUrl: "https://via.placeholder.com/300x450/2d4059/ffffff?text=消失的她",
+        coverUrl: mockPosterUrl("消失的她", "2d4059"),
         rating: 7.6,
         year: 2023,
         type: "movie",
@@ -187,7 +198,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hm-2",
         title: "孤注一掷",
-        coverUrl: "https://via.placeholder.com/300x450/1a1a2e/ffffff?text=孤注一掷",
+        coverUrl: mockPosterUrl("孤注一掷", "1a1a2e"),
         rating: 7.9,
         year: 2023,
         type: "movie",
@@ -195,7 +206,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hm-3",
         title: "八角笼中",
-        coverUrl: "https://via.placeholder.com/300x450/16213e/ffffff?text=八角笼中",
+        coverUrl: mockPosterUrl("八角笼中", "16213e"),
         rating: 7.7,
         year: 2023,
         type: "movie",
@@ -203,7 +214,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hm-4",
         title: "热烈",
-        coverUrl: "https://via.placeholder.com/300x450/0f3460/ffffff?text=热烈",
+        coverUrl: mockPosterUrl("热烈", "0f3460"),
         rating: 7.4,
         year: 2023,
         type: "movie",
@@ -211,7 +222,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hm-5",
         title: "坚如磐石",
-        coverUrl: "https://via.placeholder.com/300x450/533483/ffffff?text=坚如磐石",
+        coverUrl: mockPosterUrl("坚如磐石", "533483"),
         rating: 7.8,
         year: 2023,
         type: "movie",
@@ -219,7 +230,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hm-6",
         title: "前任4：英年早婚",
-        coverUrl: "https://via.placeholder.com/300x450/6a2c70/ffffff?text=前任4",
+        coverUrl: mockPosterUrl("前任4", "6a2c70"),
         rating: 7.2,
         year: 2023,
         type: "movie",
@@ -227,7 +238,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hm-7",
         title: "第二十条",
-        coverUrl: "https://via.placeholder.com/300x450/2d4059/ffffff?text=第二十条",
+        coverUrl: mockPosterUrl("第二十条", "2d4059"),
         rating: 8.0,
         year: 2024,
         type: "movie",
@@ -235,7 +246,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hm-8",
         title: "飞驰人生2",
-        coverUrl: "https://via.placeholder.com/300x450/1a1a2e/ffffff?text=飞驰人生2",
+        coverUrl: mockPosterUrl("飞驰人生2", "1a1a2e"),
         rating: 7.9,
         year: 2024,
         type: "movie",
@@ -243,7 +254,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hm-9",
         title: "热辣滚烫",
-        coverUrl: "https://via.placeholder.com/300x450/16213e/ffffff?text=热辣滚烫",
+        coverUrl: mockPosterUrl("热辣滚烫", "16213e"),
         rating: 7.8,
         year: 2024,
         type: "movie",
@@ -251,7 +262,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hm-10",
         title: "周处除三害",
-        coverUrl: "https://via.placeholder.com/300x450/0f3460/ffffff?text=周处除三害",
+        coverUrl: mockPosterUrl("周处除三害", "0f3460"),
         rating: 8.4,
         year: 2024,
         type: "movie",
@@ -259,7 +270,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hm-11",
         title: "我们一起摇太阳",
-        coverUrl: "https://via.placeholder.com/300x450/533483/ffffff?text=摇太阳",
+        coverUrl: mockPosterUrl("摇太阳", "533483"),
         rating: 7.6,
         year: 2024,
         type: "movie",
@@ -267,7 +278,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hm-12",
         title: "功夫熊猫4",
-        coverUrl: "https://via.placeholder.com/300x450/6a2c70/ffffff?text=功夫熊猫4",
+        coverUrl: mockPosterUrl("功夫熊猫4", "6a2c70"),
         rating: 7.3,
         year: 2024,
         type: "movie",
@@ -277,7 +288,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "ht-1",
         title: "繁花",
-        coverUrl: "https://via.placeholder.com/300x450/2d4059/ffffff?text=繁花",
+        coverUrl: mockPosterUrl("繁花", "2d4059"),
         rating: 8.1,
         year: 2024,
         type: "tv",
@@ -285,7 +296,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "ht-2",
         title: "庆余年 第二季",
-        coverUrl: "https://via.placeholder.com/300x450/1a1a2e/ffffff?text=庆余年2",
+        coverUrl: mockPosterUrl("庆余年2", "1a1a2e"),
         rating: 8.5,
         year: 2024,
         type: "tv",
@@ -293,7 +304,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "ht-3",
         title: "与凤行",
-        coverUrl: "https://via.placeholder.com/300x450/16213e/ffffff?text=与凤行",
+        coverUrl: mockPosterUrl("与凤行", "16213e"),
         rating: 7.8,
         year: 2024,
         type: "tv",
@@ -301,7 +312,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "ht-4",
         title: "墨雨云间",
-        coverUrl: "https://via.placeholder.com/300x450/0f3460/ffffff?text=墨雨云间",
+        coverUrl: mockPosterUrl("墨雨云间", "0f3460"),
         rating: 7.6,
         year: 2024,
         type: "tv",
@@ -309,7 +320,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "ht-5",
         title: "玫瑰的故事",
-        coverUrl: "https://via.placeholder.com/300x450/533483/ffffff?text=玫瑰的故事",
+        coverUrl: mockPosterUrl("玫瑰的故事", "533483"),
         rating: 7.9,
         year: 2024,
         type: "tv",
@@ -317,7 +328,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "ht-6",
         title: "承欢记",
-        coverUrl: "https://via.placeholder.com/300x450/6a2c70/ffffff?text=承欢记",
+        coverUrl: mockPosterUrl("承欢记", "6a2c70"),
         rating: 7.7,
         year: 2024,
         type: "tv",
@@ -325,7 +336,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "ht-7",
         title: "大奉打更人",
-        coverUrl: "https://via.placeholder.com/300x450/2d4059/ffffff?text=大奉打更人",
+        coverUrl: mockPosterUrl("大奉打更人", "2d4059"),
         rating: 8.2,
         year: 2024,
         type: "tv",
@@ -333,7 +344,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "ht-8",
         title: "南来北往",
-        coverUrl: "https://via.placeholder.com/300x450/1a1a2e/ffffff?text=南来北往",
+        coverUrl: mockPosterUrl("南来北往", "1a1a2e"),
         rating: 8.0,
         year: 2024,
         type: "tv",
@@ -343,7 +354,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "na-1",
         title: "葬送的芙莉莲",
-        coverUrl: "https://via.placeholder.com/300x450/16213e/ffffff?text=芙莉莲",
+        coverUrl: mockPosterUrl("芙莉莲", "16213e"),
         rating: 9.2,
         year: 2023,
         type: "anime",
@@ -351,7 +362,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "na-2",
         title: "药屋少女的呢喃",
-        coverUrl: "https://via.placeholder.com/300x450/0f3460/ffffff?text=药屋少女",
+        coverUrl: mockPosterUrl("药屋少女", "0f3460"),
         rating: 8.7,
         year: 2023,
         type: "anime",
@@ -359,7 +370,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "na-3",
         title: "间谍过家家 第二季",
-        coverUrl: "https://via.placeholder.com/300x450/533483/ffffff?text=间谍过家家",
+        coverUrl: mockPosterUrl("间谍过家家", "533483"),
         rating: 8.5,
         year: 2023,
         type: "anime",
@@ -367,7 +378,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "na-4",
         title: "我推的孩子",
-        coverUrl: "https://via.placeholder.com/300x450/6a2c70/ffffff?text=我推的孩子",
+        coverUrl: mockPosterUrl("我推的孩子", "6a2c70"),
         rating: 8.8,
         year: 2023,
         type: "anime",
@@ -375,7 +386,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "na-5",
         title: "无职转生II",
-        coverUrl: "https://via.placeholder.com/300x450/2d4059/ffffff?text=无职转生",
+        coverUrl: mockPosterUrl("无职转生", "2d4059"),
         rating: 8.6,
         year: 2023,
         type: "anime",
@@ -383,7 +394,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "na-6",
         title: "转生成为第七王子",
-        coverUrl: "https://via.placeholder.com/300x450/1a1a2e/ffffff?text=第七王子",
+        coverUrl: mockPosterUrl("第七王子", "1a1a2e"),
         rating: 7.9,
         year: 2024,
         type: "anime",
@@ -391,7 +402,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "na-7",
         title: "怪兽8号",
-        coverUrl: "https://via.placeholder.com/300x450/16213e/ffffff?text=怪兽8号",
+        coverUrl: mockPosterUrl("怪兽8号", "16213e"),
         rating: 8.3,
         year: 2024,
         type: "anime",
@@ -399,7 +410,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "na-8",
         title: "迷宫饭",
-        coverUrl: "https://via.placeholder.com/300x450/0f3460/ffffff?text=迷宫饭",
+        coverUrl: mockPosterUrl("迷宫饭", "0f3460"),
         rating: 8.4,
         year: 2024,
         type: "anime",
@@ -409,7 +420,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hv-1",
         title: "乘风2024",
-        coverUrl: "https://via.placeholder.com/300x450/533483/ffffff?text=乘风2024",
+        coverUrl: mockPosterUrl("乘风2024", "533483"),
         rating: 7.8,
         year: 2024,
         type: "variety",
@@ -417,7 +428,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hv-2",
         title: "歌手2024",
-        coverUrl: "https://via.placeholder.com/300x450/6a2c70/ffffff?text=歌手2024",
+        coverUrl: mockPosterUrl("歌手2024", "6a2c70"),
         rating: 8.0,
         year: 2024,
         type: "variety",
@@ -425,7 +436,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hv-3",
         title: "种地吧",
-        coverUrl: "https://via.placeholder.com/300x450/2d4059/ffffff?text=种地吧",
+        coverUrl: mockPosterUrl("种地吧", "2d4059"),
         rating: 7.9,
         year: 2024,
         type: "variety",
@@ -433,7 +444,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hv-4",
         title: "我们的客栈",
-        coverUrl: "https://via.placeholder.com/300x450/1a1a2e/ffffff?text=我们的客栈",
+        coverUrl: mockPosterUrl("我们的客栈", "1a1a2e"),
         rating: 7.6,
         year: 2024,
         type: "variety",
@@ -441,7 +452,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hv-5",
         title: "声生不息·家年华",
-        coverUrl: "https://via.placeholder.com/300x450/16213e/ffffff?text=声生不息",
+        coverUrl: mockPosterUrl("声生不息", "16213e"),
         rating: 8.1,
         year: 2024,
         type: "variety",
@@ -449,7 +460,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hv-6",
         title: "五十公里桃花坞3",
-        coverUrl: "https://via.placeholder.com/300x450/0f3460/ffffff?text=桃花坞",
+        coverUrl: mockPosterUrl("桃花坞", "0f3460"),
         rating: 7.5,
         year: 2024,
         type: "variety",
@@ -459,7 +470,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hs-1",
         title: "闪婚后大佬每天都在吃醋",
-        coverUrl: "https://via.placeholder.com/300x450/533483/ffffff?text=闪婚",
+        coverUrl: mockPosterUrl("闪婚", "533483"),
         rating: 7.8,
         year: 2024,
         type: "shortdrama",
@@ -467,7 +478,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hs-2",
         title: "夫人她马甲又轰动全城了",
-        coverUrl: "https://via.placeholder.com/300x450/6a2c70/ffffff?text=夫人马甲",
+        coverUrl: mockPosterUrl("夫人马甲", "6a2c70"),
         rating: 7.6,
         year: 2024,
         type: "shortdrama",
@@ -475,7 +486,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hs-3",
         title: "重生后我成了首富",
-        coverUrl: "https://via.placeholder.com/300x450/2d4059/ffffff?text=重生首富",
+        coverUrl: mockPosterUrl("重生首富", "2d4059"),
         rating: 7.9,
         year: 2024,
         type: "shortdrama",
@@ -483,7 +494,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hs-4",
         title: "离婚后前夫跪求复合",
-        coverUrl: "https://via.placeholder.com/300x450/1a1a2e/ffffff?text=离婚",
+        coverUrl: mockPosterUrl("离婚", "1a1a2e"),
         rating: 7.5,
         year: 2024,
         type: "shortdrama",
@@ -491,7 +502,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hs-5",
         title: "神医下山",
-        coverUrl: "https://via.placeholder.com/300x450/16213e/ffffff?text=神医下山",
+        coverUrl: mockPosterUrl("神医下山", "16213e"),
         rating: 7.7,
         year: 2024,
         type: "shortdrama",
@@ -499,7 +510,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hs-6",
         title: "霸总的替身新娘",
-        coverUrl: "https://via.placeholder.com/300x450/0f3460/ffffff?text=替身新娘",
+        coverUrl: mockPosterUrl("替身新娘", "0f3460"),
         rating: 7.4,
         year: 2024,
         type: "shortdrama",
@@ -507,7 +518,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hs-7",
         title: "穿越后我成了摄政王的心尖宠",
-        coverUrl: "https://via.placeholder.com/300x450/533483/ffffff?text=摄政王",
+        coverUrl: mockPosterUrl("摄政王", "533483"),
         rating: 7.8,
         year: 2024,
         type: "shortdrama",
@@ -515,7 +526,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hs-8",
         title: "豪门千金她不装了",
-        coverUrl: "https://via.placeholder.com/300x450/6a2c70/ffffff?text=豪门千金",
+        coverUrl: mockPosterUrl("豪门千金", "6a2c70"),
         rating: 7.6,
         year: 2024,
         type: "shortdrama",
@@ -523,7 +534,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hs-9",
         title: "退婚后我嫁给了京圈太子爷",
-        coverUrl: "https://via.placeholder.com/300x450/2d4059/ffffff?text=太子爷",
+        coverUrl: mockPosterUrl("太子爷", "2d4059"),
         rating: 7.7,
         year: 2024,
         type: "shortdrama",
@@ -531,7 +542,7 @@ export function getMockHomepageData(): MockHomepageData {
       {
         id: "hs-10",
         title: "全能大佬她又美又飒",
-        coverUrl: "https://via.placeholder.com/300x450/1a1a2e/ffffff?text=全能大佬",
+        coverUrl: mockPosterUrl("全能大佬", "1a1a2e"),
         rating: 7.5,
         year: 2024,
         type: "shortdrama",
