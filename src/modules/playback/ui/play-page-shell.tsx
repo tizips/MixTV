@@ -239,7 +239,7 @@ export function PlayPageShell() {
   const [isControlBarVisible, setIsControlBarVisible] = useState(true);
   const [isVolumePanelHovered, setIsVolumePanelHovered] = useState(false);
   const [volumePanelLeft, setVolumePanelLeft] = useState<number | null>(null);
-  const [isPlaybackLoading, setIsPlaybackLoading] = useState(true);
+  const [isPlaybackReady, setIsPlaybackReady] = useState(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
 
   const episodeGroups = useMemo(() => getEpisodeGroups(playPageData.episodes), []);
@@ -257,6 +257,7 @@ export function PlayPageShell() {
     danmakuDisplayAreas.find((area) => area.value === danmakuDisplayArea)?.label ?? danmakuDisplayAreas[0].label;
   const selectedDanmakuSpeedLabel =
     danmakuSpeedOptions.find((speed) => speed.value === danmakuSpeed)?.label ?? danmakuSpeedOptions[2].label;
+  const shouldShowPlaybackOverlay = !isPlaying && (isPlaybackReady || playbackError);
   const danmakuOption = useMemo<DanmakuOption>(() => ({
     danmuku: getEpisodeDanmuku(activeEpisode),
     visible: isDanmakuEnabled,
@@ -355,7 +356,7 @@ export function PlayPageShell() {
                     return;
                   }
 
-                  setIsPlaybackLoading(false);
+                  setIsPlaybackReady(false);
                   setPlaybackError("视频加载失败，请稍后重试或切换线路。");
                 }
               });
@@ -384,7 +385,7 @@ export function PlayPageShell() {
         if (Number.isFinite(art.duration) && art.duration > 0) {
           setCurrentPlaybackDuration(art.duration);
         }
-        setIsPlaybackLoading(false);
+        setIsPlaybackReady(true);
       });
       art.on("video:durationchange", () => {
         if (Number.isFinite(art.duration) && art.duration > 0) {
@@ -394,7 +395,7 @@ export function PlayPageShell() {
       art.on("video:timeupdate", () => setCurrentPlaybackSeconds(art.currentTime));
       art.on("video:play", () => {
         setPlaybackError(null);
-        setIsPlaybackLoading(false);
+        setIsPlaybackReady(true);
         setIsControlBarVisible(true);
         setIsPlaying(true);
       });
@@ -402,10 +403,10 @@ export function PlayPageShell() {
         setIsControlBarVisible(true);
         setIsPlaying(false);
       });
-      art.on("video:waiting", () => setIsPlaybackLoading(true));
-      art.on("video:stalled", () => setIsPlaybackLoading(true));
-      art.on("video:canplay", () => setIsPlaybackLoading(false));
-      art.on("video:canplaythrough", () => setIsPlaybackLoading(false));
+      art.on("video:waiting", () => setIsPlaybackReady(false));
+      art.on("video:stalled", () => setIsPlaybackReady(false));
+      art.on("video:canplay", () => setIsPlaybackReady(true));
+      art.on("video:canplaythrough", () => setIsPlaybackReady(true));
       art.on("video:ended", () => {
         setActiveEpisode((currentEpisode) => (currentEpisode >= playPageData.episodes.length ? 1 : currentEpisode + 1));
         setCurrentPlaybackSeconds(0);
@@ -414,7 +415,7 @@ export function PlayPageShell() {
       });
       art.on("fullscreenWeb", (state) => setIsWebFullscreen(state));
       art.on("error", () => {
-        setIsPlaybackLoading(false);
+        setIsPlaybackReady(false);
         setPlaybackError("视频加载失败，请稍后重试或切换线路。");
       });
     });
@@ -451,11 +452,11 @@ export function PlayPageShell() {
     }
 
     setCurrentPlaybackSeconds(0);
-    setIsPlaybackLoading(true);
+    setIsPlaybackReady(false);
     setPlaybackError(null);
 
     void art.switchUrl(currentSource.url).catch(() => {
-      setIsPlaybackLoading(false);
+      setIsPlaybackReady(false);
       setPlaybackError("切换线路失败，请稍后重试。");
     });
   }, [currentSource.url]);
@@ -666,7 +667,7 @@ export function PlayPageShell() {
 
   return (
     <div className="min-h-screen px-4 py-5 text-foreground md:px-6 lg:px-8">
-      <div className="mx-auto grid w-full max-w-[104rem] gap-5">
+      <div className="mx-auto grid w-full max-w-[100rem] gap-5">
         <nav aria-label="播放导航" className="flex min-w-0 items-center gap-2 text-sm text-default-500">
           <a className="truncate font-medium text-default-600 transition-colors hover:text-accent" href="#">
             {playPageData.title}
@@ -698,24 +699,17 @@ export function PlayPageShell() {
               className="absolute inset-0 h-full w-full bg-black [&_.art-bottom]:!hidden [&_.art-controls]:!hidden [&_.art-mask]:!hidden [&_.art-progress]:!hidden [&_.art-video-player]:h-full [&_.art-video-player]:w-full"
             />
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,transparent_56%,rgba(0,0,0,0.32)_100%)]" />
-            <div
-              aria-live="polite"
-              className={`pointer-events-none absolute inset-0 z-30 grid place-items-center bg-black/68 text-white backdrop-blur-sm transition-opacity duration-200 ${isPlaybackLoading ? "opacity-100" : "opacity-0"}`}
-            >
-              <div className="grid justify-items-center gap-3">
-                <span className="h-12 w-12 animate-spin rounded-full border-2 border-white/22 border-t-white" />
-                <span className="text-sm font-medium text-white/82">加载中</span>
-              </div>
-            </div>
-            <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center gap-5 px-6 text-center text-white transition-opacity ${isPlaying || isPlaybackLoading ? "pointer-events-none opacity-0" : "opacity-100"}`}>
-              <button
-                type="button"
-                aria-label={isPlaying ? "暂停" : "播放"}
-                className="inline-flex h-20 w-20 items-center justify-center rounded-full border border-white/30 bg-white/14 text-white shadow-2xl backdrop-blur transition-transform hover:cursor-pointer hover:scale-105"
-                onClick={togglePlayback}
-              >
-                <i aria-hidden="true" className={`bi ${isPlaying ? "bi-pause-fill" : "bi-play-fill"} translate-x-0.5 text-5xl leading-none`} />
-              </button>
+            <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center gap-5 px-6 text-center text-white transition-opacity ${shouldShowPlaybackOverlay ? "opacity-100" : "pointer-events-none opacity-0"}`}>
+              {isPlaybackReady ? (
+                <button
+                  type="button"
+                  aria-label={isPlaying ? "暂停" : "播放"}
+                  className="inline-flex h-20 w-20 items-center justify-center rounded-full border border-white/30 bg-white/14 text-white shadow-2xl backdrop-blur transition-transform hover:cursor-pointer hover:scale-105"
+                  onClick={togglePlayback}
+                >
+                  <i aria-hidden="true" className={`bi ${isPlaying ? "bi-pause-fill" : "bi-play-fill"} translate-x-0.5 text-5xl leading-none`} />
+                </button>
+              ) : null}
               {playbackError ? <p className="max-w-md text-sm text-danger-300">{playbackError}</p> : null}
               {/* <div className="min-w-0">
                 <p className="text-sm text-white/64">{currentSource.name} · {currentSource.quality}</p>

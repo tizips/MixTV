@@ -29,6 +29,8 @@
 
 - When a component, spec, or request says "icon", default to Bootstrap Icons (`bi`) unless the user explicitly asks for a different icon set.
 - Use font icons for UI icons by default; do not introduce inline SVG icon markup unless explicitly requested.
+- Content pages such as home, search, sources, movies, series, anime, and variety should use the shared content width: outer horizontal padding `px-4 md:px-6 lg:px-8` and an inner centered container with `w-full max-w-6xl`.
+- The `/play` page is wider than standard content pages: use outer horizontal padding `px-4 md:px-6 lg:px-8`, an inner centered container with `w-full max-w-[100rem]`, and keep the playback layout's side panel around `360px` on `xl` and `380px` on `2xl` so the video area remains dominant.
 
 ## Current Baseline
 
