@@ -177,7 +177,7 @@ function SearchResultItem({ result, viewMode }: { result: SearchResult; viewMode
     return (
       <article className="group grid min-w-0 content-start overflow-hidden rounded-[1.15rem] bg-surface/78 text-left shadow-[0_14px_40px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:bg-surface hover:shadow-[0_22px_60px_rgba(15,23,42,0.16)]">
         <div className="relative aspect-[2/3] overflow-hidden bg-surface-secondary">
-          <Link aria-label={`播放 ${result.title}`} className="block h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent" href="/play">
+          <Link aria-label={`播放 ${result.title}`} className="relative block h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent" href="/play">
             <ResultCover result={result} />
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.26)_0%,transparent_34%,rgba(0,0,0,0.84)_100%)] opacity-85 transition-opacity group-hover:opacity-100" />
             <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/45 to-transparent" />

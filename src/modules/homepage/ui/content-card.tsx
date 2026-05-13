@@ -34,7 +34,7 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
       <div className="relative aspect-[2/3] overflow-hidden bg-surface-secondary">
         <Link
           aria-label={`播放 ${item.title}`}
-          className="block h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+          className="relative block h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
           href="/play"
           onClick={onClick}
         >

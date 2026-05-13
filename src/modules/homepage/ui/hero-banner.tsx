@@ -49,7 +49,7 @@ export function HeroBanner({ items }: HeroBannerProps) {
       </div>
 
       {/* Content */}
-      <div className="relative h-full flex items-end p-8 md:p-12">
+      <div className="relative flex h-full items-end p-8 md:p-12">
         <div className="max-w-2xl">
           {/* Frosted Info Panel */}
           <div className="rounded-lg bg-surface/85 p-6 shadow-surface backdrop-blur-md">
