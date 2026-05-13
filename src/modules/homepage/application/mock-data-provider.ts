@@ -1,15 +1,18 @@
 import type { ContentItem, HeroItem } from "../domain/content-types";
+import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 
-const MOCK_IMAGE_BASE_URL = "http://localhost:3000";
+const mockImageUrl = (variant: "backdrop" | "poster", title: string, seed: string) =>
+  createPlaceholderImageUrl({
+    variant,
+    fileStem: title,
+    seed,
+  });
 
-const mockImageUrl = (variant: "backdrop" | "poster", title: string, color: string) =>
-  `${MOCK_IMAGE_BASE_URL}/mock-image/${variant}/${encodeURIComponent(title)}.svg?color=${color}`;
+const mockBackdropUrl = (title: string, seed: string) =>
+  mockImageUrl("backdrop", title, seed);
 
-const mockBackdropUrl = (title: string, color: string) =>
-  mockImageUrl("backdrop", title, color);
-
-const mockPosterUrl = (title: string, color: string) =>
-  mockImageUrl("poster", title, color);
+const mockPosterUrl = (title: string, seed: string) =>
+  mockImageUrl("poster", title, seed);
 
 export type MockHomepageData = {
   heroBanner: HeroItem[];

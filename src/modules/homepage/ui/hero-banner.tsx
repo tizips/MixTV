@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import type { HeroItem } from "../domain/content-types";
 
 type HeroBannerProps = {
   items: HeroItem[];
 };
-
-const FALLBACK_BACKDROP = "https://ts1.tc.mm.bing.net/th?id=OHR.SkradinskiBuk_ZH-CN0882603359_3840x2160.avif";
 
 export function HeroBanner({ items }: HeroBannerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -28,13 +27,18 @@ export function HeroBanner({ items }: HeroBannerProps) {
   if (items.length === 0) return null;
 
   const currentItem = items[currentIndex];
+  const fallbackBackdropUrl = createPlaceholderImageUrl({
+    variant: "backdrop",
+    fileStem: currentItem.title,
+    seed: currentItem.id,
+  });
 
   return (
     <div className="relative mb-8 h-[70vh] w-full overflow-hidden rounded-lg bg-surface-secondary">
       {/* Backdrop Image */}
       <div className="absolute inset-0">
         <Image
-          src={imageError ? FALLBACK_BACKDROP : currentItem.backdropUrl}
+          src={imageError ? fallbackBackdropUrl : currentItem.backdropUrl}
           alt={currentItem.title}
           fill
           className="object-cover"

@@ -6,6 +6,7 @@ import type Artplayer from "artplayer";
 import type { Danmu, Mode as DanmakuMode, Option as DanmakuOption, Result as DanmakuPluginResult } from "artplayer-plugin-danmuku";
 import Image from "next/image";
 import { Badge, Button, Chip, Popover, Separator, Switch, Tabs } from "@heroui/react";
+import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 
 type Episode = {
   number: number;
@@ -85,7 +86,11 @@ const playPageData: PlayPageData = {
   title: "星河漫游",
   originalTitle: "Stellar Roaming",
   currentEpisode: 18,
-  posterUrl: "https://ts1.tc.mm.bing.net/th?id=OHR.SkradinskiBuk_ZH-CN0882603359_3840x2160.avif",
+  posterUrl: createPlaceholderImageUrl({
+    variant: "poster",
+    fileStem: "星河漫游",
+    seed: "playback-stellar-roaming",
+  }),
   year: "2026",
   area: "中国大陆",
   category: "科幻 / 冒险 / 剧情",

@@ -5,6 +5,7 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 
 type SearchType = "media" | "cloud";
 type ViewMode = "grid" | "list";
@@ -49,14 +50,6 @@ const sampleTitles = [
   "流浪地球2",
   "铃芽之旅",
 ];
-const sampleCoverUrls = [
-  "https://ts1.tc.mm.bing.net/th?id=OHR.SkradinskiBuk_ZH-CN0882603359_3840x2160.avif",
-  "https://via.placeholder.com/384x576/1f2937/f8fafc?text=MixTV",
-  "https://via.placeholder.com/384x576/273449/f8fafc?text=Movie",
-  "https://via.placeholder.com/384x576/143333/f8fafc?text=Series",
-];
-const fallbackCoverUrl =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='384' height='576' viewBox='0 0 384 576'%3E%3Crect width='384' height='576' fill='%23e5e7eb'/%3E%3Crect x='54' y='72' width='276' height='432' rx='18' fill='%23f8fafc' stroke='%23cbd5e1' stroke-width='3'/%3E%3Ccircle cx='192' cy='252' r='48' fill='%230d8aff'/%3E%3Cpath d='M178 224v56l48-28z' fill='white'/%3E%3Ctext x='192' y='354' text-anchor='middle' font-family='Arial,Helvetica,sans-serif' font-size='34' font-weight='700' fill='%23334155'%3EMixTV%3C/text%3E%3C/svg%3E";
 const streamedBatchSize = 16;
 const streamedBatchDelayMs = 120;
 
@@ -100,7 +93,11 @@ function buildMockResults(query: string, type: SearchType): SearchResult[] {
         return `${sourcePrefix} ${String(((index + sourceIndex) % 8) + 1).padStart(2, "0")}`;
       }),
       category,
-      coverUrl: sampleCoverUrls[index % sampleCoverUrls.length],
+      coverUrl: createPlaceholderImageUrl({
+        variant: "poster",
+        fileStem: title,
+        seed: `${type}-${index}`,
+      }),
       episodeCount: category === "电影" ? 1 : 8 + (index % 36),
       remarks: index % 4 === 0 ? "完结" : index % 4 === 1 ? "更新至最新" : index % 4 === 2 ? "中字" : "多版本",
     };
@@ -121,6 +118,11 @@ function FavoriteButton({ result }: { result: SearchResult }) {
 
 function ResultCover({ result, priority = false }: { result: SearchResult; priority?: boolean }) {
   const [imageError, setImageError] = useState(false);
+  const fallbackCoverUrl = createPlaceholderImageUrl({
+    variant: "poster",
+    fileStem: result.title,
+    seed: result.id,
+  });
   const coverUrl = imageError ? fallbackCoverUrl : result.coverUrl;
 
   return (

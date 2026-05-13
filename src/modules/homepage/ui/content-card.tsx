@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Chip } from "@heroui/react";
 import Image from "next/image";
 import Link from "next/link";
+import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import type { ContentItem } from "../domain/content-types";
 
 type ContentCardProps = {
@@ -15,8 +16,6 @@ type ContentCardProps = {
   onDelete?: () => void;
 };
 
-const FALLBACK_COVER = "https://ts1.tc.mm.bing.net/th?id=OHR.SkradinskiBuk_ZH-CN0882603359_3840x2160.avif";
-
 export function ContentCard({ item, variant = "default", isFavorite = false, onClick, onFavorite, onDelete }: ContentCardProps) {
   const [imageError, setImageError] = useState(false);
   const progress = item.continueWatching;
@@ -24,6 +23,11 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
   const extraEpisodes = progress
     ? Math.max(progress.latestEpisode - progress.currentEpisode, 0)
     : 0;
+  const fallbackCoverUrl = createPlaceholderImageUrl({
+    variant: "poster",
+    fileStem: item.title,
+    seed: item.id,
+  });
 
   return (
     <article className="group grid w-48 flex-shrink-0 content-start overflow-hidden rounded-[1.15rem] bg-surface/78 text-left transition duration-300 hover:-translate-y-1 hover:bg-surface hover:shadow-[0_6px_12px_rgba(15,23,42,0.14)]">
@@ -35,7 +39,7 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
           onClick={onClick}
         >
           <Image
-            src={imageError ? FALLBACK_COVER : item.coverUrl}
+            src={imageError ? fallbackCoverUrl : item.coverUrl}
             alt={item.title}
             fill
             className="object-cover transition duration-700 group-hover:scale-[1.045] group-hover:saturate-110"
