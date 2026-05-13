@@ -2,14 +2,23 @@
 @import "@heroui/styles";
 
 body {
-  background: linear-gradient(#e6f3fb 0%, #eaf3f7 18%, #f7f7f3 38%, #e9ecef 60%, #dbe3ea 80%, #d3dde6 100%);
+  background:
+    radial-gradient(circle at 12% 14%, rgba(132, 216, 198, 0.28), transparent 34%),
+    radial-gradient(circle at 85% 20%, rgba(169, 227, 255, 0.3), transparent 40%),
+    radial-gradient(circle at 50% 100%, rgba(198, 235, 219, 0.36), transparent 50%),
+    linear-gradient(160deg, #edf9f6 0%, #f5fcff 38%, #fbfffd 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--heroui-font-sans, "Segoe UI", sans-serif);
   min-height: 100vh;
+  background-attachment: fixed;
 }
 
 .dark body {
-  background: linear-gradient(#05070c 0%, #0b111d 20%, #111827 42%, #10151f 64%, #0a0f18 82%, #05070c 100%);
+  background:
+    radial-gradient(circle at 14% 16%, rgba(45, 130, 110, 0.24), transparent 36%),
+    radial-gradient(circle at 84% 18%, rgba(70, 120, 190, 0.22), transparent 42%),
+    radial-gradient(circle at 52% 100%, rgba(36, 92, 82, 0.2), transparent 52%),
+    linear-gradient(160deg, #04070b 0%, #07101a 36%, #0b1320 64%, #060c14 100%);
 }
 
 /* Hide scrollbar for horizontal carousels */
