@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { saveConfigFilesSubscriptionAutoUpdate } from "@/modules/admin";
+import {
+  configSubscriptionAutoUpdateRequestSchema,
+  getAdminConfigValidationMessage,
+} from "@/modules/admin/server/admin-config-schemas";
 
 export const runtime = "nodejs";
 
@@ -16,17 +20,14 @@ export async function POST(request: Request) {
     return badRequest("Request body must be valid JSON.");
   }
 
-  const autoUpdate =
-    typeof (payload as { autoUpdate?: unknown })?.autoUpdate === "boolean"
-      ? (payload as { autoUpdate: boolean }).autoUpdate
-      : null;
+  const parsed = configSubscriptionAutoUpdateRequestSchema.safeParse(payload);
 
-  if (autoUpdate === null) {
-    return badRequest("autoUpdate is required.");
+  if (!parsed.success) {
+    return badRequest(getAdminConfigValidationMessage(parsed.error));
   }
 
   try {
-    return NextResponse.json(await saveConfigFilesSubscriptionAutoUpdate(autoUpdate));
+    return NextResponse.json(await saveConfigFilesSubscriptionAutoUpdate(parsed.data.autoUpdate));
   } catch (error) {
     console.error("Failed to update auto update config.", error);
     return NextResponse.json({ message: "Failed to update auto update config." }, { status: 500 });

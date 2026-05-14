@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { getConfigFilesContent, saveConfigFilesContent } from "@/modules/admin";
+import {
+  configContentRequestSchema,
+  getAdminConfigValidationMessage,
+} from "@/modules/admin/server/admin-config-schemas";
 
 export const runtime = "nodejs";
 
@@ -25,15 +29,14 @@ export async function POST(request: Request) {
     return badRequest("Request body must be valid JSON.");
   }
 
-  const content =
-    typeof (payload as { content?: unknown })?.content === "string" ? (payload as { content: string }).content : null;
+  const parsed = configContentRequestSchema.safeParse(payload);
 
-  if (content === null) {
-    return badRequest("content is required.");
+  if (!parsed.success) {
+    return badRequest(getAdminConfigValidationMessage(parsed.error));
   }
 
   try {
-    return NextResponse.json(await saveConfigFilesContent(content));
+    return NextResponse.json(await saveConfigFilesContent(parsed.data.content));
   } catch (error) {
     console.error("Failed to save config content.", error);
     return NextResponse.json({ message: "Failed to save config content." }, { status: 500 });
