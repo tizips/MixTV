@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createDbAdapter, resolveStorageType } from "@/infrastructure/db/db-adapter";
+import {
+  createDbAdapter,
+  resolveStorageType,
+} from "@/infrastructure/db/db-adapter";
 import { createRedisDbAdapter } from "@/infrastructure/db/redis-db-adapter";
 
 vi.mock("@/infrastructure/db/redis-db-adapter", () => ({
   createRedisDbAdapter: vi.fn(() => ({
     del: vi.fn(),
     get: vi.fn(),
+    script: vi.fn(),
     set: vi.fn(),
   })),
 }));
@@ -61,4 +65,5 @@ describe("db adapter factory", () => {
       url: "redis://override.test:6379",
     });
   });
+
 });

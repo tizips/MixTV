@@ -1,5 +1,5 @@
 import { createClient, type RedisClientType } from "redis";
-import type { DbPort } from "@/shared/db/db-port";
+import type { DbPort, DbScriptArgument, DbScriptOptions } from "@/shared/db/db-port";
 import type { DbRecord } from "@/shared/db/db-types";
 
 export interface RedisDbOptions {
@@ -9,6 +9,15 @@ export interface RedisDbOptions {
 }
 
 const buildItemKey = (namespace: string, id: string) => `${namespace}:item:${id}`;
+const buildScriptKey = (namespace: string, key: string) => `${namespace}:${key}`;
+
+const serializeScriptArgument = (arg: DbScriptArgument): string => {
+  if (arg === null) {
+    return "";
+  }
+
+  return String(arg);
+};
 
 export const createRedisDbAdapter = <TValue>(
   options: RedisDbOptions,
@@ -37,6 +46,23 @@ export const createRedisDbAdapter = <TValue>(
       await ensureConnected();
 
       await client.del(buildItemKey(options.namespace, key));
+    },
+    async script<TResult = unknown>(
+      script: string,
+      runOptions: DbScriptOptions<string> = {},
+    ) {
+      await ensureConnected();
+
+      const evalOptions = {
+        keys: runOptions.keys?.map((key) => buildScriptKey(options.namespace, key)),
+        arguments: runOptions.args?.map(serializeScriptArgument),
+      };
+
+      const result = runOptions.readOnly
+        ? await client.evalRo(script, evalOptions)
+        : await client.eval(script, evalOptions);
+
+      return result as TResult;
     },
   };
 };
