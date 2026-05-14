@@ -21,6 +21,7 @@
 - Edge Runtime / Worker Runtime compatibility is a mandatory requirement for this project, not an optional optimization.
 - When adding or changing auth, middleware, route handlers, data access, caching, crypto, or request interception, prefer Web Platform APIs (`fetch`, `crypto.subtle`, Web Streams, standard `URL`) and designs that can run in Edge-like runtimes.
 - Do not introduce Node-only runtime dependencies into code paths that may be used by `middleware.ts`, auth session/token validation, or other request-bound infrastructure expected to run in Edge/Worker environments.
+- Admin API route handlers under `src/app/api/admin/*` must remain Edge Runtime compatible. Do not import the Node Redis adapter or the `redis` npm package from these routes or their transitive module graph; use `fetch`-based Redis REST storage for admin route persistence.
 - If a feature cannot fully run in Edge/Worker environments, isolate the Node-only part behind a narrow server-only boundary and keep the request gating / token validation path Edge-compatible.
 - Treat this as an enforceable architecture rule: new implementations must preserve or improve Edge/Worker compatibility, not regress it.
 
