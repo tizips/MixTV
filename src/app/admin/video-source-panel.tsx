@@ -1,7 +1,7 @@
 "use client";
 
 import type { Selection } from "@react-types/shared";
-import { useState } from "react";
+import { type Key, useEffect, useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -16,15 +16,19 @@ import {
   Switch,
   Table,
   TextField,
+  toast,
   useOverlayState,
 } from "@heroui/react";
+import type {
+  VideoSourceCollection,
+  VideoSourceItem,
+  VideoSourceStatus,
+  VideoSourceType,
+  VideoSourceValidity,
+} from "@/modules/admin";
 
-type VideoSourceStatus = "enabled" | "disabled";
-type VideoSourceType = "normal" | "short-drama";
-type VideoSourceValidity = "valid" | "warning" | "invalid";
-
-type VideoSourceItem = {
-  id: string;
+type EditableVideoSource = {
+  originalKey: string | null;
   name: string;
   key: string;
   apiUrl: string;
@@ -69,6 +73,20 @@ const sourceValidityChipColorMap: Record<VideoSourceValidity, "danger" | "succes
 
 const tableActionButtonClassName = "h-7 px-2 text-xs";
 
+const defaultDraft: EditableVideoSource = {
+  originalKey: null,
+  name: "",
+  key: "",
+  apiUrl: "",
+  status: "disabled",
+  adult: false,
+  type: "normal",
+  weight: 50,
+  validity: "warning",
+};
+
+let videoSourcesLoadRequest: Promise<VideoSourceCollection> | null = null;
+
 const normalizeSourceWeight = (value: string) => {
   const weight = Number(value);
 
@@ -79,116 +97,468 @@ const normalizeSourceWeight = (value: string) => {
   return Math.min(99, Math.max(1, Math.round(weight)));
 };
 
-const defaultVideoSources: VideoSourceItem[] = [
-  {
-    id: "source-1",
-    name: "主站聚合",
-    key: "main",
-    apiUrl: "https://api.example.com/vod",
-    status: "enabled",
-    adult: false,
-    type: "normal",
-    weight: 98,
-    validity: "valid",
-  },
-  {
-    id: "source-2",
-    name: "短剧专线",
-    key: "shorts",
-    apiUrl: "https://short.example.com/api",
-    status: "enabled",
-    adult: false,
-    type: "short-drama",
-    weight: 87,
-    validity: "warning",
-  },
-  {
-    id: "source-3",
-    name: "备用资源站",
-    key: "backup",
-    apiUrl: "https://backup.example.com/api",
-    status: "disabled",
-    adult: true,
-    type: "normal",
-    weight: 35,
-    validity: "invalid",
-  },
-];
+function isVideoSourceStatus(value: unknown): value is VideoSourceStatus {
+  return value === "enabled" || value === "disabled";
+}
+
+function isVideoSourceType(value: unknown): value is VideoSourceType {
+  return value === "normal" || value === "short-drama";
+}
+
+function isVideoSourceValidity(value: unknown): value is VideoSourceValidity {
+  return value === "valid" || value === "warning" || value === "invalid";
+}
+
+function normalizeVideoSourceItem(payload: unknown): VideoSourceItem | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+
+  const raw = payload as Record<string, unknown>;
+
+  if (
+    typeof raw.name !== "string" ||
+    typeof raw.key !== "string" ||
+    typeof raw.apiUrl !== "string" ||
+    typeof raw.adult !== "boolean" ||
+    !isVideoSourceStatus(raw.status) ||
+    !isVideoSourceType(raw.type)
+  ) {
+    return null;
+  }
+
+  return {
+    name: raw.name,
+    key: raw.key,
+    apiUrl: raw.apiUrl,
+    status: raw.status,
+    adult: raw.adult,
+    type: raw.type,
+    weight: typeof raw.weight === "number" ? normalizeSourceWeight(String(raw.weight)) : 50,
+    validity: isVideoSourceValidity(raw.validity) ? raw.validity : "warning",
+    updatedAt: typeof raw.updatedAt === "string" || raw.updatedAt === null ? raw.updatedAt : null,
+  };
+}
+
+function normalizeVideoSourceCollection(payload: unknown): VideoSourceCollection {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { sources: [], updatedAt: null };
+  }
+
+  const raw = payload as Record<string, unknown>;
+  const sources = Array.isArray(raw.sources)
+    ? raw.sources.flatMap((source) => {
+        const normalized = normalizeVideoSourceItem(source);
+        return normalized ? [normalized] : [];
+      })
+    : [];
+
+  return {
+    sources,
+    updatedAt: typeof raw.updatedAt === "string" || raw.updatedAt === null ? raw.updatedAt : null,
+  };
+}
+
+async function readApiErrorMessage(response: Response, fallback: string) {
+  if (response.status !== 400) {
+    return fallback;
+  }
+
+  try {
+    const payload = (await response.json()) as unknown;
+
+    if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+      const message = (payload as Record<string, unknown>).message;
+
+      if (typeof message === "string" && message.trim()) {
+        return message;
+      }
+    }
+  } catch {
+    return fallback;
+  }
+
+  return fallback;
+}
+
+async function requestJson<TPayload>(
+  url: string,
+  options: RequestInit,
+  fallbackErrorMessage: string,
+  normalize: (payload: unknown) => TPayload,
+) {
+  const response = await fetch(url, options);
+
+  if (!response.ok) {
+    throw new Error(await readApiErrorMessage(response, fallbackErrorMessage));
+  }
+
+  return normalize(await response.json());
+}
+
+function loadVideoSourcesOnce() {
+  if (videoSourcesLoadRequest) {
+    return videoSourcesLoadRequest;
+  }
+
+  const request = requestJson(
+    "/api/admin/video-sources",
+    { method: "GET" },
+    "视频源配置读取失败",
+    normalizeVideoSourceCollection,
+  );
+  videoSourcesLoadRequest = request;
+
+  void request
+    .finally(() => {
+      if (videoSourcesLoadRequest === request) {
+        videoSourcesLoadRequest = null;
+      }
+    })
+    .catch(() => undefined);
+
+  return request;
+}
+
+function createDraftFromSource(source: VideoSourceItem): EditableVideoSource {
+  return {
+    originalKey: source.key,
+    name: source.name,
+    key: source.key,
+    apiUrl: source.apiUrl,
+    status: source.status,
+    adult: source.adult,
+    type: source.type,
+    weight: source.weight,
+    validity: source.validity,
+  };
+}
+
+function createSourcePayload(draft: EditableVideoSource) {
+  return {
+    name: draft.name.trim(),
+    key: draft.key.trim(),
+    apiUrl: draft.apiUrl.trim(),
+    status: draft.status,
+    adult: draft.adult,
+    type: draft.type,
+    weight: draft.weight,
+    validity: draft.validity,
+  };
+}
+
+function validateDraft(draft: EditableVideoSource) {
+  const payload = createSourcePayload(draft);
+
+  if (!payload.name) {
+    return "请输入视频源名称。";
+  }
+  if (!payload.key) {
+    return "请输入视频源 KEY。";
+  }
+
+  try {
+    const url = new URL(payload.apiUrl);
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return "请输入有效的 API 地址。";
+    }
+  } catch {
+    return "请输入有效的 API 地址。";
+  }
+
+  return null;
+}
+
+function VideoSourceSelect<TValue extends string>({
+  label,
+  selectedKey,
+  options,
+  onSelectionChange,
+}: {
+  label: string;
+  selectedKey: TValue;
+  options: Array<{ value: TValue; label: string }>;
+  onSelectionChange: (value: TValue) => void;
+}) {
+  const handleSelectionChange = (key: Key | null) => {
+    if (key == null) {
+      return;
+    }
+
+    onSelectionChange(String(key) as TValue);
+  };
+
+  return (
+    <Select fullWidth selectedKey={selectedKey} onSelectionChange={handleSelectionChange}>
+      <Label>{label}</Label>
+      <Select.Trigger>
+        <Select.Value />
+        <Select.Indicator />
+      </Select.Trigger>
+      <Select.Popover>
+        <ListBox className="bg-[var(--surface)]">
+          {options.map((option) => (
+            <ListBox.Item id={option.value} key={option.value} textValue={option.label}>
+              {option.label}
+            </ListBox.Item>
+          ))}
+        </ListBox>
+      </Select.Popover>
+    </Select>
+  );
+}
 
 export function VideoSourcePanel() {
   const editSourceModal = useOverlayState();
-  const [sources, setSources] = useState<VideoSourceItem[]>(defaultVideoSources);
-  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
-  const [editingSource, setEditingSource] = useState<VideoSourceItem | null>(null);
+  const [sources, setSources] = useState<VideoSourceItem[]>([]);
+  const [selectedSourceKeys, setSelectedSourceKeys] = useState<string[]>([]);
+  const [editingSource, setEditingSource] = useState<EditableVideoSource | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [operationSourceKey, setOperationSourceKey] = useState<string | null>(null);
+  const [isBatchSaving, setIsBatchSaving] = useState(false);
 
-  const sourceIds = sources.map((source) => source.id);
-  const selectedSourceIdSet = new Set(selectedSourceIds.filter((id) => sourceIds.includes(id)));
-  const selectedCount = selectedSourceIdSet.size;
+  const sourceKeys = useMemo(() => sources.map((source) => source.key), [sources]);
+  const selectedSourceKeySet = useMemo(
+    () => new Set(selectedSourceKeys.filter((key) => sourceKeys.includes(key))),
+    [selectedSourceKeys, sourceKeys],
+  );
+  const selectedCount = selectedSourceKeySet.size;
   const enabledCount = sources.filter((source) => source.status === "enabled").length;
 
-  const updateSource = (id: string, patch: Partial<VideoSourceItem>) => {
-    setSources((current) => current.map((source) => (source.id === id ? { ...source, ...patch } : source)));
-    setEditingSource((current) => (current?.id === id ? { ...current, ...patch } : current));
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadVideoSources() {
+      setIsLoading(true);
+
+      try {
+        const data = await loadVideoSourcesOnce();
+
+        if (!cancelled) {
+          setSources(data.sources);
+          setSelectedSourceKeys([]);
+          toast.success("视频源配置已加载");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : "视频源配置读取失败";
+          toast.danger(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadVideoSources();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const updateSourcesFromCollection = (collection: VideoSourceCollection) => {
+    setSources(collection.sources);
+    setSelectedSourceKeys((current) => current.filter((key) => collection.sources.some((source) => source.key === key)));
   };
 
-  const deleteSource = (id: string) => {
-    setSources((current) => current.filter((source) => source.id !== id));
-    setSelectedSourceIds((current) => current.filter((selectedId) => selectedId !== id));
-    if (editingSource?.id === id) {
-      setEditingSource(null);
-      editSourceModal.close();
+  const saveSourcePatch = async (key: string, patch: Partial<VideoSourceItem>, successMessage: string) => {
+    const previousSources = sources;
+    setSources((current) => current.map((source) => (source.key === key ? { ...source, ...patch } : source)));
+    setOperationSourceKey(key);
+
+    try {
+      const data = await requestJson(
+        `/api/admin/video-sources/${encodeURIComponent(key)}`,
+        {
+          body: JSON.stringify(patch),
+          headers: { "Content-Type": "application/json" },
+          method: "PUT",
+        },
+        "视频源保存失败",
+        normalizeVideoSourceCollection,
+      );
+      updateSourcesFromCollection(data);
+      toast.success(successMessage);
+    } catch (error) {
+      setSources(previousSources);
+      const message = error instanceof Error ? error.message : "视频源保存失败";
+      toast.danger(message);
+    } finally {
+      setOperationSourceKey(null);
+    }
+  };
+
+  const deleteSource = async (key: string) => {
+    setOperationSourceKey(key);
+
+    try {
+      const data = await requestJson(
+        `/api/admin/video-sources/${encodeURIComponent(key)}`,
+        { method: "DELETE" },
+        "视频源删除失败",
+        normalizeVideoSourceCollection,
+      );
+      updateSourcesFromCollection(data);
+      if (editingSource?.originalKey === key) {
+        setEditingSource(null);
+        editSourceModal.close();
+      }
+      toast.success("视频源已删除");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "视频源删除失败";
+      toast.danger(message);
+    } finally {
+      setOperationSourceKey(null);
     }
   };
 
   const addSource = () => {
-    const newSource: VideoSourceItem = {
-      id: `source-${Date.now()}`,
-      name: "新视频源",
-      key: `source-${sources.length + 1}`,
-      apiUrl: "",
-      status: "disabled",
-      adult: false,
-      type: "normal",
-      weight: 50,
-      validity: "warning",
-    };
-
-    setSources((current) => [...current, newSource]);
-    setEditingSource(newSource);
+    setEditingSource(defaultDraft);
     editSourceModal.open();
   };
 
-  const updateSelectedSources = (patch: Partial<VideoSourceItem>) => {
-    if (selectedCount === 0) {
+  const saveEditingSource = async () => {
+    if (!editingSource) {
       return;
     }
 
-    setSources((current) =>
-      current.map((source) => (selectedSourceIdSet.has(source.id) ? { ...source, ...patch } : source)),
-    );
+    const validationMessage = validateDraft(editingSource);
+
+    if (validationMessage) {
+      toast.danger(validationMessage);
+      return;
+    }
+
+    const payload = createSourcePayload(editingSource);
+    setIsSaving(true);
+
+    try {
+      if (editingSource.originalKey) {
+        const data = await requestJson(
+          `/api/admin/video-sources/${encodeURIComponent(editingSource.originalKey)}`,
+          {
+            body: JSON.stringify(payload),
+            headers: { "Content-Type": "application/json" },
+            method: "PUT",
+          },
+          "视频源保存失败",
+          normalizeVideoSourceCollection,
+        );
+        updateSourcesFromCollection(data);
+        toast.success("视频源已保存");
+      } else {
+        const created = await requestJson(
+          "/api/admin/video-source",
+          {
+            body: JSON.stringify(payload),
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          },
+          "视频源创建失败",
+          (raw) => {
+            const item = normalizeVideoSourceItem(raw);
+
+            if (!item) {
+              throw new Error("视频源创建失败");
+            }
+
+            return item;
+          },
+        );
+        setSources((current) => [...current, created]);
+        toast.success("视频源已添加");
+      }
+
+      setEditingSource(null);
+      editSourceModal.close();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "视频源保存失败";
+      toast.danger(message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const deleteSelectedSources = () => {
+  const updateSelectedSources = async (patch: Partial<VideoSourceItem>, successMessage: string) => {
     if (selectedCount === 0) {
       return;
     }
 
-    setSources((current) => current.filter((source) => !selectedSourceIdSet.has(source.id)));
-    setSelectedSourceIds([]);
+    setIsBatchSaving(true);
+
+    try {
+      const data = await requestJson(
+        "/api/admin/video-source/batch",
+        {
+          body: JSON.stringify({ keys: Array.from(selectedSourceKeySet), patch }),
+          headers: { "Content-Type": "application/json" },
+          method: "PUT",
+        },
+        "批量操作失败",
+        normalizeVideoSourceCollection,
+      );
+      updateSourcesFromCollection(data);
+      toast.success(successMessage);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "批量操作失败";
+      toast.danger(message);
+    } finally {
+      setIsBatchSaving(false);
+    }
+  };
+
+  const deleteSelectedSources = async () => {
+    if (selectedCount === 0) {
+      return;
+    }
+
+    setIsBatchSaving(true);
+
+    try {
+      let latestSources = sources;
+
+      for (const key of selectedSourceKeySet) {
+        const data = await requestJson(
+          `/api/admin/video-sources/${encodeURIComponent(key)}`,
+          { method: "DELETE" },
+          "批量删除失败",
+          normalizeVideoSourceCollection,
+        );
+        latestSources = data.sources;
+      }
+
+      setSources(latestSources);
+      setSelectedSourceKeys([]);
+      toast.success("视频源已批量删除");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "批量删除失败";
+      toast.danger(message);
+    } finally {
+      setIsBatchSaving(false);
+    }
   };
 
   const handleTableSelectionChange = (selection: Selection) => {
     if (selection === "all") {
-      setSelectedSourceIds(sources.map((source) => source.id));
+      setSelectedSourceKeys(sources.map((source) => source.key));
       return;
     }
 
-    setSelectedSourceIds(Array.from(selection).map(String));
+    setSelectedSourceKeys(Array.from(selection).map(String));
   };
 
   const openEditSource = (source: VideoSourceItem) => {
-    setEditingSource(source);
+    setEditingSource(createDraftFromSource(source));
     editSourceModal.open();
+  };
+
+  const closeEditSource = () => {
+    setEditingSource(null);
+    editSourceModal.close();
   };
 
   return (
@@ -208,7 +578,7 @@ export function VideoSourcePanel() {
 
             <div className="flex flex-wrap gap-2">
               <Chip color="accent" variant="soft">
-                共 {sources.length} 个源
+                {isLoading ? "加载中" : `共 ${sources.length} 个源`}
               </Chip>
               <Chip color="success" variant="soft">
                 启用 {enabledCount} 个
@@ -227,18 +597,28 @@ export function VideoSourcePanel() {
             <div className="flex flex-wrap gap-2">
               {selectedCount > 0 ? (
                 <>
-                  <Button size="sm" variant="secondary" onPress={() => updateSelectedSources({ status: "enabled" })}>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    isDisabled={isBatchSaving}
+                    onPress={() => updateSelectedSources({ status: "enabled" }, "视频源已批量启用")}
+                  >
                     批量启用
                   </Button>
-                  <Button size="sm" variant="secondary" onPress={() => updateSelectedSources({ status: "disabled" })}>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    isDisabled={isBatchSaving}
+                    onPress={() => updateSelectedSources({ status: "disabled" }, "视频源已批量禁用")}
+                  >
                     批量禁用
                   </Button>
-                  <Button size="sm" variant="danger" onPress={deleteSelectedSources}>
+                  <Button size="sm" variant="danger" isDisabled={isBatchSaving} onPress={deleteSelectedSources}>
                     批量删除
                   </Button>
                 </>
               ) : null}
-              <Button size="sm" variant="primary" onPress={addSource}>
+              <Button size="sm" variant="primary" isDisabled={isLoading} onPress={addSource}>
                 添加
               </Button>
             </div>
@@ -249,17 +629,14 @@ export function VideoSourcePanel() {
               <Table.Content
                 aria-label="视频源列表"
                 className="min-w-[960px] text-sm"
-                selectedKeys={selectedSourceIdSet}
+                selectedKeys={selectedSourceKeySet}
                 selectionMode="multiple"
                 onSelectionChange={handleTableSelectionChange}
               >
                 <Table.Header>
                   <Table.Column className="w-14">
                     <div className="flex items-center">
-                      <Checkbox
-                        aria-label="选择全部视频源"
-                        slot="selection"
-                      >
+                      <Checkbox aria-label="选择全部视频源" slot="selection">
                         <Checkbox.Control>
                           <Checkbox.Indicator>
                             {({ isIndeterminate, isSelected }) =>
@@ -287,13 +664,10 @@ export function VideoSourcePanel() {
                 </Table.Header>
                 <Table.Body>
                   {sources.map((source) => (
-                    <Table.Row key={source.id} id={source.id}>
+                    <Table.Row key={source.key} id={source.key}>
                       <Table.Cell>
                         <div className="flex min-h-10 items-center">
-                          <Checkbox
-                            aria-label={`选择${source.name}`}
-                            slot="selection"
-                          >
+                          <Checkbox aria-label={`选择${source.name}`} slot="selection">
                             <Checkbox.Control>
                               <Checkbox.Indicator>
                                 {({ isSelected }) =>
@@ -314,13 +688,14 @@ export function VideoSourcePanel() {
                       <Table.Cell className="min-w-20 text-center">
                         <Switch
                           aria-label={`切换${source.name}成人资源`}
+                          isDisabled={operationSourceKey === source.key}
                           isSelected={source.adult}
-                          onChange={() => updateSource(source.id, { adult: !source.adult })}
+                          onChange={() => saveSourcePatch(source.key, { adult: !source.adult }, "视频源已保存")}
                         >
                           <Switch.Control>
-                          <Switch.Thumb />
-                        </Switch.Control>
-                      </Switch>
+                            <Switch.Thumb />
+                          </Switch.Control>
+                        </Switch>
                       </Table.Cell>
                       <Table.Cell className="min-w-20 text-center">
                         <Chip color={sourceTypeChipColorMap[source.type]} size="sm" variant="soft">
@@ -342,7 +717,23 @@ export function VideoSourcePanel() {
                           <Button
                             className={tableActionButtonClassName}
                             size="sm"
+                            variant={source.status === "enabled" ? "danger-soft" : "primary"}
+                            isDisabled={operationSourceKey === source.key}
+                            onPress={() =>
+                              saveSourcePatch(
+                                source.key,
+                                { status: source.status === "enabled" ? "disabled" : "enabled" },
+                                source.status === "enabled" ? "视频源已禁用" : "视频源已启用",
+                              )
+                            }
+                          >
+                            {source.status === "enabled" ? "禁用" : "启用"}
+                          </Button>
+                          <Button
+                            className={tableActionButtonClassName}
+                            size="sm"
                             variant="secondary"
+                            isDisabled={operationSourceKey === source.key}
                             onPress={() => openEditSource(source)}
                           >
                             编辑
@@ -351,7 +742,8 @@ export function VideoSourcePanel() {
                             className={tableActionButtonClassName}
                             size="sm"
                             variant="danger"
-                            onPress={() => deleteSource(source.id)}
+                            isDisabled={operationSourceKey === source.key}
+                            onPress={() => deleteSource(source.key)}
                           >
                             删除
                           </Button>
@@ -367,11 +759,11 @@ export function VideoSourcePanel() {
       </Card>
 
       <Modal state={editSourceModal}>
-        <Modal.Backdrop>
+        <Modal.Backdrop isDismissable={!isSaving}>
           <Modal.Container placement="center" size="lg">
             <Modal.Dialog>
               <Modal.Header>
-                <Modal.Heading>编辑视频源</Modal.Heading>
+                <Modal.Heading>{editingSource?.originalKey ? "编辑视频源" : "添加视频源"}</Modal.Heading>
               </Modal.Header>
               <Modal.Body className="p-6">
                 {editingSource ? (
@@ -380,7 +772,7 @@ export function VideoSourcePanel() {
                     className="space-y-5"
                     onSubmit={(event) => {
                       event.preventDefault();
-                      editSourceModal.close();
+                      void saveEditingSource();
                     }}
                   >
                     <div className="grid gap-4 md:grid-cols-2">
@@ -388,7 +780,11 @@ export function VideoSourcePanel() {
                         <Label>名称</Label>
                         <Input
                           value={editingSource.name}
-                          onChange={(event) => updateSource(editingSource.id, { name: event.target.value })}
+                          onChange={(event) =>
+                            setEditingSource((current) =>
+                              current ? { ...current, name: event.target.value } : current,
+                            )
+                          }
                         />
                       </TextField>
 
@@ -396,7 +792,11 @@ export function VideoSourcePanel() {
                         <Label>KEY</Label>
                         <Input
                           value={editingSource.key}
-                          onChange={(event) => updateSource(editingSource.id, { key: event.target.value })}
+                          onChange={(event) =>
+                            setEditingSource((current) =>
+                              current ? { ...current, key: event.target.value } : current,
+                            )
+                          }
                         />
                       </TextField>
 
@@ -404,87 +804,49 @@ export function VideoSourcePanel() {
                         <Label>API 地址</Label>
                         <Input
                           value={editingSource.apiUrl}
-                          onChange={(event) => updateSource(editingSource.id, { apiUrl: event.target.value })}
+                          onChange={(event) =>
+                            setEditingSource((current) =>
+                              current ? { ...current, apiUrl: event.target.value } : current,
+                            )
+                          }
                         />
                       </TextField>
 
-                      <Select
-                        fullWidth
+                      <VideoSourceSelect
+                        label="状态"
                         selectedKey={editingSource.status}
-                        onSelectionChange={(key) => {
-                          if (key != null) {
-                            updateSource(editingSource.id, { status: String(key) as VideoSourceStatus });
-                          }
-                        }}
-                      >
-                        <Label>状态</Label>
-                        <Select.Trigger>
-                          <Select.Value />
-                          <Select.Indicator />
-                        </Select.Trigger>
-                        <Select.Popover>
-                          <ListBox className="bg-[var(--surface)]">
-                            <ListBox.Item id="enabled" key="enabled" textValue="启用">
-                              启用
-                            </ListBox.Item>
-                            <ListBox.Item id="disabled" key="disabled" textValue="禁用">
-                              禁用
-                            </ListBox.Item>
-                          </ListBox>
-                        </Select.Popover>
-                      </Select>
+                        options={[
+                          { value: "enabled", label: "启用" },
+                          { value: "disabled", label: "禁用" },
+                        ]}
+                        onSelectionChange={(status) =>
+                          setEditingSource((current) => (current ? { ...current, status } : current))
+                        }
+                      />
 
-                      <Select
-                        fullWidth
+                      <VideoSourceSelect
+                        label="源类型"
                         selectedKey={editingSource.type}
-                        onSelectionChange={(key) => {
-                          if (key != null) {
-                            updateSource(editingSource.id, { type: String(key) as VideoSourceType });
-                          }
-                        }}
-                      >
-                        <Label>源类型</Label>
-                        <Select.Trigger>
-                          <Select.Value />
-                          <Select.Indicator />
-                        </Select.Trigger>
-                        <Select.Popover>
-                          <ListBox className="bg-[var(--surface)]">
-                            <ListBox.Item id="normal" key="normal" textValue="普通">
-                              普通
-                            </ListBox.Item>
-                            <ListBox.Item id="short-drama" key="short-drama" textValue="短剧">
-                              短剧
-                            </ListBox.Item>
-                          </ListBox>
-                        </Select.Popover>
-                      </Select>
+                        options={[
+                          { value: "normal", label: "普通" },
+                          { value: "short-drama", label: "短剧" },
+                        ]}
+                        onSelectionChange={(type) =>
+                          setEditingSource((current) => (current ? { ...current, type } : current))
+                        }
+                      />
 
-                      <Select
-                        fullWidth
+                      <VideoSourceSelect
+                        label="成人资源"
                         selectedKey={editingSource.adult ? "yes" : "no"}
-                        onSelectionChange={(key) => {
-                          if (key != null) {
-                            updateSource(editingSource.id, { adult: key === "yes" });
-                          }
-                        }}
-                      >
-                        <Label>成人资源</Label>
-                        <Select.Trigger>
-                          <Select.Value />
-                          <Select.Indicator />
-                        </Select.Trigger>
-                        <Select.Popover>
-                          <ListBox className="bg-[var(--surface)]">
-                            <ListBox.Item id="no" key="no" textValue="否">
-                              否
-                            </ListBox.Item>
-                            <ListBox.Item id="yes" key="yes" textValue="是">
-                              是
-                            </ListBox.Item>
-                          </ListBox>
-                        </Select.Popover>
-                      </Select>
+                        options={[
+                          { value: "no", label: "否" },
+                          { value: "yes", label: "是" },
+                        ]}
+                        onSelectionChange={(value) =>
+                          setEditingSource((current) => (current ? { ...current, adult: value === "yes" } : current))
+                        }
+                      />
 
                       <TextField fullWidth name="sourceWeight">
                         <Label>权重</Label>
@@ -495,7 +857,9 @@ export function VideoSourcePanel() {
                           type="number"
                           value={String(editingSource.weight)}
                           onChange={(event) =>
-                            updateSource(editingSource.id, { weight: normalizeSourceWeight(event.target.value) })
+                            setEditingSource((current) =>
+                              current ? { ...current, weight: normalizeSourceWeight(event.target.value) } : current,
+                            )
                           }
                         />
                       </TextField>
@@ -504,11 +868,11 @@ export function VideoSourcePanel() {
                 ) : null}
               </Modal.Body>
               <Modal.Footer className="flex items-center justify-end gap-2">
-                <Button variant="outline" onPress={editSourceModal.close}>
+                <Button variant="outline" isDisabled={isSaving} onPress={closeEditSource}>
                   取消
                 </Button>
-                <Button variant="primary" type="submit" form="edit-video-source-form">
-                  保存
+                <Button variant="primary" type="submit" form="edit-video-source-form" isDisabled={isSaving}>
+                  {isSaving ? "保存中" : "保存"}
                 </Button>
               </Modal.Footer>
             </Modal.Dialog>

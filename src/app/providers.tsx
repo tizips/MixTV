@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { ThemeProvider } from "next-themes";
+import { Toast } from "@heroui/react";
 
 const themeStorageMigrationScript = `
 try {
@@ -28,6 +29,7 @@ export function Providers({ children }: { children: ReactNode }) {
       >
         {children}
       </ThemeProvider>
+      <Toast.Provider placement="top end" />
     </>
   );
 }

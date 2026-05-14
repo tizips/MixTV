@@ -1,6 +1,7 @@
 "use client";
 
-import { type Key, useState } from "react";
+import { type Key, useEffect, useState } from "react";
+import { z } from "zod";
 import {
   Button,
   Card,
@@ -14,6 +15,7 @@ import {
   Switch,
   TextArea,
   TextField,
+  toast,
 } from "@heroui/react";
 
 type ProxyMode =
@@ -36,6 +38,47 @@ export type SiteConfigFormValues = {
   showAdultContent: boolean;
   enableStreamingSearch: boolean;
 };
+
+type SiteConfigResponse = SiteConfigFormValues & {
+  updatedAt: string | null;
+};
+
+type SiteConfigSwitchKey = "enableKeywordFilter" | "showAdultContent" | "enableStreamingSearch";
+
+const proxyModeValues = [
+  "direct",
+  "zwei",
+  "official-ali",
+  "cml-tencent",
+  "cml-ali",
+  "custom",
+] as const;
+
+const siteConfigClientSchema = z
+  .object({
+    doubanAuth: z.string().trim(),
+    doubanDataProxyMode: z.enum(proxyModeValues),
+    doubanDataProxyUrl: z.string().trim(),
+    doubanImageProxyMode: z.enum(proxyModeValues),
+    doubanImageProxyUrl: z.string().trim(),
+  })
+  .superRefine((value, context) => {
+    if (value.doubanDataProxyMode === "custom" && !isValidHttpUrl(value.doubanDataProxyUrl)) {
+      context.addIssue({
+        code: "custom",
+        message: "请输入有效的豆瓣代理地址。",
+        path: ["doubanDataProxyUrl"],
+      });
+    }
+
+    if (value.doubanImageProxyMode === "custom" && !isValidHttpUrl(value.doubanImageProxyUrl)) {
+      context.addIssue({
+        code: "custom",
+        message: "请输入有效的图片代理地址。",
+        path: ["doubanImageProxyUrl"],
+      });
+    }
+  });
 
 const proxyOptions: Array<{ value: ProxyMode; label: string }> = [
   { value: "direct", label: "直连（服务器直接请求豆瓣）" },
@@ -70,6 +113,106 @@ const defaultValues: SiteConfigFormValues = {
 
 function mergeInitialValues(initialValues?: Partial<SiteConfigFormValues>) {
   return { ...defaultValues, ...initialValues };
+}
+
+function isProxyMode(value: unknown): value is ProxyMode {
+  return typeof value === "string" && proxyOptions.some((option) => option.value === value);
+}
+
+function normalizeSiteConfigResponse(payload: unknown): SiteConfigResponse {
+  const raw = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+
+  return {
+    ...defaultValues,
+    siteName: typeof raw.siteName === "string" ? raw.siteName : defaultValues.siteName,
+    siteAnnouncement:
+      typeof raw.siteAnnouncement === "string" ? raw.siteAnnouncement : defaultValues.siteAnnouncement,
+    doubanDataProxyMode: isProxyMode(raw.doubanDataProxyMode)
+      ? raw.doubanDataProxyMode
+      : defaultValues.doubanDataProxyMode,
+    doubanDataProxyUrl:
+      typeof raw.doubanDataProxyUrl === "string" ? raw.doubanDataProxyUrl : defaultValues.doubanDataProxyUrl,
+    doubanImageProxyMode: isProxyMode(raw.doubanImageProxyMode)
+      ? raw.doubanImageProxyMode
+      : defaultValues.doubanImageProxyMode,
+    doubanImageProxyUrl:
+      typeof raw.doubanImageProxyUrl === "string" ? raw.doubanImageProxyUrl : defaultValues.doubanImageProxyUrl,
+    doubanAuth: typeof raw.doubanAuth === "string" ? raw.doubanAuth : defaultValues.doubanAuth,
+    enableKeywordFilter:
+      typeof raw.enableKeywordFilter === "boolean" ? raw.enableKeywordFilter : defaultValues.enableKeywordFilter,
+    showAdultContent: typeof raw.showAdultContent === "boolean" ? raw.showAdultContent : defaultValues.showAdultContent,
+    enableStreamingSearch:
+      typeof raw.enableStreamingSearch === "boolean"
+        ? raw.enableStreamingSearch
+        : defaultValues.enableStreamingSearch,
+    updatedAt: typeof raw.updatedAt === "string" || raw.updatedAt === null ? raw.updatedAt : null,
+  };
+}
+
+let siteConfigLoadRequest: Promise<SiteConfigResponse> | null = null;
+
+async function fetchSiteConfig() {
+  const response = await fetch("/api/admin/site-config");
+
+  if (!response.ok) {
+    throw new Error("站点配置读取失败");
+  }
+
+  return normalizeSiteConfigResponse(await response.json());
+}
+
+async function readApiErrorMessage(response: Response, fallback: string) {
+  if (response.status !== 400) {
+    return fallback;
+  }
+
+  try {
+    const payload = (await response.json()) as unknown;
+
+    if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+      const message = (payload as Record<string, unknown>).message;
+
+      if (typeof message === "string" && message.trim()) {
+        return message;
+      }
+    }
+  } catch {
+    return fallback;
+  }
+
+  return fallback;
+}
+
+function isValidHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function loadSiteConfigOnce() {
+  if (siteConfigLoadRequest) {
+    return siteConfigLoadRequest;
+  }
+
+  const request = fetchSiteConfig();
+  siteConfigLoadRequest = request;
+
+  void request
+    .finally(() => {
+      if (siteConfigLoadRequest === request) {
+        siteConfigLoadRequest = null;
+      }
+    })
+    .catch(() => undefined);
+
+  return request;
+}
+
+function getZodErrorMessage(error: z.ZodError) {
+  return error.issues[0]?.message ?? "表单校验失败。";
 }
 
 function ProxySelect({
@@ -124,13 +267,108 @@ function ProxySelect({
 
 export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<SiteConfigFormValues> }) {
   const [values, setValues] = useState(() => mergeInitialValues(initialValues));
-  const [saveMessage, setSaveMessage] = useState("尚未保存更改");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSavingMain, setIsSavingMain] = useState(false);
+  const [savingSwitchKey, setSavingSwitchKey] = useState<SiteConfigSwitchKey | null>(null);
 
   const isDataProxyCustom = values.doubanDataProxyMode === "custom";
   const isImageProxyCustom = values.doubanImageProxyMode === "custom";
 
-  const saveConfig = () => {
-    setSaveMessage(`已保存到 Mock API：${values.siteName}`);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSiteConfig() {
+      setIsLoading(true);
+
+      try {
+        const data = await loadSiteConfigOnce();
+
+        if (!cancelled) {
+          setValues(data);
+          toast.success("站点配置已加载");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : "站点配置读取失败";
+          toast.danger(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadSiteConfig();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const saveConfig = async () => {
+    const parsedValues = siteConfigClientSchema.safeParse({
+      doubanAuth: values.doubanAuth,
+      doubanDataProxyMode: values.doubanDataProxyMode,
+      doubanDataProxyUrl: values.doubanDataProxyUrl,
+      doubanImageProxyMode: values.doubanImageProxyMode,
+      doubanImageProxyUrl: values.doubanImageProxyUrl,
+    });
+
+    if (!parsedValues.success) {
+      toast.danger(getZodErrorMessage(parsedValues.error));
+      return;
+    }
+
+    setIsSavingMain(true);
+
+    try {
+      const response = await fetch("/api/admin/site-config/main", {
+        body: JSON.stringify(parsedValues.data),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiErrorMessage(response, "站点配置保存失败"));
+      }
+
+      setValues(normalizeSiteConfigResponse(await response.json()));
+      toast.success("站点配置已保存");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "站点配置保存失败";
+      toast.danger(message);
+    } finally {
+      setIsSavingMain(false);
+    }
+  };
+
+  const saveSwitch = async (key: SiteConfigSwitchKey, value: boolean) => {
+    const previousValue = values[key];
+
+    setValues((current) => ({ ...current, [key]: value }));
+    setSavingSwitchKey(key);
+
+    try {
+      const response = await fetch("/api/admin/site-config/switch", {
+        body: JSON.stringify({ key, value }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiErrorMessage(response, "开关配置保存失败"));
+      }
+
+      setValues(normalizeSiteConfigResponse(await response.json()));
+      toast.success("开关配置已保存");
+    } catch (error) {
+      setValues((current) => ({ ...current, [key]: previousValue }));
+      const message = error instanceof Error ? error.message : "开关配置保存失败";
+      toast.danger(message);
+    } finally {
+      setSavingSwitchKey(null);
+    }
   };
 
   return (
@@ -145,12 +383,12 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
               </div>
             </div>
             <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
-              这里维护站点基础信息、豆瓣代理和全站开关，当前保存行为通过 Mock API 模拟。
+              这里维护豆瓣代理和全站开关，站点名称和站点公告暂时不开放编辑。
             </p>
           </div>
 
           <Chip color="accent" variant="soft">
-            {saveMessage}
+            {isLoading ? "加载中" : "配置管理"}
           </Chip>
         </div>
       </Card.Header>
@@ -163,7 +401,7 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
             saveConfig();
           }}
         >
-          <TextField fullWidth name="siteName">
+          {/* <TextField fullWidth name="siteName">
             <Label>站点名称</Label>
             <Input
               id="site-name"
@@ -182,7 +420,7 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
               placeholder="输入站点公告"
               rows={5}
             />
-          </TextField>
+          </TextField> */}
 
           <div className="space-y-6">
             <ProxySelect
@@ -257,11 +495,12 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
               placeholder="输入豆瓣认证信息"
               rows={5}
             />
-            <Description>用于模拟保存豆瓣认证字符串，后续可替换为真实配置接口。</Description>
+            <Description>用于保存豆瓣认证字符串。</Description>
           </TextField>
 
-          <Button variant="primary" fullWidth type="submit">
-            保存配置
+          <Button variant="primary" fullWidth type="submit" isDisabled={isLoading || isSavingMain}>
+            <i aria-hidden="true" className="bi bi-save" />
+            {isSavingMain ? "保存中" : "保存配置"}
           </Button>
         </Form>
 
@@ -269,7 +508,7 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
           <div className="space-y-3">
             <h3 className="text-lg font-semibold tracking-tight text-foreground">全站开关</h3>
             <p className="text-sm leading-6 text-default-500">
-              开关状态保持在本地表单中，提交时一并写入 mock 保存结果。
+              开关调整后会立即写入站点配置接口。
             </p>
           </div>
 
@@ -280,13 +519,9 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
                 <p className="text-xs text-default-500">过滤低质量搜索结果。</p>
               </div>
               <Switch
+                isDisabled={isLoading || savingSwitchKey === "enableKeywordFilter"}
                 isSelected={values.enableKeywordFilter}
-                onChange={() =>
-                  setValues((current) => ({
-                    ...current,
-                    enableKeywordFilter: !current.enableKeywordFilter,
-                  }))
-                }
+                onChange={(enabled) => void saveSwitch("enableKeywordFilter", enabled)}
                 aria-label="启用关键词过滤"
               >
                 <Switch.Control>
@@ -301,13 +536,9 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
                 <p className="text-xs text-default-500">适配成人内容展示场景。</p>
               </div>
               <Switch
+                isDisabled={isLoading || savingSwitchKey === "showAdultContent"}
                 isSelected={values.showAdultContent}
-                onChange={() =>
-                  setValues((current) => ({
-                    ...current,
-                    showAdultContent: !current.showAdultContent,
-                  }))
-                }
+                onChange={(enabled) => void saveSwitch("showAdultContent", enabled)}
                 aria-label="显示成人内容"
               >
                 <Switch.Control>
@@ -322,13 +553,9 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
                 <p className="text-xs text-default-500">让搜索结果更快呈现给用户。</p>
               </div>
               <Switch
+                isDisabled={isLoading || savingSwitchKey === "enableStreamingSearch"}
                 isSelected={values.enableStreamingSearch}
-                onChange={() =>
-                  setValues((current) => ({
-                    ...current,
-                    enableStreamingSearch: !current.enableStreamingSearch,
-                  }))
-                }
+                onChange={(enabled) => void saveSwitch("enableStreamingSearch", enabled)}
                 aria-label="启用流式搜索"
               >
                 <Switch.Control>

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Card, Chip, Input, Label, Switch, TextArea } from "@heroui/react";
+import { z } from "zod";
+import { Button, Card, Chip, Input, Label, Switch, TextArea, toast } from "@heroui/react";
 
 function formatLastUpdated(date: Date | null) {
   if (!date) {
@@ -29,6 +30,35 @@ type ConfigFilesResponse = {
   content: ConfigContentResponse;
   subscription: SubscriptionResponse;
 };
+
+const subscriptionUrlSchema = z
+  .string()
+  .trim()
+  .min(1, "请输入订阅链接。")
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return url.protocol === "http:" || url.protocol === "https:";
+    } catch {
+      return false;
+    }
+  }, "请输入有效的订阅链接。");
+
+const configContentSchema = z
+  .string()
+  .refine((value) => value.trim().length > 0, "请输入配置内容。")
+  .refine((value) => {
+    try {
+      JSON.parse(value);
+      return true;
+    } catch {
+      return false;
+    }
+  }, "配置内容必须是有效 JSON。");
+
+function getZodErrorMessage(error: z.ZodError) {
+  return error.issues[0]?.message ?? "表单校验失败。";
+}
 
 function normalizeConfigFilesResponse(payload: unknown): ConfigFilesResponse {
   const raw = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
@@ -77,27 +107,68 @@ function getLatestUpdatedAt(...values: Array<string | null>) {
   return new Date(Math.max(...dates.map((date) => date.getTime())));
 }
 
+let configFilesLoadRequest: Promise<ConfigFilesResponse> | null = null;
+
+async function fetchConfigFiles() {
+  const response = await fetch("/api/admin/files");
+
+  if (!response.ok) {
+    throw new Error("配置读取失败");
+  }
+
+  return normalizeConfigFilesResponse(await response.json());
+}
+
+async function readApiErrorMessage(response: Response, fallback: string) {
+  if (response.status !== 400) {
+    return fallback;
+  }
+
+  try {
+    const payload = (await response.json()) as unknown;
+
+    if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+      const message = (payload as Record<string, unknown>).message;
+
+      if (typeof message === "string" && message.trim()) {
+        return message;
+      }
+    }
+  } catch {
+    return fallback;
+  }
+
+  return fallback;
+}
+
+function loadConfigFilesOnce() {
+  if (configFilesLoadRequest) {
+    return configFilesLoadRequest;
+  }
+
+  const request = fetchConfigFiles();
+  configFilesLoadRequest = request;
+
+  void request
+    .finally(() => {
+      if (configFilesLoadRequest === request) {
+        configFilesLoadRequest = null;
+      }
+    })
+    .catch(() => undefined);
+
+  return request;
+}
+
 export function ConfigFilesPanel() {
   const [subscriptionUrl, setSubscriptionUrl] = useState("");
   const [configText, setConfigText] = useState("");
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [statusMessage, setStatusMessage] = useState("正在加载配置");
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingSubscription, setIsSavingSubscription] = useState(false);
   const [isSavingAutoUpdate, setIsSavingAutoUpdate] = useState(false);
   const [isSavingContent, setIsSavingContent] = useState(false);
-  const isMaskLoading = isLoading || isSavingSubscription || isSavingAutoUpdate || isSavingContent;
-
-  const loadConfigFiles = async () => {
-    const response = await fetch("/api/admin/files");
-
-    if (!response.ok) {
-      throw new Error("配置读取失败");
-    }
-
-    return normalizeConfigFilesResponse(await response.json());
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -106,18 +177,19 @@ export function ConfigFilesPanel() {
       setIsLoading(true);
 
       try {
-        const data = await loadConfigFiles();
+        const data = await loadConfigFilesOnce();
 
         if (!cancelled) {
           setSubscriptionUrl(data.subscription.url ?? "");
           setAutoUpdate(data.subscription.autoUpdate);
           setConfigText(data.content.content);
           setLastUpdated(getLatestUpdatedAt(data.subscription.updatedAt, data.content.updatedAt));
-          setStatusMessage("配置已加载");
+          toast.success("配置已加载");
         }
       } catch (error) {
         if (!cancelled) {
-          setStatusMessage(error instanceof Error ? error.message : "配置读取失败");
+          const message = error instanceof Error ? error.message : "配置读取失败";
+          toast.danger(message);
         }
       } finally {
         if (!cancelled) {
@@ -134,18 +206,25 @@ export function ConfigFilesPanel() {
   }, []);
 
   const pullConfig = async () => {
+    const parsedUrl = subscriptionUrlSchema.safeParse(subscriptionUrl);
+
+    if (!parsedUrl.success) {
+      toast.danger(getZodErrorMessage(parsedUrl.error));
+      return;
+    }
+
     setIsLoading(true);
     setIsSavingSubscription(true);
 
     try {
       const response = await fetch("/api/admin/files/subscription/pull", {
-        body: JSON.stringify({ url: subscriptionUrl }),
+        body: JSON.stringify({ url: parsedUrl.data }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
 
       if (!response.ok) {
-        throw new Error("订阅配置保存失败");
+        throw new Error(await readApiErrorMessage(response, "订阅配置保存失败"));
       }
 
       const data = (await response.json()) as SubscriptionResponse;
@@ -153,12 +232,13 @@ export function ConfigFilesPanel() {
       setAutoUpdate(data.autoUpdate);
       setLastUpdated(parseUpdatedAt(data.updatedAt));
 
-      const configFiles = await loadConfigFiles();
+      const configFiles = await fetchConfigFiles();
       setConfigText(configFiles.content.content);
       setLastUpdated(getLatestUpdatedAt(configFiles.subscription.updatedAt, configFiles.content.updatedAt));
-      setStatusMessage("配置已拉取并保存");
+      toast.success("配置已拉取并保存");
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "配置拉取保存失败");
+      const message = error instanceof Error ? error.message : "配置拉取保存失败";
+      toast.danger(message);
     } finally {
       setIsLoading(false);
       setIsSavingSubscription(false);
@@ -178,41 +258,50 @@ export function ConfigFilesPanel() {
       });
 
       if (!response.ok) {
-        throw new Error("自动更新配置保存失败");
+        throw new Error(await readApiErrorMessage(response, "自动更新配置保存失败"));
       }
 
       const data = (await response.json()) as SubscriptionResponse;
       setAutoUpdate(data.autoUpdate);
       setLastUpdated(parseUpdatedAt(data.updatedAt));
-      setStatusMessage(data.autoUpdate ? "自动更新已开启" : "自动更新已关闭");
+      toast.success(data.autoUpdate ? "自动更新已开启" : "自动更新已关闭");
     } catch (error) {
       setAutoUpdate(previousAutoUpdate);
-      setStatusMessage(error instanceof Error ? error.message : "自动更新配置保存失败");
+      const message = error instanceof Error ? error.message : "自动更新配置保存失败";
+      toast.danger(message);
     } finally {
       setIsSavingAutoUpdate(false);
     }
   };
 
   const saveConfig = async () => {
+    const parsedContent = configContentSchema.safeParse(configText);
+
+    if (!parsedContent.success) {
+      toast.danger(getZodErrorMessage(parsedContent.error));
+      return;
+    }
+
     setIsSavingContent(true);
 
     try {
       const response = await fetch("/api/admin/files/content", {
-        body: JSON.stringify({ content: configText }),
+        body: JSON.stringify({ content: parsedContent.data }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
 
       if (!response.ok) {
-        throw new Error("配置内容保存失败");
+        throw new Error(await readApiErrorMessage(response, "配置内容保存失败"));
       }
 
       const data = (await response.json()) as ConfigContentResponse;
       setConfigText(data.content);
       setLastUpdated(parseUpdatedAt(data.updatedAt));
-      setStatusMessage("配置内容已保存");
+      toast.success("配置内容已保存");
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "配置内容保存失败");
+      const message = error instanceof Error ? error.message : "配置内容保存失败";
+      toast.danger(message);
     } finally {
       setIsSavingContent(false);
     }
@@ -220,14 +309,6 @@ export function ConfigFilesPanel() {
 
   return (
     <div className="relative">
-      {isMaskLoading ? (
-        <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-background/70 backdrop-blur-[1px]">
-          <div className="flex items-center gap-2 rounded-full border border-default-200 bg-background/90 px-4 py-2 text-sm text-default-700 shadow-sm">
-            <i aria-hidden="true" className="bi bi-arrow-repeat animate-spin text-base" />
-            <span>处理中...</span>
-          </div>
-        </div>
-      ) : null}
       <Card>
         <Card.Header className="flex flex-col gap-4 p-6 pb-0 md:p-8 md:pb-0">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -245,7 +326,7 @@ export function ConfigFilesPanel() {
             </div>
 
             <Chip color={autoUpdate ? "success" : "warning"}>
-              {isLoading ? "加载中" : statusMessage || (autoUpdate ? "自动更新开启" : "自动更新关闭")}
+              {isLoading ? "加载中" : autoUpdate ? "自动更新开启" : "自动更新关闭"}
             </Chip>
           </div>
         </Card.Header>
@@ -298,7 +379,7 @@ export function ConfigFilesPanel() {
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Label htmlFor="config-content">配置内容</Label>
-              <Button variant="outline" onPress={saveConfig} isDisabled={isLoading}>
+              <Button variant="outline" onPress={saveConfig} isDisabled={isLoading || isSavingContent}>
                 {isSavingContent ? "保存中" : "保存"}
               </Button>
             </div>
