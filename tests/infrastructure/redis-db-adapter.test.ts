@@ -62,20 +62,20 @@ describe("redis db adapter", () => {
     await expect(
       db.script("return ARGV[1]", {
         args: ["alpha", 1, true, null],
-        keys: ["item:movie-1"],
+        keys: ["movie-1"],
       }),
     ).resolves.toBe("eval-result");
 
     expect(client.connect).toHaveBeenCalledTimes(4);
     expect(client.set).toHaveBeenCalledWith(
-      "movies:item:movie-1",
+      "movies:movie-1",
       JSON.stringify({ id: "movie-1", title: "Alpha" }),
     );
-    expect(client.get).toHaveBeenCalledWith("movies:item:movie-1");
-    expect(client.del).toHaveBeenCalledWith("movies:item:movie-1");
+    expect(client.get).toHaveBeenCalledWith("movies:movie-1");
+    expect(client.del).toHaveBeenCalledWith("movies:movie-1");
     expect(client.eval).toHaveBeenCalledWith("return ARGV[1]", {
       arguments: ["alpha", "1", "true", ""],
-      keys: ["movies:item:movie-1"],
+      keys: ["movies:movie-1"],
     });
   });
 
@@ -104,7 +104,7 @@ describe("redis db adapter", () => {
     );
 
     expect(db).toBeDefined();
-    expect(client.set).toHaveBeenNthCalledWith(1, "movies:item:1", JSON.stringify({ id: "1", title: "A" }));
-    expect(client.set).toHaveBeenNthCalledWith(2, "movies:item:2", JSON.stringify({ id: "2", title: "B" }));
+    expect(client.set).toHaveBeenNthCalledWith(1, "movies:1", JSON.stringify({ id: "1", title: "A" }));
+    expect(client.set).toHaveBeenNthCalledWith(2, "movies:2", JSON.stringify({ id: "2", title: "B" }));
   });
 });

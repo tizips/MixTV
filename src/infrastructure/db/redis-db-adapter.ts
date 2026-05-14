@@ -24,7 +24,7 @@ export interface RedisDbOptions {
   url?: string;
 }
 
-const buildItemKey = (namespace: string, id: string) => `${namespace}:item:${id}`;
+const buildItemKey = (namespace: string, id: string) => `${namespace}:${id}`;
 const buildScriptKey = (namespace: string, key: string) => `${namespace}:${key}`;
 
 const serializeScriptArgument = (arg: DbScriptArgument): string => {

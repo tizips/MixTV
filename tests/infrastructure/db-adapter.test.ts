@@ -67,7 +67,7 @@ describe("db adapter factory", () => {
     });
   });
 
-  it("creates the redis db adapter with env defaults", () => {
+  it("creates the redis db adapter lazily with env defaults", async () => {
     const adapter = createDbAdapter<{ id: string; title: string }>({
       env: {
         REDIS_URL: "redis://127.0.0.1:6379",
@@ -77,6 +77,10 @@ describe("db adapter factory", () => {
     });
 
     expect(adapter).toBeDefined();
+    expect(createRedisDbAdapter).not.toHaveBeenCalled();
+
+    await adapter.get("movie-1");
+
     expect(createRedisDbAdapter).toHaveBeenCalledWith({
       client: undefined,
       env: {

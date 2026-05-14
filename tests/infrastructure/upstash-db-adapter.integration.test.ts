@@ -24,7 +24,7 @@ describeIfUpstash("upstash db adapter", () => {
 
   afterAll(async () => {
     const client = createUpstashRedisClient({ env });
-    await client.del(`${namespace}:item:movie-1`, `${namespace}:item:movie-2`);
+    await client.del(`${namespace}:movie-1`, `${namespace}:movie-2`);
   });
 
   it("sets, gets, and deletes records in upstash", async () => {

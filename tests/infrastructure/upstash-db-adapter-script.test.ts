@@ -27,11 +27,11 @@ describe("upstash db adapter script", () => {
     await db.del("movie-1");
 
     expect(client.set).toHaveBeenCalledWith(
-      "movies:item:movie-1",
+      "movies:movie-1",
       JSON.stringify({ id: "movie-1", title: "Alpha" }),
     );
-    expect(client.get).toHaveBeenCalledWith("movies:item:movie-1");
-    expect(client.del).toHaveBeenCalledWith("movies:item:movie-1");
+    expect(client.get).toHaveBeenCalledWith("movies:movie-1");
+    expect(client.del).toHaveBeenCalledWith("movies:movie-1");
   });
 
   it("runs write scripts with namespaced keys and serialized args", async () => {
@@ -44,13 +44,13 @@ describe("upstash db adapter script", () => {
     await expect(
       db.script("return ARGV[1]", {
         args: ["alpha", 1, true, null],
-        keys: ["item:movie-1"],
+        keys: ["movie-1"],
       }),
     ).resolves.toBe("write-result");
 
     expect(client.eval).toHaveBeenCalledWith(
       "return ARGV[1]",
-      ["movies:item:movie-1"],
+      ["movies:movie-1"],
       ["alpha", "1", "true", ""],
     );
   });
@@ -64,14 +64,14 @@ describe("upstash db adapter script", () => {
 
     await expect(
       db.script("return KEYS[1]", {
-        keys: ["item:movie-1"],
+        keys: ["movie-1"],
         readOnly: true,
       }),
     ).resolves.toBe("read-result");
 
     expect(client.evalRo).toHaveBeenCalledWith(
       "return KEYS[1]",
-      ["movies:item:movie-1"],
+      ["movies:movie-1"],
       [],
     );
   });
