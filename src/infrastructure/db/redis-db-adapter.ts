@@ -2,8 +2,24 @@ import { createClient, type RedisClientType } from "redis";
 import type { DbPort, DbScriptArgument, DbScriptOptions } from "@/shared/db/db-port";
 import type { DbRecord } from "@/shared/db/db-types";
 
+export interface RedisEnv {
+  [key: string]: string | undefined;
+  REDIS_URL?: string;
+}
+
+export interface RedisClient {
+  connect(): Promise<unknown>;
+  del(keys: string | string[]): Promise<number>;
+  eval(script: string, options?: { keys?: string[]; arguments?: string[] }): Promise<unknown>;
+  get(key: string): Promise<string | null>;
+  isOpen: boolean;
+  quit(): Promise<unknown>;
+  set(key: string, value: string): Promise<string | null>;
+}
+
 export interface RedisDbOptions {
-  client?: RedisClientType;
+  client?: RedisClient;
+  env?: RedisEnv;
   namespace: string;
   url?: string;
 }
@@ -19,82 +35,103 @@ const serializeScriptArgument = (arg: DbScriptArgument): string => {
   return String(arg);
 };
 
-export const createRedisDbAdapter = <TValue>(
-  options: RedisDbOptions,
-): DbPort<TValue, string> => {
-  const client = options.client ?? createClient({ url: options.url ?? process.env.REDIS_URL });
+const readRedisConfig = (
+  options: Pick<RedisDbOptions, "env" | "url">,
+) => {
+  const url = options.url ?? options.env?.REDIS_URL;
 
-  async function ensureConnected() {
-    if (!client.isOpen) {
-      await client.connect();
-    }
+  if (!url?.trim()) {
+    throw new Error("REDIS_URL is required for redis adapter.");
+  }
+
+  const trimmedUrl = url.trim();
+
+  if (/^https?:\/\//.test(trimmedUrl)) {
+    throw new Error(
+      `REDIS_URL must start with redis:// or rediss://. Received "${trimmedUrl}".`,
+    );
   }
 
   return {
-    async set(key, value) {
-      await ensureConnected();
+    url: trimmedUrl,
+  };
+};
 
+export const createRedisClient = (
+  options: Pick<RedisDbOptions, "env" | "url">,
+): RedisClient => {
+  const config = readRedisConfig(options);
+
+  const client = createClient({
+    url: config.url,
+  });
+
+  return client as RedisClientType as RedisClient;
+};
+
+const ensureConnected = async (client: RedisClient) => {
+  if (!client.isOpen) {
+    await client.connect();
+  }
+};
+
+export const createRedisDbAdapter = <TValue>(
+  options: RedisDbOptions,
+): DbPort<TValue, string> => {
+  const client = options.client ?? createRedisClient(options);
+
+  return {
+    async set(key, value) {
+      await ensureConnected(client);
       await client.set(buildItemKey(options.namespace, key), JSON.stringify(value));
     },
     async get(key) {
-      await ensureConnected();
-
+      await ensureConnected(client);
       const raw = await client.get(buildItemKey(options.namespace, key));
+
       return raw ? (JSON.parse(raw) as TValue) : null;
     },
     async del(key) {
-      await ensureConnected();
-
+      await ensureConnected(client);
       await client.del(buildItemKey(options.namespace, key));
     },
     async script<TResult = unknown>(
       script: string,
       runOptions: DbScriptOptions<string> = {},
     ) {
-      await ensureConnected();
+      await ensureConnected(client);
+      const keys = runOptions.keys?.map((key) => buildScriptKey(options.namespace, key)) ?? [];
+      const args = runOptions.args?.map(serializeScriptArgument) ?? [];
 
-      const evalOptions = {
-        keys: runOptions.keys?.map((key) => buildScriptKey(options.namespace, key)),
-        arguments: runOptions.args?.map(serializeScriptArgument),
-      };
-
-      const result = runOptions.readOnly
-        ? await client.evalRo(script, evalOptions)
-        : await client.eval(script, evalOptions);
+      const result = await client.eval(script, {
+        arguments: args,
+        keys,
+      });
 
       return result as TResult;
     },
   };
 };
 
-export const disconnectRedisDb = async (options: RedisDbOptions): Promise<void> => {
-  if (!options.client || !options.client.isOpen) {
+export const disconnectRedisDb = async (client?: RedisClient): Promise<void> => {
+  if (!client?.isOpen) {
     return;
   }
 
-  await options.client.quit();
+  await client.quit();
 };
 
 export const seedRedisDb = async <TItem extends DbRecord>(
   options: RedisDbOptions,
   items: TItem[],
 ): Promise<void> => {
-  const client = options.client ?? createClient({ url: options.url ?? process.env.REDIS_URL });
-  const ownsClient = !options.client;
-
-  if (!client.isOpen) {
-    await client.connect();
-  }
-
-  const multi = client.multi();
+  const db = createRedisDbAdapter<TItem>(options);
 
   for (const item of items) {
-    multi.set(buildItemKey(options.namespace, item.id), JSON.stringify(item));
+    await db.set(item.id, item);
   }
 
-  await multi.exec();
-
-  if (ownsClient && client.isOpen) {
-    await client.quit();
+  if (options.client) {
+    await disconnectRedisDb(options.client);
   }
 };

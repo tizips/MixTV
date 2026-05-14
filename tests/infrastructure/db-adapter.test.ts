@@ -4,9 +4,19 @@ import {
   resolveStorageType,
 } from "@/infrastructure/db/db-adapter";
 import { createRedisDbAdapter } from "@/infrastructure/db/redis-db-adapter";
+import { createUpstashDbAdapter } from "@/infrastructure/db/upstash-db-adapter";
 
 vi.mock("@/infrastructure/db/redis-db-adapter", () => ({
   createRedisDbAdapter: vi.fn(() => ({
+    del: vi.fn(),
+    get: vi.fn(),
+    script: vi.fn(),
+    set: vi.fn(),
+  })),
+}));
+
+vi.mock("@/infrastructure/db/upstash-db-adapter", () => ({
+  createUpstashDbAdapter: vi.fn(() => ({
     del: vi.fn(),
     get: vi.fn(),
     script: vi.fn(),
@@ -19,24 +29,48 @@ describe("db adapter factory", () => {
     vi.clearAllMocks();
   });
 
-  it("defaults STORAGE_TYPE to redis", () => {
-    expect(resolveStorageType({})).toBe("redis");
+  it("normalizes explicit upstash STORAGE_TYPE", () => {
+    expect(resolveStorageType({ STORAGE_TYPE: " Upstash " })).toBe("upstash");
+  });
+
+  it("rejects unsupported STORAGE_TYPE values", () => {
+    expect(() => resolveStorageType({ STORAGE_TYPE: "memory" })).toThrow(
+      'Unsupported STORAGE_TYPE "memory". Supported values: redis, upstash',
+    );
   });
 
   it("normalizes explicit redis STORAGE_TYPE", () => {
     expect(resolveStorageType({ STORAGE_TYPE: " Redis " })).toBe("redis");
   });
 
-  it("rejects unsupported STORAGE_TYPE values", () => {
-    expect(() => resolveStorageType({ STORAGE_TYPE: "memory" })).toThrow(
-      'Unsupported STORAGE_TYPE "memory". Supported values: redis',
-    );
+  it("creates the upstash db adapter with env defaults", () => {
+    const adapter = createDbAdapter<{ id: string; title: string }>({
+      env: {
+        STORAGE_TYPE: "upstash",
+        UPSTASH_REDIS_REST_TOKEN: "test-token",
+        UPSTASH_REDIS_REST_URL: "https://redis.example.test",
+      },
+      namespace: "movies",
+    });
+
+    expect(adapter).toBeDefined();
+    expect(createUpstashDbAdapter).toHaveBeenCalledWith({
+      client: undefined,
+      env: {
+        STORAGE_TYPE: "upstash",
+        UPSTASH_REDIS_REST_TOKEN: "test-token",
+        UPSTASH_REDIS_REST_URL: "https://redis.example.test",
+      },
+      namespace: "movies",
+      token: undefined,
+      url: "https://redis.example.test",
+    });
   });
 
   it("creates the redis db adapter with env defaults", () => {
     const adapter = createDbAdapter<{ id: string; title: string }>({
       env: {
-        REDIS_URL: "redis://example.test:6379",
+        REDIS_URL: "redis://127.0.0.1:6379",
         STORAGE_TYPE: "redis",
       },
       namespace: "movies",
@@ -45,24 +79,34 @@ describe("db adapter factory", () => {
     expect(adapter).toBeDefined();
     expect(createRedisDbAdapter).toHaveBeenCalledWith({
       client: undefined,
+      env: {
+        REDIS_URL: "redis://127.0.0.1:6379",
+        STORAGE_TYPE: "redis",
+      },
       namespace: "movies",
-      url: "redis://example.test:6379",
+      url: "redis://127.0.0.1:6379",
     });
   });
 
   it("lets an explicit url override env.REDIS_URL", () => {
     createDbAdapter<{ id: string }>({
       env: {
-        REDIS_URL: "redis://env.test:6379",
+        REDIS_URL: "https://env.test",
+        STORAGE_TYPE: "upstash",
       },
       namespace: "movies",
-      url: "redis://override.test:6379",
+      url: "https://override.test",
     });
 
-    expect(createRedisDbAdapter).toHaveBeenCalledWith({
+    expect(createUpstashDbAdapter).toHaveBeenCalledWith({
       client: undefined,
+      env: {
+        REDIS_URL: "https://env.test",
+        STORAGE_TYPE: "upstash",
+      },
       namespace: "movies",
-      url: "redis://override.test:6379",
+      token: undefined,
+      url: "https://override.test",
     });
   });
 
