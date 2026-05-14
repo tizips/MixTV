@@ -4,6 +4,18 @@ import { resolveSafeNextPath } from "@/modules/auth/server/redirect";
 
 export default auth((request) => {
   const pathname = request.nextUrl.pathname;
+  const isApiRoute = pathname.startsWith("/api");
+  const isPublicApiRoute =
+    pathname === "/api/login" || pathname.startsWith("/api/auth/");
+
+  if (isApiRoute) {
+    if (isPublicApiRoute || request.auth?.user) {
+      return NextResponse.next();
+    }
+
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
   const nextPath = resolveSafeNextPath(
     `${request.nextUrl.pathname}${request.nextUrl.search}`,
   );
@@ -31,5 +43,5 @@ export default auth((request) => {
 });
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };

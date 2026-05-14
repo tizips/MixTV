@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { authenticateLoginRequest } from "@/modules/auth/server/login-api-service";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 function badRequest(message: string) {
   return NextResponse.json({ message }, { status: 400 });

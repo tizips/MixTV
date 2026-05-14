@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAccountByJwt } from "@/modules/auth/server/login-api-service";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 function readBearerToken(request: Request): string {
   const authorization = request.headers.get("authorization") ?? "";
