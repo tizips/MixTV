@@ -22,19 +22,27 @@ type SiteHeaderProps = {
   userName?: string;
 };
 
+type HydratedAccount = {
+  accessToken: string;
+  admin?: boolean;
+  name?: string;
+};
+
 export function SiteHeader({
   accessToken,
   userName = "MixTV 用户",
   isAdmin = false,
 }: SiteHeaderProps) {
   const pathname = usePathname();
-  const [resolvedUserName, setResolvedUserName] = useState(userName);
-  const [resolvedIsAdmin, setResolvedIsAdmin] = useState(isAdmin);
-
-  useEffect(() => {
-    setResolvedUserName(userName);
-    setResolvedIsAdmin(isAdmin);
-  }, [isAdmin, userName]);
+  const [hydratedAccount, setHydratedAccount] = useState<HydratedAccount | null>(null);
+  const activeHydratedAccount =
+    hydratedAccount?.accessToken === accessToken ? hydratedAccount : null;
+  const resolvedUserName =
+    typeof activeHydratedAccount?.name === "string" && activeHydratedAccount.name
+      ? activeHydratedAccount.name
+      : userName;
+  const resolvedIsAdmin =
+    typeof activeHydratedAccount?.admin === "boolean" ? activeHydratedAccount.admin : isAdmin;
 
   useEffect(() => {
     if (!accessToken) {
@@ -65,13 +73,11 @@ export function SiteHeader({
           return;
         }
 
-        if (typeof account.name === "string" && account.name) {
-          setResolvedUserName(account.name);
-        }
-
-        if (typeof account.admin === "boolean") {
-          setResolvedIsAdmin(account.admin);
-        }
+        setHydratedAccount({
+          accessToken,
+          admin: account.admin,
+          name: account.name,
+        });
       } catch {
         return;
       }
