@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Button, Card, Chip } from "@heroui/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, Button, Card, Chip } from "@heroui/react";
 
 type Metric = {
   key: string;
@@ -13,68 +13,70 @@ type Metric = {
   tone: string;
 };
 
-const metrics: Metric[] = [
-  {
-    key: "process-cpu",
-    icon: "bi-cpu",
-    title: "进程 CPU",
-    value: "18%",
-    detail: "2 核 · Intel(R) Xeon(R) Platinum 82",
-    tone: "text-accent",
-  },
-  {
-    key: "process-memory",
-    icon: "bi-memory",
-    title: "进程内存",
-    value: "412 MB",
-    detail: "堆内存: 52.55 MB",
-    detailAccent: "/ 68.05 MB",
-    tone: "text-accent",
-  },
-  {
-    key: "system-memory",
-    icon: "bi-pc-display-horizontal",
-    title: "系统内存",
-    value: "867.42 MB",
-    detail: "总共 1.95 GB",
-    detailAccent: "(43.5%)",
-    tone: "text-accent",
-  },
-  {
-    key: "db-query",
-    icon: "bi-database",
-    title: "DB 查询/分钟",
-    value: "1,248",
-    detail: "平均: 5.2 次/请求",
-    detailAccent: "(良好)",
-    tone: "text-success",
-  },
-  {
-    key: "request",
-    icon: "bi-arrow-left-right",
-    title: "请求/分钟",
-    value: "3,906",
-    detail: "平均响应: 417ms",
-    detailAccent: "(可接受)",
-    tone: "text-warning",
-  },
-  {
-    key: "api-traffic",
-    icon: "bi-activity",
-    title: "API 流量/分钟",
-    value: "86 MB",
-    detail: "最近 1 分钟出入站流量",
-    detailAccent: "(非常轻量)",
-    tone: "text-accent",
-  },
-];
+type PerformanceMetricsResponse = {
+  checkedAt: string;
+  metrics: Metric[];
+};
+
+async function readPerformanceMetrics(): Promise<PerformanceMetricsResponse> {
+  const response = await fetch("/api/admin/performance");
+  const payload = (await response.json()) as Partial<PerformanceMetricsResponse> & { message?: string };
+
+  if (!response.ok) {
+    throw new Error(payload.message ?? "性能指标加载失败");
+  }
+
+  if (!Array.isArray(payload.metrics) || typeof payload.checkedAt !== "string") {
+    throw new Error("性能指标响应格式无效");
+  }
+
+  return {
+    checkedAt: payload.checkedAt,
+    metrics: payload.metrics,
+  };
+}
+
+function formatCheckedAt(checkedAt: string) {
+  const date = new Date(checkedAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return "最后刷新时间未知";
+  }
+
+  return `最后刷新 ${date.toLocaleTimeString("zh-CN", { hour12: false })}`;
+}
 
 export function PerformanceMonitoringPanel() {
-  const [lastRefresh, setLastRefresh] = useState("刚刚刷新");
+  const hasLoadedRef = useRef(false);
+  const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [lastRefresh, setLastRefresh] = useState("正在加载");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const refreshMetrics = () => {
-    setLastRefresh(new Date().toLocaleTimeString("zh-CN", { hour12: false }));
-  };
+  const loadMetrics = useCallback(async () => {
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const payload = await readPerformanceMetrics();
+
+      setMetrics(payload.metrics);
+      setLastRefresh(formatCheckedAt(payload.checkedAt));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "性能指标加载失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (hasLoadedRef.current) {
+      return;
+    }
+
+    hasLoadedRef.current = true;
+    void loadMetrics();
+  }, [loadMetrics]);
 
   return (
     <Card>
@@ -103,35 +105,61 @@ export function PerformanceMonitoringPanel() {
               <p className="text-sm font-medium text-default-500">性能指标</p>
               <p className="text-base font-semibold text-foreground">核心资源与吞吐监控</p>
             </div>
-            <Button size="sm" variant="outline" onPress={refreshMetrics}>
+            <Button isDisabled={isLoading} size="sm" variant="outline" onPress={loadMetrics}>
               <i aria-hidden="true" className="bi bi-arrow-clockwise" />
-              刷新
+              {isLoading ? "刷新中" : "刷新"}
             </Button>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {metrics.map((metric) => (
-              <Card key={metric.key} className="border border-default-200/80">
-                <Card.Header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 pb-2 pt-4">
-                  <p className="min-w-0 text-base font-bold text-foreground">{metric.title}</p>
-                  <span
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${metric.tone}`}
-                  >
-                    <i aria-hidden="true" className={`bi ${metric.icon} text-base`} />
-                  </span>
-                </Card.Header>
-                <Card.Content className="px-4 pb-4 pt-0">
-                  <div className="grid gap-1">
-                    <p className="text-xl font-semibold text-foreground">{metric.value}</p>
-                    <p className="text-xs leading-5 text-default-500">
-                      {metric.detail}
-                      {metric.detailAccent ? <span className={`ml-1 font-medium ${metric.tone}`}>{metric.detailAccent}</span> : null}
-                    </p>
-                  </div>
-                </Card.Content>
-              </Card>
-            ))}
-          </div>
+          {errorMessage ? (
+            <Alert status="danger">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>性能指标加载失败</Alert.Title>
+                <Alert.Description>{errorMessage}</Alert.Description>
+              </Alert.Content>
+            </Alert>
+          ) : null}
+
+          {isLoading && metrics.length === 0 ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 6 }, (_, index) => (
+                <Card key={index} className="border border-default-200/80">
+                  <Card.Content className="grid gap-3 px-4 py-4">
+                    <div className="h-4 w-24 rounded bg-default-200" />
+                    <div className="h-7 w-20 rounded bg-default-200" />
+                    <div className="h-3 w-36 rounded bg-default-200" />
+                  </Card.Content>
+                </Card>
+              ))}
+            </div>
+          ) : null}
+
+          {metrics.length > 0 ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {metrics.map((metric) => (
+                <Card key={metric.key} className="border border-default-200/80">
+                  <Card.Header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 pb-2 pt-4">
+                    <p className="min-w-0 text-base font-bold text-foreground">{metric.title}</p>
+                    <span
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${metric.tone}`}
+                    >
+                      <i aria-hidden="true" className={`bi ${metric.icon} text-base`} />
+                    </span>
+                  </Card.Header>
+                  <Card.Content className="px-4 pb-4 pt-0">
+                    <div className="grid gap-1">
+                      <p className="text-xl font-semibold text-foreground">{metric.value}</p>
+                      <p className="text-xs leading-5 text-default-500">
+                        {metric.detail}
+                        {metric.detailAccent ? <span className={`ml-1 font-medium ${metric.tone}`}>{metric.detailAccent}</span> : null}
+                      </p>
+                    </div>
+                  </Card.Content>
+                </Card>
+              ))}
+            </div>
+          ) : null}
         </section>
       </Card.Content>
     </Card>

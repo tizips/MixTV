@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPerformanceMetrics } from "@/modules/admin/server/admin-modules-service";
-
-export const runtime = "edge";
+import { getPerformanceMetrics } from "@/modules/admin/server/performance-service";
 
 export async function GET() {
   return NextResponse.json(await getPerformanceMetrics());
