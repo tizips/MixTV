@@ -16,7 +16,6 @@ vi.mock("@/infrastructure/db/db-adapter", () => ({
 import {
   createUser,
   createUserConfigStore,
-  defaultUsers,
   deleteUser,
   getUsers,
   updateUser,
@@ -65,16 +64,19 @@ const createFakeStore = (initial: Record<string, string> = {}): UserConfigStore 
 };
 
 describe("user config service", () => {
-  it("creates the user config store with the admin user namespace", () => {
+  it("creates the user config store with the admin namespace", () => {
     createUserConfigStore();
 
-    expect(createDbAdapterMock).toHaveBeenCalledWith({ namespace: "admin:user" });
+    expect(createDbAdapterMock).toHaveBeenCalledWith({ namespace: "admin" });
   });
 
-  it("returns default users when the redis hash is empty", async () => {
+  it("returns an empty collection when the redis hash is empty", async () => {
     const store = createFakeStore();
 
-    await expect(getUsers(store)).resolves.toEqual(defaultUsers);
+    await expect(getUsers(store)).resolves.toEqual({
+      updatedAt: null,
+      users: [],
+    });
     expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HGETALL"), {
       keys: ["users"],
       readOnly: true,

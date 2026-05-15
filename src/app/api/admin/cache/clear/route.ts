@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { AdminModuleValidationError, clearCache } from "@/modules/admin/server/admin-modules-service";
-
-export const runtime = "edge";
+import { AdminModuleValidationError } from "@/modules/admin/server/admin-module-error";
+import { clearCache } from "@/modules/admin/server/cache-management-service";
 
 export async function POST(request: Request) {
   let payload: unknown;

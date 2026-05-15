@@ -285,7 +285,7 @@ export function ConfigFilesPanel() {
     setIsSavingContent(true);
 
     try {
-      const response = await fetch("/api/admin/files/content", {
+      const response = await fetch("/api/admin/files/subscriptions", {
         body: JSON.stringify({ content: parsedContent.data }),
         headers: { "Content-Type": "application/json" },
         method: "POST",

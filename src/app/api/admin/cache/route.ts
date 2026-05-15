@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCacheData } from "@/modules/admin/server/admin-modules-service";
-
-export const runtime = "edge";
+import { getCacheData } from "@/modules/admin/server/cache-management-service";
 
 export async function GET() {
   try {

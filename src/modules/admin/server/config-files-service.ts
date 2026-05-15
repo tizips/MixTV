@@ -1,5 +1,7 @@
 import { createDbAdapter } from "@/infrastructure/db/db-adapter";
 import type { DbPort } from "@/shared/db/db-port";
+import { createVideoSourceStore, syncVideoSourcesFromConfigContent } from "./video-source-service";
+import type { VideoSourceStore } from "./video-source-service";
 
 export interface ConfigFilesSubscription {
   autoUpdate: boolean;
@@ -19,9 +21,9 @@ export interface ConfigFilesData {
 
 export type ConfigFilesStore = DbPort<ConfigFilesContent, string>;
 
-const configFilesNamespace = "admin:config-files";
+const configFilesNamespace = "admin";
 const subscriptionKey = "subscription";
-const contentKey = "content";
+const contentKey = "subscriptions";
 
 const saveSubscriptionScript = `
 redis.call("HSET", KEYS[1], "url", ARGV[1], "autoUpdate", ARGV[2], "updatedAt", ARGV[3])
@@ -196,6 +198,7 @@ export async function saveConfigFilesSubscriptionPull(
   url: string,
   store: ConfigFilesStore = createConfigFilesStore(),
   fetchImpl: FetchLike = fetch,
+  videoSourceStore: VideoSourceStore = createVideoSourceStore(),
 ): Promise<ConfigFilesSubscription> {
   const [current, response] = await Promise.all([
     getConfigFilesSubscription(store),
@@ -211,7 +214,7 @@ export async function saveConfigFilesSubscriptionPull(
   const rawBody = await response.text();
   const content = await decodeSubscriptionPayload(rawBody);
 
-  await saveConfigFilesContent(content, store);
+  await saveConfigFilesContent(content, store, videoSourceStore);
 
   return saveConfigFilesSubscription(
     {
@@ -269,6 +272,7 @@ export async function getConfigFiles(
 export async function saveConfigFilesContent(
   content: string,
   store: ConfigFilesStore = createConfigFilesStore(),
+  videoSourceStore: VideoSourceStore = createVideoSourceStore(),
 ): Promise<ConfigFilesContent> {
   const saved = {
     content,
@@ -276,6 +280,7 @@ export async function saveConfigFilesContent(
   };
 
   await store.set(contentKey, saved);
+  await syncVideoSourcesFromConfigContent(content, videoSourceStore);
 
   return saved;
 }

@@ -7,30 +7,59 @@ import {
   type SiteConfigStore,
 } from "@/modules/admin/server/site-config-service";
 
-const createFakeStore = (overrides: Partial<SiteConfigStore> = {}): SiteConfigStore => ({
-  del: vi.fn(async () => undefined),
-  get: vi.fn(async () => null),
-  script: vi.fn(async <TResult = unknown>() => ({} as TResult)) as SiteConfigStore["script"],
-  set: vi.fn(async () => undefined),
-  ...overrides,
-});
+const createFakeStore = (initial: Record<string, unknown> = {}, hashInitial: Record<string, string> = {}): SiteConfigStore => {
+  const data = new Map(Object.entries(initial));
+  const hash = new Map(Object.entries(hashInitial));
+
+  return {
+    del: vi.fn(async () => undefined),
+    get: vi.fn(async (key: string) => data.get(key) ?? null),
+    script: vi.fn(async <TResult = unknown>(script: string, options = {}) => {
+      const runOptions = options as { args?: unknown[] };
+
+      if (script.includes("HGETALL")) {
+        return Object.fromEntries(hash) as TResult;
+      }
+
+      if (script.includes("HSET")) {
+        const args = runOptions.args ?? [];
+
+        for (let index = 0; index < args.length; index += 2) {
+          const field = args[index];
+          const value = args[index + 1];
+
+          if (typeof field === "string" && typeof value === "string") {
+            hash.set(field, value);
+          }
+        }
+
+        return 1 as TResult;
+      }
+
+      return {} as TResult;
+    }) as SiteConfigStore["script"],
+    set: vi.fn(async (key: string, value: unknown) => {
+      data.set(key, value);
+    }),
+  };
+};
 
 describe("site config service", () => {
   it("returns defaults when no config has been saved", async () => {
     const store = createFakeStore();
 
     await expect(getSiteConfig(store)).resolves.toEqual(defaultSiteConfig);
-    expect(store.get).toHaveBeenCalledWith("config");
+    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HGETALL"), {
+      keys: ["site"],
+      readOnly: true,
+    });
   });
 
   it("merges stored config over defaults", async () => {
-    const store = createFakeStore({
-      get: vi.fn(async () => ({
-        ...defaultSiteConfig,
-        siteName: "Custom TV",
-        enableStreamingSearch: false,
-        updatedAt: "2026-05-14T00:00:00.000Z",
-      })),
+    const store = createFakeStore({}, {
+      siteName: "Custom TV",
+      enableStreamingSearch: "false",
+      updatedAt: "2026-05-14T00:00:00.000Z",
     });
 
     await expect(getSiteConfig(store)).resolves.toEqual({
@@ -42,12 +71,9 @@ describe("site config service", () => {
   });
 
   it("saves left panel fields without changing switches", async () => {
-    const store = createFakeStore({
-      get: vi.fn(async () => ({
-        ...defaultSiteConfig,
-        enableKeywordFilter: false,
-        showAdultContent: true,
-      })),
+    const store = createFakeStore({}, {
+      enableKeywordFilter: "false",
+      showAdultContent: "true",
     });
 
     const saved = await saveSiteConfigLeft(
@@ -77,7 +103,23 @@ describe("site config service", () => {
       updatedAt: saved.updatedAt,
     });
     expect(saved.updatedAt).toEqual(expect.any(String));
-    expect(store.set).toHaveBeenCalledWith("config", saved);
+    expect(store.set).not.toHaveBeenCalledWith("site", saved);
+    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
+      args: [
+        "MixTV Pro",
+        "公告",
+        "custom",
+        "https://proxy.example.test/data",
+        "zwei",
+        "",
+        "token",
+        "false",
+        "true",
+        "true",
+        saved.updatedAt,
+      ],
+      keys: ["site"],
+    });
   });
 
   it("rejects invalid proxy modes", async () => {
@@ -101,12 +143,9 @@ describe("site config service", () => {
   });
 
   it("preserves disabled site text fields when saving main config", async () => {
-    const store = createFakeStore({
-      get: vi.fn(async () => ({
-        ...defaultSiteConfig,
-        siteName: "Current MixTV",
-        siteAnnouncement: "Current announcement",
-      })),
+    const store = createFakeStore({}, {
+      siteName: "Current MixTV",
+      siteAnnouncement: "Current announcement",
     });
 
     const saved = await saveSiteConfigLeft(
@@ -126,15 +165,27 @@ describe("site config service", () => {
     expect(saved.doubanImageProxyMode).toBe("custom");
     expect(saved.doubanImageProxyUrl).toBe("https://images.example.test");
     expect(saved.doubanAuth).toBe("token");
-    expect(store.set).toHaveBeenCalledWith("config", saved);
+    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
+      args: [
+        "Current MixTV",
+        "Current announcement",
+        "zwei",
+        "",
+        "custom",
+        "https://images.example.test",
+        "token",
+        "true",
+        "false",
+        "true",
+        saved.updatedAt,
+      ],
+      keys: ["site"],
+    });
   });
 
   it("updates a single switch by key", async () => {
-    const store = createFakeStore({
-      get: vi.fn(async () => ({
-        ...defaultSiteConfig,
-        showAdultContent: false,
-      })),
+    const store = createFakeStore({}, {
+      showAdultContent: "false",
     });
 
     const saved = await saveSiteConfigSwitch("showAdultContent", true, store);
@@ -142,6 +193,68 @@ describe("site config service", () => {
     expect(saved.showAdultContent).toBe(true);
     expect(saved.enableKeywordFilter).toBe(true);
     expect(saved.enableStreamingSearch).toBe(true);
-    expect(store.set).toHaveBeenCalledWith("config", saved);
+    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
+      args: [
+        "MixTV",
+        "欢迎来到 MixTV，请注意站点公告。",
+        "direct",
+        "",
+        "direct",
+        "",
+        "",
+        "true",
+        "true",
+        "true",
+        saved.updatedAt,
+      ],
+      keys: ["site"],
+    });
+  });
+
+  it("reads hgetall array responses", async () => {
+    const arrayStore = {
+      del: vi.fn(async () => undefined),
+      get: vi.fn(async () => null),
+      script: vi.fn(async <TResult = unknown>() => [
+        "siteName",
+        "Array MixTV",
+        "siteAnnouncement",
+        "Array announcement",
+        "doubanDataProxyMode",
+        "custom",
+        "doubanDataProxyUrl",
+        "https://data.example.test",
+        "doubanImageProxyMode",
+        "zwei",
+        "doubanImageProxyUrl",
+        "https://image.example.test",
+        "doubanAuth",
+        "array-token",
+        "enableKeywordFilter",
+        "false",
+        "showAdultContent",
+        "true",
+        "enableStreamingSearch",
+        "false",
+        "updatedAt",
+        "2026-05-14T01:00:00.000Z",
+      ] as TResult) as SiteConfigStore["script"],
+      set: vi.fn(async () => undefined),
+    } satisfies SiteConfigStore;
+
+    await expect(getSiteConfig(arrayStore)).resolves.toEqual({
+      siteName: "Array MixTV",
+      siteAnnouncement: "Array announcement",
+      doubanDataProxyMode: "custom",
+      doubanDataProxyUrl: "https://data.example.test",
+      doubanImageProxyMode: "zwei",
+      doubanImageProxyUrl: "https://image.example.test",
+      doubanAuth: "array-token",
+      enableKeywordFilter: false,
+      showAdultContent: true,
+      enableStreamingSearch: false,
+      updatedAt: "2026-05-14T01:00:00.000Z",
+    });
+    expect(arrayStore.get).not.toHaveBeenCalled();
   });
 });

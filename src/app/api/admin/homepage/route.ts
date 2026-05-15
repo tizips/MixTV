@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { AdminModuleValidationError } from "@/modules/admin/server/admin-modules-service";
+import { AdminModuleValidationError } from "@/modules/admin/server/admin-module-error";
 import {
   getHomepageConfig,
   saveHomepageConfig,

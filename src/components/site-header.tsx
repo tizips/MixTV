@@ -49,6 +49,7 @@ export function SiteHeader({
       return;
     }
 
+    const currentAccessToken = accessToken;
     let cancelled = false;
 
     async function hydrateUserProfile() {
@@ -56,7 +57,7 @@ export function SiteHeader({
         const response = await fetch("/api/account", {
           cache: "no-store",
           headers: {
-            authorization: `Bearer ${accessToken}`,
+            authorization: `Bearer ${currentAccessToken}`,
           },
         });
 
@@ -74,7 +75,7 @@ export function SiteHeader({
         }
 
         setHydratedAccount({
-          accessToken,
+          accessToken: currentAccessToken,
           admin: account.admin,
           name: account.name,
         });

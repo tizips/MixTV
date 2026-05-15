@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { AdminModuleValidationError, importMigrationBackup } from "@/modules/admin/server/admin-modules-service";
-
-export const runtime = "edge";
+import { AdminModuleValidationError } from "@/modules/admin/server/admin-module-error";
+import { importMigrationBackup } from "@/modules/admin/server/migration-service";
 
 export async function POST(request: Request) {
   let payload: unknown;

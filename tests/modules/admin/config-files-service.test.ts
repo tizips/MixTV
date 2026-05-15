@@ -8,6 +8,7 @@ import {
   saveConfigFilesSubscription,
   type ConfigFilesStore,
 } from "@/modules/admin/server/config-files-service";
+import type { VideoSourceStore } from "@/modules/admin/server/video-source-service";
 
 const createScriptMock = (result: unknown = {}) =>
   vi.fn(async <TResult = unknown>() => result as TResult) as unknown as ConfigFilesStore["script"];
@@ -18,6 +19,13 @@ const createFakeStore = (overrides: Partial<ConfigFilesStore> = {}): ConfigFiles
   script: createScriptMock(),
   set: vi.fn(async () => undefined),
   ...overrides,
+});
+
+const createVideoSourceStore = (): VideoSourceStore => ({
+  del: vi.fn(async () => undefined),
+  get: vi.fn(async () => null),
+  script: vi.fn(async <TResult = unknown>() => ({}) as TResult) as VideoSourceStore["script"],
+  set: vi.fn(async () => undefined),
 });
 
 describe("config files service", () => {
@@ -72,12 +80,21 @@ describe("config files service", () => {
       updatedAt: "2026-05-14T00:00:00.000Z",
     });
 
-    const saved = await saveConfigFilesContent("source=remote", store);
+    const videoSourceStore = createVideoSourceStore();
+    const saved = await saveConfigFilesContent(
+      JSON.stringify({ api_site: { local: { api: "https://source.test/api", name: "Local" } } }),
+      store,
+      videoSourceStore,
+    );
 
-    expect(store.get).toHaveBeenCalledWith("content");
-    expect(store.set).toHaveBeenCalledWith("content", {
-      content: "source=remote",
+    expect(store.get).toHaveBeenCalledWith("subscriptions");
+    expect(store.set).toHaveBeenCalledWith("subscriptions", {
+      content: JSON.stringify({ api_site: { local: { api: "https://source.test/api", name: "Local" } } }),
       updatedAt: saved.updatedAt,
+    });
+    expect(videoSourceStore.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
+      args: ["local", expect.stringContaining('"apiUrl":"https://source.test/api"')],
+      keys: ["sources"],
     });
   });
 
@@ -103,7 +120,7 @@ describe("config files service", () => {
       },
     });
 
-    expect(store.get).toHaveBeenCalledWith("content");
+    expect(store.get).toHaveBeenCalledWith("subscriptions");
     expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HGETALL"), {
       keys: ["subscription"],
       readOnly: true,
@@ -138,8 +155,14 @@ describe("config files service", () => {
       }),
     });
     const fetchMock = vi.fn(async () => new Response("StV1DL6CwTryKyV", { status: 200 }));
+    const videoSourceStore = createVideoSourceStore();
 
-    const saved = await saveConfigFilesSubscriptionPull("https://example.test/new", store, fetchMock);
+    const saved = await saveConfigFilesSubscriptionPull(
+      "https://example.test/new",
+      store,
+      fetchMock,
+      videoSourceStore,
+    );
 
     expect(saved.url).toBe("https://example.test/new");
     expect(saved.autoUpdate).toBe(false);
@@ -147,7 +170,7 @@ describe("config files service", () => {
       headers: { Accept: "application/json, text/plain;q=0.9, */*;q=0.8" },
     });
     expect(store.set).toHaveBeenCalledWith(
-      "content",
+      "subscriptions",
       expect.objectContaining({
         content: "hello world",
       }),

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as autoUpdateRoute from "@/app/api/admin/files/subscription/auto-update/route";
-import * as contentRoute from "@/app/api/admin/files/content/route";
 import * as pullRoute from "@/app/api/admin/files/subscription/pull/route";
+import * as subscriptionsRoute from "@/app/api/admin/files/subscriptions/route";
 import {
   saveConfigFilesContent,
   saveConfigFilesSubscriptionAutoUpdate,
@@ -25,8 +25,8 @@ describe("config files API routes", () => {
   });
 
   it("rejects unsupported config content fields before saving", async () => {
-    const response = await contentRoute.POST(
-      new Request("http://localhost/api/admin/files/content", {
+    const response = await subscriptionsRoute.POST(
+      new Request("http://localhost/api/admin/files/subscriptions", {
         body: JSON.stringify({ content: "{}", unexpected: true }),
         method: "POST",
       }),
@@ -38,8 +38,8 @@ describe("config files API routes", () => {
   });
 
   it("rejects blank config content before saving", async () => {
-    const response = await contentRoute.POST(
-      new Request("http://localhost/api/admin/files/content", {
+    const response = await subscriptionsRoute.POST(
+      new Request("http://localhost/api/admin/files/subscriptions", {
         body: JSON.stringify({ content: "   " }),
         method: "POST",
       }),
@@ -51,8 +51,8 @@ describe("config files API routes", () => {
   });
 
   it("rejects invalid JSON config content before saving", async () => {
-    const response = await contentRoute.POST(
-      new Request("http://localhost/api/admin/files/content", {
+    const response = await subscriptionsRoute.POST(
+      new Request("http://localhost/api/admin/files/subscriptions", {
         body: JSON.stringify({ content: "{ invalid" }),
         method: "POST",
       }),

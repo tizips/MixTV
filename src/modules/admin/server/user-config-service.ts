@@ -42,7 +42,7 @@ type UserPatch = {
   status?: UserStatus;
 };
 
-const storeNamespace = "admin:user";
+const storeNamespace = "admin";
 const usersKey = "users";
 
 const userRoles = new Set<UserRole>(["owner", "user"]);
@@ -65,33 +65,6 @@ const deleteUserScript = `
 redis.call("HDEL", KEYS[1], ARGV[1])
 return 1
 `;
-
-export const defaultUsers: UserCollection = {
-  users: [
-    {
-      username: "admin",
-      role: "owner",
-      status: "active",
-      createdAt: "2026-05-14T00:00:00.000Z",
-      updatedAt: null,
-    },
-    {
-      username: "alice",
-      role: "user",
-      status: "active",
-      createdAt: "2026-05-14T00:00:00.000Z",
-      updatedAt: null,
-    },
-    {
-      username: "bob",
-      role: "user",
-      status: "banned",
-      createdAt: "2026-05-14T00:00:00.000Z",
-      updatedAt: null,
-    },
-  ],
-  updatedAt: null,
-};
 
 export function createUserConfigStore(): UserConfigStore {
   return createDbAdapter<unknown>({ namespace: storeNamespace });
@@ -386,17 +359,11 @@ function toUserCollection(users: StoredUserRecord[]): UserCollection {
 }
 
 async function getCurrentUsers(store: UserConfigStore): Promise<StoredUserRecord[]> {
-  const users = await readStoredUsers(store);
-  return users.length > 0 ? users : defaultUsers.users;
+  return readStoredUsers(store);
 }
 
 export async function getUsers(store: UserConfigStore = createUserConfigStore()): Promise<UserCollection> {
   const users = await readStoredUsers(store);
-
-  if (users.length === 0) {
-    return defaultUsers;
-  }
-
   return toUserCollection(users);
 }
 

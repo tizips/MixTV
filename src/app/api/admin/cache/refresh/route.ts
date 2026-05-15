@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { refreshCacheStats } from "@/modules/admin/server/admin-modules-service";
-
-export const runtime = "edge";
+import { refreshCacheStats } from "@/modules/admin/server/cache-management-service";
 
 export async function POST() {
   try {
