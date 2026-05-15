@@ -12,8 +12,34 @@ type ViewMode = "grid" | "list";
 type SortMode = "relevance" | "year-desc" | "year-asc";
 type SearchStreamStatus = "idle" | "searching" | "complete";
 
-type SearchResult = {
+type AggregatedMediaResource = {
+  className?: string;
+  description: string;
+  episodeCount: number;
   id: string;
+  key: string;
+  posterUrl: string;
+  resourceId: string;
+  sourceName: string;
+  title: string;
+  year: string;
+};
+
+type MediaSearchSseEvent =
+  | { event: "start"; data: { total: number } }
+  | { event: "result"; data: AggregatedMediaResource[] }
+  | { event: "complete"; data: { completed: number; total: number } }
+  | { event: "error"; data: { message?: string } };
+
+type SearchHistoryApiResponse = {
+  history?: unknown;
+};
+
+type SearchResult = {
+  favoriteKey: string;
+  id: string;
+  resourceId: string;
+  resourceKey: string;
   title: string;
   year: number;
   type: SearchType;
@@ -30,28 +56,7 @@ const searchTypes: Array<{ key: SearchType; label: string; icon: string }> = [
   { key: "cloud", label: "网盘资源", icon: "bi-cloud-arrow-down" },
 ];
 
-const historyKeywords = ["庆余年", "沙丘", "繁花", "鬼灭之刃", "三体", "周处除三害", "银河护卫队"];
 const titleFilters = ["全部", "电影", "剧集", "动漫", "综艺"];
-const sampleTitles = [
-  "庆余年 第二季",
-  "沙丘：第二部",
-  "繁花",
-  "三体",
-  "鬼灭之刃 柱训练篇",
-  "年会不能停！",
-  "周处除三害",
-  "九龙城寨之围城",
-  "银河护卫队3",
-  "长安三万里",
-  "漫长的季节",
-  "奥本海默",
-  "封神第一部",
-  "人生大事",
-  "流浪地球2",
-  "铃芽之旅",
-];
-const streamedBatchSize = 16;
-const streamedBatchDelayMs = 120;
 
 function isSearchType(value: string | null): value is SearchType {
   return value === "media" || value === "cloud";
@@ -73,45 +78,125 @@ function getUrlSearchParams() {
   return new URLSearchParams(window.location.search);
 }
 
-function buildMockResults(query: string, type: SearchType): SearchResult[] {
-  const keyword = query.trim() || "搜索";
-  const sourcePrefix = type === "media" ? "视频源" : "网盘源";
-  const categories = ["电影", "剧集", "动漫", "综艺"];
+function readMediaCategory(resource: AggregatedMediaResource) {
+  const label = resource.className ?? "";
 
-  return Array.from({ length: 160 }, (_, index) => {
-    const title = sampleTitles[index % sampleTitles.length];
-    const category = categories[index % categories.length];
-    const year = 2026 - (index % 9);
+  if (/动漫|动画|番剧|番/.test(label)) {
+    return "动漫";
+  }
+  if (/综艺|真人秀/.test(label)) {
+    return "综艺";
+  }
+  if (/剧|连续|集/.test(label)) {
+    return "剧集";
+  }
 
-    return {
-      id: `${type}-${keyword}-${index}`,
-      title: index % 3 === 0 ? `${keyword} · ${title}` : `${title} · ${keyword}`,
-      year,
-      type,
-      source: `${sourcePrefix} ${String((index % 6) + 1).padStart(2, "0")}`,
-      sourceNames: Array.from({ length: (index % 5) + 1 }, (_, sourceIndex) => {
-        return `${sourcePrefix} ${String(((index + sourceIndex) % 8) + 1).padStart(2, "0")}`;
-      }),
-      category,
-      coverUrl: createPlaceholderImageUrl({
-        variant: "poster",
-        fileStem: title,
-        seed: `${type}-${index}`,
-      }),
-      episodeCount: category === "电影" ? 1 : 8 + (index % 36),
-      remarks: index % 4 === 0 ? "完结" : index % 4 === 1 ? "更新至最新" : index % 4 === 2 ? "中字" : "多版本",
-    };
-  });
+  return "电影";
 }
 
-function FavoriteButton({ result }: { result: SearchResult }) {
+function mapMediaResourceToSearchResult(resource: AggregatedMediaResource): SearchResult {
+  const category = readMediaCategory(resource);
+  const year = Number(resource.year);
+  const episodeCount = Math.max(resource.episodeCount, 1);
+
+  return {
+    favoriteKey: `${resource.key}:${resource.resourceId}`,
+    id: `media-${resource.id}`,
+    resourceId: resource.resourceId,
+    resourceKey: resource.key,
+    title: resource.title,
+    year: Number.isFinite(year) ? year : 0,
+    type: "media",
+    source: resource.sourceName,
+    sourceNames: [resource.sourceName],
+    category,
+    coverUrl: resource.posterUrl || createPlaceholderImageUrl({
+      variant: "poster",
+      fileStem: resource.title,
+      seed: resource.id,
+    }),
+    episodeCount,
+    remarks: episodeCount > 1 ? `${episodeCount}集` : "可播放",
+  };
+}
+
+function parseSseBlock(block: string): MediaSearchSseEvent | null {
+  let event = "message";
+  const dataLines: string[] = [];
+
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) {
+      event = line.slice("event:".length).trim();
+    } else if (line.startsWith("data:")) {
+      dataLines.push(line.slice("data:".length).trimStart());
+    }
+  }
+
+  if (!dataLines.length) {
+    return null;
+  }
+
+  try {
+    const data = JSON.parse(dataLines.join("\n")) as unknown;
+
+    if (event === "start" || event === "result" || event === "complete" || event === "error") {
+      return { event, data } as MediaSearchSseEvent;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function readSseEvents(buffer: string) {
+  const events: MediaSearchSseEvent[] = [];
+  let remaining = buffer;
+  let separatorIndex = remaining.indexOf("\n\n");
+
+  while (separatorIndex >= 0) {
+    const block = remaining.slice(0, separatorIndex).trimEnd();
+    remaining = remaining.slice(separatorIndex + 2);
+    const event = parseSseBlock(block);
+
+    if (event) {
+      events.push(event);
+    }
+
+    separatorIndex = remaining.indexOf("\n\n");
+  }
+
+  return { events, remaining };
+}
+
+function readSearchHistoryFromApi(data: SearchHistoryApiResponse) {
+  if (!Array.isArray(data.history)) {
+    return [];
+  }
+
+  return data.history.filter((keyword): keyword is string => typeof keyword === "string");
+}
+
+function FavoriteButton({
+  isFavorited,
+  isPending,
+  onToggle,
+  result,
+}: {
+  isFavorited: boolean;
+  isPending: boolean;
+  onToggle: (result: SearchResult) => void;
+  result: SearchResult;
+}) {
   return (
     <button
-      aria-label={`收藏 ${result.title}`}
+      aria-label={`${isFavorited ? "取消收藏" : "收藏"} ${result.title}`}
       className="absolute bottom-2.5 right-2.5 z-20 grid h-6 w-6 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 opacity-0 transition duration-200 hover:scale-110 hover:text-accent group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:text-accent"
+      disabled={isPending}
       type="button"
+      onClick={() => onToggle(result)}
     >
-      <i aria-hidden="true" className="bi bi-heart" />
+      <i aria-hidden="true" className={`bi ${isFavorited ? "bi-heart-fill text-accent" : "bi-heart"}`} />
     </button>
   );
 }
@@ -172,7 +257,22 @@ function useResponsiveColumns(viewMode: ViewMode) {
   return columns;
 }
 
-function SearchResultItem({ result, viewMode }: { result: SearchResult; viewMode: ViewMode }) {
+function SearchResultItem({
+  favoritedKeys,
+  pendingFavoriteKeys,
+  result,
+  viewMode,
+  onToggleFavorite,
+}: {
+  favoritedKeys: Set<string>;
+  pendingFavoriteKeys: Set<string>;
+  result: SearchResult;
+  viewMode: ViewMode;
+  onToggleFavorite: (result: SearchResult) => void;
+}) {
+  const isFavorited = favoritedKeys.has(result.favoriteKey);
+  const isPending = pendingFavoriteKeys.has(result.favoriteKey);
+
   if (viewMode === "grid") {
     return (
       <article className="group grid min-w-0 content-start overflow-hidden rounded-[1.15rem] bg-surface/78 text-left shadow-[0_14px_40px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:bg-surface hover:shadow-[0_22px_60px_rgba(15,23,42,0.16)]">
@@ -206,7 +306,12 @@ function SearchResultItem({ result, viewMode }: { result: SearchResult; viewMode
               <i aria-hidden="true" className="bi bi-play-fill translate-x-px" />
             </span>
           </Link>
-          <FavoriteButton result={result} />
+          <FavoriteButton
+            isFavorited={isFavorited}
+            isPending={isPending}
+            result={result}
+            onToggle={onToggleFavorite}
+          />
         </div>
         <Link aria-label={`播放 ${result.title}`} className="grid gap-2.5 p-3.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent" href="/play">
           <h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground transition-colors group-hover:text-accent">
@@ -235,7 +340,12 @@ function SearchResultItem({ result, viewMode }: { result: SearchResult; viewMode
             {result.sourceNames.length}源
           </Chip>
         </Link>
-        <FavoriteButton result={result} />
+        <FavoriteButton
+          isFavorited={isFavorited}
+          isPending={isPending}
+          result={result}
+          onToggle={onToggleFavorite}
+        />
       </div>
       <Link aria-label={`播放 ${result.title}`} className="grid min-w-0 gap-2 outline-none focus-visible:ring-2 focus-visible:ring-accent" href="/play">
         <span className="line-clamp-2 text-base font-semibold leading-6 text-foreground transition-colors group-hover:text-accent">{result.title}</span>
@@ -336,13 +446,19 @@ function SearchHistoryPanel({
 }
 
 function VirtualizedResults({
+  favoritedKeys,
+  pendingFavoriteKeys,
   resetKey,
   results,
   viewMode,
+  onToggleFavorite,
 }: {
+  favoritedKeys: Set<string>;
+  pendingFavoriteKeys: Set<string>;
   resetKey: string;
   results: SearchResult[];
   viewMode: ViewMode;
+  onToggleFavorite: (result: SearchResult) => void;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
@@ -398,7 +514,13 @@ function VirtualizedResults({
             >
               {rowItems.map((result) => (
                 <div key={result.id} role="listitem">
-                  <SearchResultItem result={result} viewMode={viewMode} />
+                  <SearchResultItem
+                    favoritedKeys={favoritedKeys}
+                    pendingFavoriteKeys={pendingFavoriteKeys}
+                    result={result}
+                    viewMode={viewMode}
+                    onToggleFavorite={onToggleFavorite}
+                  />
                 </div>
               ))}
             </div>
@@ -421,7 +543,10 @@ export function SearchPageShell() {
   const [streamedResults, setStreamedResults] = useState<SearchResult[]>([]);
   const [completedSources, setCompletedSources] = useState(0);
   const [totalSources, setTotalSources] = useState(0);
-  const [searchHistory, setSearchHistory] = useState(historyKeywords);
+  const [streamError, setStreamError] = useState("");
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [favoritedKeys, setFavoritedKeys] = useState<Set<string>>(() => new Set());
+  const [pendingFavoriteKeys, setPendingFavoriteKeys] = useState<Set<string>>(() => new Set());
   const [titleFilter, setTitleFilter] = useState(() => getUrlSearchParams().get("category") ?? "全部");
   const [sortMode, setSortMode] = useState<SortMode>(() => {
     const sort = getUrlSearchParams().get("sort");
@@ -437,6 +562,36 @@ export function SearchPageShell() {
   const isStreaming = streamStatus === "searching";
   const resultResetKey = `${searchType}-${activeQuery}-${searchRequestId}`;
 
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadSearchHistory() {
+      try {
+        const response = await fetch("/api/search/histories", {
+          headers: { Accept: "application/json" },
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json() as SearchHistoryApiResponse;
+
+        if (isCurrent) {
+          setSearchHistory(readSearchHistoryFromApi(data));
+        }
+      } catch {
+        // The search page remains usable without persisted server history.
+      }
+    }
+
+    void loadSearchHistory();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
   function clearSearch() {
     setQueryInput("");
     setActiveQuery("");
@@ -444,6 +599,9 @@ export function SearchPageShell() {
     setStreamedResults([]);
     setCompletedSources(0);
     setTotalSources(0);
+    setStreamError("");
+    setFavoritedKeys(new Set());
+    setPendingFavoriteKeys(new Set());
     setTitleFilter("全部");
     setSortMode("relevance");
   }
@@ -455,66 +613,92 @@ export function SearchPageShell() {
       return;
     }
 
-    const allResults = buildMockResults(normalizedQuery, searchType);
-    const sourceCount = Math.ceil(allResults.length / streamedBatchSize);
-    let completedBatchCount = 0;
-    let intervalId: number | undefined;
+    const controller = new AbortController();
 
-    const startTimeoutId = window.setTimeout(() => {
-      setStreamStatus("searching");
-      setStreamedResults([]);
-      setCompletedSources(0);
-      setTotalSources(sourceCount);
+    async function readMediaSearchStream() {
+      try {
+        setStreamStatus("searching");
+        setStreamedResults([]);
+        setFavoritedKeys(new Set());
+        setPendingFavoriteKeys(new Set());
+        setCompletedSources(0);
+        setTotalSources(0);
+        setStreamError("");
 
-      intervalId = window.setInterval(() => {
-        completedBatchCount += 1;
+        const response = await fetch(`/api/search/media?q=${encodeURIComponent(normalizedQuery)}`, {
+          headers: { Accept: "text/event-stream" },
+          signal: controller.signal,
+        });
 
-        setStreamedResults(allResults.slice(0, completedBatchCount * streamedBatchSize));
-        setCompletedSources(completedBatchCount);
-
-        if (completedBatchCount >= sourceCount) {
-          window.clearInterval(intervalId);
-          setStreamStatus("complete");
+        if (!response.ok || !response.body) {
+          throw new Error("搜索接口请求失败");
         }
-      }, streamedBatchDelayMs);
-    }, 0);
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        for (;;) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const parsed = readSseEvents(buffer);
+          buffer = parsed.remaining;
+
+          for (const event of parsed.events) {
+            if (event.event === "start") {
+              setTotalSources(event.data.total);
+              continue;
+            }
+
+            if (event.event === "result") {
+              setCompletedSources((current) => current + 1);
+              setStreamedResults((current) => {
+                const nextById = new Map(current.map((result) => [result.id, result]));
+
+                for (const result of event.data.map(mapMediaResourceToSearchResult)) {
+                  nextById.set(result.id, result);
+                }
+
+                return Array.from(nextById.values());
+              });
+              continue;
+            }
+
+            if (event.event === "complete") {
+              setCompletedSources(event.data.completed);
+              setTotalSources(event.data.total);
+              setStreamStatus("complete");
+              continue;
+            }
+
+            if (event.event === "error") {
+              throw new Error(event.data.message || "搜索接口返回错误");
+            }
+          }
+        }
+
+        setStreamStatus((current) => (current === "searching" ? "complete" : current));
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setStreamStatus("complete");
+        setStreamError(error instanceof Error ? error.message : "搜索失败，请稍后重试");
+      }
+    }
+
+    void readMediaSearchStream();
 
     return () => {
-      window.clearTimeout(startTimeoutId);
-      if (intervalId) {
-        window.clearInterval(intervalId);
-      }
+      controller.abort();
     };
-  }, [activeQuery, searchRequestId, searchType]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const params = new URLSearchParams();
-
-    if (searchType !== "media") {
-      params.set("type", searchType);
-    }
-
-    if (titleFilter !== "全部") {
-      params.set("category", titleFilter);
-    }
-
-    if (sortMode !== "relevance") {
-      params.set("sort", sortMode);
-    }
-
-    if (viewMode !== "grid") {
-      params.set("view", viewMode);
-    }
-
-    const nextSearch = params.toString();
-    const nextUrl = nextSearch ? `${window.location.pathname}?${nextSearch}` : window.location.pathname;
-
-    window.history.replaceState(null, "", nextUrl);
-  }, [searchType, sortMode, titleFilter, viewMode]);
+  }, [activeQuery, searchRequestId]);
 
   const visibleResults = useMemo(() => {
     const filtered = baseResults.filter((result) => {
@@ -551,13 +735,80 @@ export function SearchPageShell() {
     setStreamedResults([]);
     setCompletedSources(0);
     setTotalSources(0);
+    setStreamError("");
+    setFavoritedKeys(new Set());
+    setPendingFavoriteKeys(new Set());
     setTitleFilter("全部");
     setSortMode("relevance");
     setSearchRequestId((value) => value + 1);
   }
 
-  function deleteHistoryKeyword(keyword: string) {
-    setSearchHistory((currentHistory) => currentHistory.filter((currentKeyword) => currentKeyword !== keyword));
+  async function deleteHistoryKeyword(keyword: string) {
+    try {
+      const response = await fetch(`/api/search/histories/${encodeURIComponent(keyword)}`, {
+        headers: {
+          Accept: "application/json",
+        },
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json() as SearchHistoryApiResponse;
+
+      setSearchHistory(readSearchHistoryFromApi(data));
+    } catch {
+      setSearchHistory((currentHistory) => currentHistory.filter((currentKeyword) => currentKeyword !== keyword));
+    }
+  }
+
+  async function toggleFavorite(result: SearchResult) {
+    if (pendingFavoriteKeys.has(result.favoriteKey)) {
+      return;
+    }
+
+    const isFavorited = favoritedKeys.has(result.favoriteKey);
+    setPendingFavoriteKeys((currentKeys) => new Set(currentKeys).add(result.favoriteKey));
+
+    try {
+      const response = isFavorited
+        ? await fetch(`/api/favorites/${encodeURIComponent(result.resourceKey)}/${encodeURIComponent(result.resourceId)}`, {
+            headers: { Accept: "application/json" },
+            method: "DELETE",
+          })
+        : await fetch(`/api/favorites/${encodeURIComponent(result.resourceKey)}/${encodeURIComponent(result.resourceId)}`, {
+            headers: {
+              Accept: "application/json",
+            },
+            method: "POST",
+          });
+
+      if (!response.ok) {
+        return;
+      }
+
+      setFavoritedKeys((currentKeys) => {
+        const nextKeys = new Set(currentKeys);
+
+        if (isFavorited) {
+          nextKeys.delete(result.favoriteKey);
+        } else {
+          nextKeys.add(result.favoriteKey);
+        }
+
+        return nextKeys;
+      });
+    } catch {
+      // Keep the current local favorite state when the API call fails.
+    } finally {
+      setPendingFavoriteKeys((currentKeys) => {
+        const nextKeys = new Set(currentKeys);
+        nextKeys.delete(result.favoriteKey);
+        return nextKeys;
+      });
+    }
   }
 
   return (
@@ -701,8 +952,22 @@ export function SearchPageShell() {
                 </div>
               </div>
 
+              {streamError ? (
+                <div className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger" role="alert">
+                  <i aria-hidden="true" className="bi bi-exclamation-triangle" />
+                  <span>{streamError}</span>
+                </div>
+              ) : null}
+
               {visibleResults.length > 0 ? (
-                <VirtualizedResults resetKey={resultResetKey} results={visibleResults} viewMode={viewMode} />
+                <VirtualizedResults
+                  favoritedKeys={favoritedKeys}
+                  pendingFavoriteKeys={pendingFavoriteKeys}
+                  resetKey={resultResetKey}
+                  results={visibleResults}
+                  viewMode={viewMode}
+                  onToggleFavorite={toggleFavorite}
+                />
               ) : isStreaming ? (
                 <div className="grid min-h-64 place-items-center rounded-lg border border-default-200 bg-surface/60 p-8 text-center" role="status" aria-live="polite">
                   <div className="grid justify-items-center gap-3">
