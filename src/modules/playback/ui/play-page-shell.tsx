@@ -7,37 +7,7 @@ import type { Danmu, Mode as DanmakuMode, Option as DanmakuOption, Result as Dan
 import Image from "next/image";
 import { Badge, Button, Chip, Popover, Separator, Switch, Tabs } from "@heroui/react";
 import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
-
-type Episode = {
-  number: number;
-  title: string;
-  duration: string;
-};
-
-type VideoSource = {
-  id: string;
-  name: string;
-  url: string;
-  quality: string;
-  latency: string;
-  status: "流畅" | "拥挤" | "维护";
-};
-
-type PlayPageData = {
-  title: string;
-  originalTitle: string;
-  currentEpisode: number;
-  posterUrl: string;
-  year: string;
-  area: string;
-  category: string;
-  rating: string;
-  sourceName: string;
-  description: string;
-  tags: string[];
-  episodes: Episode[];
-  sources: VideoSource[];
-};
+import type { Episode, PlayPageData } from "../domain/playback-page-data";
 
 const episodeGroupSize = 50;
 const playbackSourceUrl = "https://cdn.ryplay12.com/20260506/35803_75083138/index.m3u8";
@@ -82,7 +52,7 @@ function getRandomTabGlowClass(currentClassName: TabGlowClassName): TabGlowClass
   return candidates[Math.floor(Math.random() * candidates.length)] ?? tabGlowClassNames[0];
 }
 
-const playPageData: PlayPageData = {
+const defaultPlayPageData: PlayPageData = {
   title: "星河漫游",
   originalTitle: "Stellar Roaming",
   currentEpisode: 18,
@@ -91,6 +61,8 @@ const playPageData: PlayPageData = {
     fileStem: "星河漫游",
     seed: "playback-stellar-roaming",
   }),
+  progressId: "demo",
+  progressSource: "demo",
   year: "2026",
   area: "中国大陆",
   category: "科幻 / 冒险 / 剧情",
@@ -200,6 +172,10 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function normalizeResumeTime(value: number | undefined) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
 function formatPlaybackTime(seconds: number, maxSeconds = playbackDurationSeconds) {
   const safeSeconds = Math.floor(clamp(seconds, 0, maxSeconds));
   const minutes = Math.floor(safeSeconds / 60);
@@ -208,7 +184,15 @@ function formatPlaybackTime(seconds: number, maxSeconds = playbackDurationSecond
   return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
 }
 
-export function PlayPageShell() {
+export function PlayPageShell({
+  initialData,
+  playbackPlaceholderError,
+}: {
+  initialData?: PlayPageData;
+  playbackPlaceholderError?: string;
+} = {}) {
+  const playbackData = initialData ?? defaultPlayPageData;
+  const hasPlaybackPlaceholderError = Boolean(playbackPlaceholderError);
   const playerRef = useRef<HTMLDivElement>(null);
   const artContainerRef = useRef<HTMLDivElement>(null);
   const artPlayerRef = useRef<Artplayer | null>(null);
@@ -216,16 +200,19 @@ export function PlayPageShell() {
   const volumeControlRef = useRef<HTMLDivElement>(null);
   const volumeHoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controlBarHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [activeEpisode, setActiveEpisode] = useState(playPageData.currentEpisode);
-  const [activeSource, setActiveSource] = useState(playPageData.sources[0].id);
-  const [selectedGroupKey, setSelectedGroupKey] = useState("1-50");
+  const hasAppliedResumeTimeRef = useRef(false);
+  const initialResumeTimeSeconds = normalizeResumeTime(playbackData.resumeTimeSeconds);
+  const [activeEpisode, setActiveEpisode] = useState(playbackData.currentEpisode);
+  const [activeSource, setActiveSource] = useState(playbackData.sources[0]?.id ?? "");
+  const [selectedGroupKey, setSelectedGroupKey] = useState(() => getEpisodeGroups(playbackData.episodes)[0]?.key ?? "1-50");
   const [selectedTabKey, setSelectedTabKey] = useState("episodes");
   const [tabGlowClassName, setTabGlowClassName] = useState<TabGlowClassName>(tabGlowClassNames[0]);
   const [isDescending, setIsDescending] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentPlaybackSeconds, setCurrentPlaybackSeconds] = useState(0);
+  const [currentPlaybackSeconds, setCurrentPlaybackSeconds] = useState(initialResumeTimeSeconds);
   const [currentPlaybackDuration, setCurrentPlaybackDuration] = useState(playbackDurationSeconds);
+  const [playbackCoverUrl, setPlaybackCoverUrl] = useState(playbackData.posterUrl);
   const [volume, setVolume] = useState(initialPlayerVolume);
   const [activePlayerPanel, setActivePlayerPanel] = useState<"volume" | "danmaku" | "settings" | null>(null);
   const [isDanmakuEnabled, setIsDanmakuEnabled] = useState(true);
@@ -247,10 +234,12 @@ export function PlayPageShell() {
   const [isPlaybackReady, setIsPlaybackReady] = useState(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
 
-  const episodeGroups = useMemo(() => getEpisodeGroups(playPageData.episodes), []);
+  const episodeGroups = useMemo(() => getEpisodeGroups(playbackData.episodes), [playbackData.episodes]);
+  const episodeCount = playbackData.episodes.length;
   const selectedGroup = episodeGroups.find((group) => group.key === selectedGroupKey) ?? episodeGroups[0];
-  const visibleEpisodes = isDescending ? [...selectedGroup.episodes].reverse() : selectedGroup.episodes;
-  const currentSource = playPageData.sources.find((source) => source.id === activeSource) ?? playPageData.sources[0];
+  const visibleEpisodes = selectedGroup ? (isDescending ? [...selectedGroup.episodes].reverse() : selectedGroup.episodes) : [];
+  const currentSource =
+    playbackData.sources.find((source) => source.id === activeSource) ?? playbackData.sources[0] ?? defaultPlayPageData.sources[0];
   const usablePlaybackDuration =
     Number.isFinite(currentPlaybackDuration) && currentPlaybackDuration > 0 ? currentPlaybackDuration : playbackDurationSeconds;
   const currentPlaybackTime = formatPlaybackTime(currentPlaybackSeconds, usablePlaybackDuration);
@@ -263,6 +252,7 @@ export function PlayPageShell() {
   const selectedDanmakuSpeedLabel =
     danmakuSpeedOptions.find((speed) => speed.value === danmakuSpeed)?.label ?? danmakuSpeedOptions[2].label;
   const shouldShowPlaybackOverlay = !isPlaying && (isPlaybackReady || playbackError);
+  const shouldShowPlaybackCover = !isPlaying && !playbackError && Boolean(playbackCoverUrl);
   const danmakuOption = useMemo<DanmakuOption>(() => ({
     danmuku: getEpisodeDanmuku(activeEpisode),
     visible: isDanmakuEnabled,
@@ -293,11 +283,35 @@ export function PlayPageShell() {
   ]);
   const initialPlaybackUrlRef = useRef(currentSource.url);
   const initialDanmakuOptionRef = useRef(danmakuOption);
+  const capturePlaybackCover = useCallback((art: Artplayer) => {
+    const video = art.video;
+
+    if (!video.videoWidth || !video.videoHeight || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      return;
+    }
+
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        return;
+      }
+
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      setPlaybackCoverUrl(canvas.toDataURL("image/jpeg", 0.82));
+    } catch {
+      setPlaybackCoverUrl(playbackData.posterUrl);
+    }
+  }, [playbackData.posterUrl]);
 
   useEffect(() => {
     const container = artContainerRef.current;
 
-    if (!container) {
+    if (hasPlaybackPlaceholderError || !container) {
       return;
     }
 
@@ -314,7 +328,7 @@ export function PlayPageShell() {
         container: artContainerRef.current,
         url: initialPlaybackUrlRef.current,
         type: "m3u8",
-        poster: playPageData.posterUrl,
+        poster: playbackData.posterUrl,
         volume: initialPlayerVolume / 100,
         muted: initialPlayerVolume === 0,
         playbackRate: true,
@@ -326,7 +340,7 @@ export function PlayPageShell() {
         playsInline: true,
         moreVideoAttr: {
           crossOrigin: "anonymous",
-          preload: "metadata",
+          preload: "auto",
         },
         plugins: [artplayerPluginDanmuku(initialDanmakuOptionRef.current)],
         customType: {
@@ -390,6 +404,15 @@ export function PlayPageShell() {
         if (Number.isFinite(art.duration) && art.duration > 0) {
           setCurrentPlaybackDuration(art.duration);
         }
+        if (!hasAppliedResumeTimeRef.current && initialResumeTimeSeconds > 0) {
+          const nextTime = Number.isFinite(art.duration) && art.duration > 0
+            ? clamp(initialResumeTimeSeconds, 0, art.duration)
+            : initialResumeTimeSeconds;
+
+          hasAppliedResumeTimeRef.current = true;
+          art.currentTime = nextTime;
+          setCurrentPlaybackSeconds(nextTime);
+        }
         setIsPlaybackReady(true);
       });
       art.on("video:durationchange", () => {
@@ -398,6 +421,8 @@ export function PlayPageShell() {
         }
       });
       art.on("video:timeupdate", () => setCurrentPlaybackSeconds(art.currentTime));
+      art.on("video:loadeddata", () => capturePlaybackCover(art));
+      art.on("video:seeked", () => capturePlaybackCover(art));
       art.on("video:play", () => {
         setPlaybackError(null);
         setIsPlaybackReady(true);
@@ -410,11 +435,18 @@ export function PlayPageShell() {
       });
       art.on("video:waiting", () => setIsPlaybackReady(false));
       art.on("video:stalled", () => setIsPlaybackReady(false));
-      art.on("video:canplay", () => setIsPlaybackReady(true));
-      art.on("video:canplaythrough", () => setIsPlaybackReady(true));
+      art.on("video:canplay", () => {
+        setIsPlaybackReady(true);
+        capturePlaybackCover(art);
+      });
+      art.on("video:canplaythrough", () => {
+        setIsPlaybackReady(true);
+        capturePlaybackCover(art);
+      });
       art.on("video:ended", () => {
-        setActiveEpisode((currentEpisode) => (currentEpisode >= playPageData.episodes.length ? 1 : currentEpisode + 1));
+        setActiveEpisode((currentEpisode) => (currentEpisode >= episodeCount ? 1 : currentEpisode + 1));
         setCurrentPlaybackSeconds(0);
+        setPlaybackCoverUrl(playbackData.posterUrl);
         setIsControlBarVisible(true);
         setIsPlaying(false);
       });
@@ -430,7 +462,7 @@ export function PlayPageShell() {
       artPlayerRef.current?.destroy(false);
       artPlayerRef.current = null;
     };
-  }, []);
+  }, [capturePlaybackCover, episodeCount, hasPlaybackPlaceholderError, initialResumeTimeSeconds, playbackData.posterUrl]);
 
   useEffect(() => {
     if (!artPlayerRef.current) {
@@ -457,14 +489,16 @@ export function PlayPageShell() {
     }
 
     setCurrentPlaybackSeconds(0);
+    setPlaybackCoverUrl(playbackData.posterUrl);
     setIsPlaybackReady(false);
     setPlaybackError(null);
+    hasAppliedResumeTimeRef.current = true;
 
     void art.switchUrl(currentSource.url).catch(() => {
       setIsPlaybackReady(false);
       setPlaybackError("切换线路失败，请稍后重试。");
     });
-  }, [currentSource.url]);
+  }, [currentSource.url, playbackData.posterUrl]);
 
   useEffect(() => {
     const danmakuPlugin = artPlayerRef.current ? getArtplayerDanmakuPlugin(artPlayerRef.current) : undefined;
@@ -504,9 +538,14 @@ export function PlayPageShell() {
 
   const resetPlaybackForEpisode = (episodeNumber: number) => {
     const art = artPlayerRef.current;
+    const episodeSource = playbackData.sources.find((source) => source.id === `episode-${episodeNumber}`);
 
     setActiveEpisode(episodeNumber);
+    if (episodeSource) {
+      setActiveSource(episodeSource.id);
+    }
     setCurrentPlaybackSeconds(0);
+    setPlaybackCoverUrl(playbackData.posterUrl);
     setIsPlaying(false);
 
     if (art) {
@@ -516,7 +555,7 @@ export function PlayPageShell() {
   };
 
   const playNextEpisode = () => {
-    const nextEpisode = activeEpisode >= playPageData.episodes.length ? 1 : activeEpisode + 1;
+    const nextEpisode = activeEpisode >= episodeCount ? 1 : activeEpisode + 1;
 
     resetPlaybackForEpisode(nextEpisode);
   };
@@ -675,7 +714,7 @@ export function PlayPageShell() {
       <div className="mx-auto grid w-full max-w-[100rem] gap-5">
         <nav aria-label="播放导航" className="flex min-w-0 items-center gap-2 text-sm text-default-500">
           <a className="truncate font-medium text-default-600 transition-colors hover:text-accent" href="#">
-            {playPageData.title}
+            {playbackData.title}
           </a>
           <i aria-hidden="true" className="bi bi-chevron-right text-xs" />
           <span className="truncate text-foreground">第 {activeEpisode} 集</span>
@@ -697,11 +736,28 @@ export function PlayPageShell() {
             onMouseMove={showControlBar}
             onTouchStart={showControlBar}
           >
+            {hasPlaybackPlaceholderError ? (
+              <div className="absolute inset-0 grid place-items-center bg-zinc-950 px-6 text-center text-white">
+                <div className="grid max-w-md justify-items-center gap-3">
+                  <span className="grid h-14 w-14 place-items-center rounded-full border border-white/12 bg-white/8 text-2xl text-danger-300">
+                    <i aria-hidden="true" className="bi bi-exclamation-triangle" />
+                  </span>
+                  <h1 className="text-lg font-semibold tracking-normal">播放信息不可用</h1>
+                  <p className="text-sm leading-6 text-white/68">{playbackPlaceholderError}</p>
+                </div>
+              </div>
+            ) : (
+              <>
             <div
               ref={artContainerRef}
-              aria-label={`${playPageData.title} 第 ${activeEpisode} 集视频`}
+              aria-label={`${playbackData.title} 第 ${activeEpisode} 集视频`}
               data-mixtv-artplayer
               className="absolute inset-0 h-full w-full bg-black [&_.art-bottom]:!hidden [&_.art-controls]:!hidden [&_.art-mask]:!hidden [&_.art-progress]:!hidden [&_.art-video-player]:h-full [&_.art-video-player]:w-full"
+            />
+            <div
+              aria-hidden="true"
+              className={`pointer-events-none absolute inset-0 z-10 bg-black bg-cover bg-center transition-opacity duration-300 ${shouldShowPlaybackCover ? "opacity-100" : "opacity-0"}`}
+              style={{ backgroundImage: playbackCoverUrl ? `url("${playbackCoverUrl}")` : undefined }}
             />
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,transparent_56%,rgba(0,0,0,0.32)_100%)]" />
             <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center gap-5 px-6 text-center text-white transition-opacity ${shouldShowPlaybackOverlay ? "opacity-100" : "pointer-events-none opacity-0"}`}>
@@ -719,7 +775,7 @@ export function PlayPageShell() {
               {/* <div className="min-w-0">
                 <p className="text-sm text-white/64">{currentSource.name} · {currentSource.quality}</p>
                 <h1 className="mt-2 text-2xl font-semibold tracking-normal md:text-3xl">
-                  {playPageData.title} 第 {activeEpisode} 集
+                  {playbackData.title} 第 {activeEpisode} 集
                 </h1>
                 {playbackError ? <p className="mt-3 text-sm text-danger-300">{playbackError}</p> : null}
               </div> */}
@@ -783,7 +839,7 @@ export function PlayPageShell() {
                         value={activeSource}
                         onChange={(event) => setActiveSource(event.currentTarget.value)}
                       >
-                        {playPageData.sources.map((source) => (
+                        {playbackData.sources.map((source) => (
                           <option key={source.id} value={source.id}>
                             {source.quality}
                           </option>
@@ -1050,6 +1106,8 @@ export function PlayPageShell() {
                 </div>
               </div>
             </div>
+              </>
+            )}
           </div>
 
           <div className="overflow-hidden rounded-xl border border-default-200/70 bg-surface shadow-sm backdrop-blur">
@@ -1132,7 +1190,7 @@ export function PlayPageShell() {
 
               <Tabs.Panel id="sources">
                 <div className="grid max-h-[490px] gap-3 overflow-y-auto p-4 pr-3 md:p-5 md:pr-4">
-                  {playPageData.sources.map((source) => (
+                  {playbackData.sources.map((source) => (
                     <button
                       key={source.id}
                       type="button"
@@ -1164,7 +1222,7 @@ export function PlayPageShell() {
                           <span>{source.latency}</span>
                         </span>
                         <Chip className="h-5 shrink-0 px-1 text-[11px]" color="default" size="sm" variant="soft">
-                          {playPageData.episodes.length} 集
+                          {playbackData.episodes.length} 集
                         </Chip>
                       </span>
                     </button>
@@ -1178,8 +1236,8 @@ export function PlayPageShell() {
         <section className="grid gap-5 rounded-2xl bg-[var(--surface)] p-4 shadow-sm backdrop-blur md:grid-cols-[180px_minmax(0,1fr)] md:p-5">
           <div className="relative aspect-[2/3] w-36 overflow-hidden rounded-lg bg-default-100 md:w-full">
             <Image
-              src={playPageData.posterUrl}
-              alt={`${playPageData.title} 封面`}
+              src={playbackData.posterUrl}
+              alt={`${playbackData.title} 封面`}
               fill
               className="object-cover"
               sizes="(max-width: 768px) 144px, 180px"
@@ -1190,8 +1248,8 @@ export function PlayPageShell() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-sm text-default-500">{playPageData.originalTitle}</p>
-                <h2 className="mt-1 text-2xl font-semibold tracking-normal text-foreground">{playPageData.title}</h2>
+                <p className="text-sm text-default-500">{playbackData.originalTitle}</p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-normal text-foreground">{playbackData.title}</h2>
               </div>
               <Button
                 aria-pressed={isFavorite}
@@ -1205,7 +1263,7 @@ export function PlayPageShell() {
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              {playPageData.tags.map((tag) => (
+              {playbackData.tags.map((tag) => (
                 <Chip key={tag} color="accent" variant="soft">
                   {tag}
                 </Chip>
@@ -1221,19 +1279,19 @@ export function PlayPageShell() {
               </div>
               <div>
                 <dt className="text-default-500">年份</dt>
-                <dd className="mt-1 font-medium text-foreground">{playPageData.year}</dd>
+                <dd className="mt-1 font-medium text-foreground">{playbackData.year}</dd>
               </div>
               <div>
                 <dt className="text-default-500">地区</dt>
-                <dd className="mt-1 font-medium text-foreground">{playPageData.area}</dd>
+                <dd className="mt-1 font-medium text-foreground">{playbackData.area}</dd>
               </div>
               <div>
                 <dt className="text-default-500">评分</dt>
-                <dd className="mt-1 font-medium text-foreground">{playPageData.rating}</dd>
+                <dd className="mt-1 font-medium text-foreground">{playbackData.rating}</dd>
               </div>
             </dl>
 
-            <p className="mt-5 text-sm leading-7 text-default-600">{playPageData.description}</p>
+            <p className="mt-5 text-sm leading-7 text-default-600">{playbackData.description}</p>
           </div>
         </section>
       </div>
