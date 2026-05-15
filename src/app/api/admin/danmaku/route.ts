@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import {
-  AdminModuleValidationError,
   getDanmakuConfig,
   saveDanmakuConfig,
-} from "@/modules/admin/server/admin-modules-service";
-
-export const runtime = "edge";
+} from "@/modules/admin/server/danmaku-service";
+import {
+  danmakuConfigRequestSchema,
+  getAdminConfigValidationMessage,
+} from "@/modules/admin/server/admin-config-schemas";
 
 function badRequest(message: string) {
   return NextResponse.json({ message }, { status: 400 });
@@ -29,12 +30,15 @@ export async function POST(request: Request) {
     return badRequest("Request body must be valid JSON.");
   }
 
+  const parsed = danmakuConfigRequestSchema.safeParse(payload);
+
+  if (!parsed.success) {
+    return badRequest(getAdminConfigValidationMessage(parsed.error));
+  }
+
   try {
-    return NextResponse.json(await saveDanmakuConfig(payload));
+    return NextResponse.json(await saveDanmakuConfig(parsed.data));
   } catch (error) {
-    if (error instanceof AdminModuleValidationError) {
-      return badRequest(error.message);
-    }
     console.error("Failed to save danmaku config.", error);
     return NextResponse.json({ message: "Failed to save danmaku config." }, { status: 500 });
   }

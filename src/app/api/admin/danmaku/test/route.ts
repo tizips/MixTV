@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { AdminModuleValidationError, testDanmakuConnection } from "@/modules/admin/server/admin-modules-service";
-
-export const runtime = "edge";
+import { testDanmakuConnection } from "@/modules/admin/server/danmaku-service";
+import {
+  danmakuTestRequestSchema,
+  getAdminConfigValidationMessage,
+} from "@/modules/admin/server/admin-config-schemas";
 
 export async function POST(request: Request) {
   let payload: unknown;
@@ -12,12 +14,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Request body must be valid JSON." }, { status: 400 });
   }
 
+  const parsed = danmakuTestRequestSchema.safeParse(payload);
+
+  if (!parsed.success) {
+    return NextResponse.json({ message: getAdminConfigValidationMessage(parsed.error) }, { status: 400 });
+  }
+
   try {
-    return NextResponse.json(await testDanmakuConnection(payload));
-  } catch (error) {
-    if (error instanceof AdminModuleValidationError) {
-      return NextResponse.json({ message: error.message }, { status: 400 });
-    }
+    return NextResponse.json(await testDanmakuConnection(parsed.data));
+  } catch {
     return NextResponse.json({ message: "Failed to test danmaku connection." }, { status: 500 });
   }
 }
