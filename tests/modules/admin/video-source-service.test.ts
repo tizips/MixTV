@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   batchUpdateVideoSources,
+  checkVideoSourceValidities,
   createVideoSource,
   deleteVideoSource,
   getVideoSources,
+  syncVideoSourcesFromConfigContent,
   updateVideoSource,
   type VideoSourceStore,
 } from "@/modules/admin/server/video-source-service";
@@ -87,6 +89,62 @@ describe("video source service", () => {
     expect(data.sources[0]).toMatchObject({ key: "legacy", name: "Legacy Source" });
   });
 
+  it("sorts video sources by subscription number first and moves zero numbers last", async () => {
+    const store = createFakeStore({
+      disabled: JSON.stringify({
+        adult: false,
+        apiUrl: "https://disabled.test/api",
+        key: "disabled",
+        name: "Disabled",
+        no: 0,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "valid",
+        weight: 1,
+      }),
+      first: JSON.stringify({
+        adult: false,
+        apiUrl: "https://first.test/api",
+        key: "first",
+        name: "First",
+        no: 1,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "valid",
+        weight: 99,
+      }),
+      second: JSON.stringify({
+        adult: false,
+        apiUrl: "https://second.test/api",
+        key: "second",
+        name: "Second",
+        no: 2,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "valid",
+        weight: 2,
+      }),
+      unnumbered: JSON.stringify({
+        adult: false,
+        apiUrl: "https://unnumbered.test/api",
+        key: "unnumbered",
+        name: "Unnumbered",
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "valid",
+        weight: 1,
+      }),
+    });
+
+    const data = await getVideoSources(store);
+
+    expect(data.sources.map((source) => source.key)).toEqual(["first", "second", "disabled", "unnumbered"]);
+  });
+
   it("creates, updates, batch updates, and deletes video sources through redis hash commands", async () => {
     const store = createFakeStore();
     const created = await createVideoSource(
@@ -121,14 +179,14 @@ describe("video source service", () => {
 
     const batched = await batchUpdateVideoSources(
       {
+        action: "enable",
         keys: [created.key],
-        patch: { adult: true },
       },
       store,
     );
-    expect(batched.sources.find((source) => source.key === created.key)?.adult).toBe(true);
+    expect(batched.sources.find((source) => source.key === created.key)?.status).toBe("enabled");
     expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: [created.key, expect.stringContaining('"adult":true')],
+      args: [created.key, expect.stringContaining('"status":"enabled"')],
       keys: ["sources"],
     });
 
@@ -139,5 +197,150 @@ describe("video source service", () => {
       keys: ["sources"],
     });
     await expect(getVideoSources(store)).resolves.toEqual(deleted);
+  });
+
+  it("checks every stored video source with one keyword and persists each validity result", async () => {
+    const store = createFakeStore({
+      alpha: JSON.stringify({
+        adult: false,
+        apiUrl: "https://alpha.test/api",
+        key: "alpha",
+        name: "Alpha",
+        no: 1,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "warning",
+        weight: 10,
+      }),
+      beta: JSON.stringify({
+        adult: false,
+        apiUrl: "https://beta.test/api",
+        key: "beta",
+        name: "Beta",
+        no: 2,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "warning",
+        weight: 10,
+      }),
+    });
+    const events: Array<{ key: string; validity: "valid" | "invalid" }> = [];
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ list: [{ vod_name: "Alpha Movie" }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ list: [] }), { status: 200 }));
+
+    const checked = await checkVideoSourceValidities(
+      { keyword: "movie" },
+      {
+        fetcher,
+        onResult: (result) => events.push({ key: result.key, validity: result.validity }),
+        store,
+      },
+    );
+
+    expect(fetcher).toHaveBeenNthCalledWith(1, "https://alpha.test/api?wd=movie", expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(fetcher).toHaveBeenNthCalledWith(2, "https://beta.test/api?wd=movie", expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(events).toEqual([
+      { key: "alpha", validity: "valid" },
+      { key: "beta", validity: "invalid" },
+    ]);
+    expect(checked.sources.find((source) => source.key === "alpha")?.validity).toBe("valid");
+    expect(checked.sources.find((source) => source.key === "beta")?.validity).toBe("invalid");
+    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
+      args: ["alpha", expect.stringContaining('"validity":"valid"')],
+      keys: ["sources"],
+    });
+    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
+      args: ["beta", expect.stringContaining('"validity":"invalid"')],
+      keys: ["sources"],
+    });
+  });
+
+  it("syncs config api_site entries into video sources without changing existing source flags", async () => {
+    const store = createFakeStore({
+      alpha: JSON.stringify({
+        adult: true,
+        apiUrl: "https://old.test/api",
+        key: "alpha",
+        name: "Old Alpha",
+        no: 8,
+        status: "disabled",
+        type: "short-drama",
+        updatedAt: "2026-05-14T00:00:00.000Z",
+        validity: "valid",
+        weight: 88,
+      }),
+      removed: JSON.stringify({
+        adult: false,
+        apiUrl: "https://removed.test/api",
+        key: "removed",
+        name: "Removed",
+        no: 9,
+        status: "enabled",
+        type: "normal",
+        updatedAt: "2026-05-14T00:00:00.000Z",
+        validity: "valid",
+        weight: 1,
+      }),
+    });
+
+    const synced = await syncVideoSourcesFromConfigContent(
+      JSON.stringify({
+        api_site: {
+          alpha: {
+            api: " https://new.test/api ",
+            name: " New Alpha ",
+          },
+          beta: {
+            api: "https://beta.test/api",
+            name: "🔞 Beta",
+          },
+        },
+      }),
+      store,
+    );
+
+    expect(synced.sources.find((source) => source.key === "alpha")).toMatchObject({
+      adult: true,
+      apiUrl: "https://new.test/api",
+      key: "alpha",
+      name: "New Alpha",
+      no: 1,
+      status: "disabled",
+      type: "short-drama",
+      updatedAt: "2026-05-14T00:00:00.000Z",
+      validity: "valid",
+      weight: 88,
+    });
+    expect(synced.sources.find((source) => source.key === "beta")).toMatchObject({
+      adult: true,
+      apiUrl: "https://beta.test/api",
+      key: "beta",
+      name: "🔞 Beta",
+      no: 2,
+      status: "enabled",
+      type: "normal",
+      validity: "warning",
+      weight: 50,
+    });
+    expect(synced.sources.find((source) => source.key === "removed")).toMatchObject({
+      key: "removed",
+      no: 0,
+    });
+    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
+      args: ["alpha", expect.stringContaining('"apiUrl":"https://new.test/api"')],
+      keys: ["sources"],
+    });
+    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
+      args: ["beta", expect.stringContaining('"status":"enabled"')],
+      keys: ["sources"],
+    });
+    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
+      args: ["removed", expect.stringContaining('"no":0')],
+      keys: ["sources"],
+    });
   });
 });

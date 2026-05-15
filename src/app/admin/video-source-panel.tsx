@@ -1,7 +1,7 @@
 "use client";
 
 import type { Selection } from "@react-types/shared";
-import { type Key, useEffect, useMemo, useState } from "react";
+import { memo, type Key, useEffect, useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -22,6 +22,7 @@ import {
 import type {
   VideoSourceCollection,
   VideoSourceItem,
+  VideoSourceBatchAction,
   VideoSourceStatus,
   VideoSourceType,
   VideoSourceValidity,
@@ -50,6 +51,7 @@ const sourceTypeLabelMap: Record<VideoSourceType, string> = {
 };
 
 const sourceValidityLabelMap: Record<VideoSourceValidity, string> = {
+  checking: "检测中",
   valid: "可用",
   warning: "待检测",
   invalid: "异常",
@@ -65,13 +67,22 @@ const sourceTypeChipColorMap: Record<VideoSourceType, "accent" | "default"> = {
   "short-drama": "accent",
 };
 
-const sourceValidityChipColorMap: Record<VideoSourceValidity, "danger" | "success" | "warning"> = {
+const sourceValidityChipColorMap: Record<VideoSourceValidity, "accent" | "danger" | "success" | "warning"> = {
+  checking: "accent",
   valid: "success",
   warning: "warning",
   invalid: "danger",
 };
 
+const sourceValidityIconMap: Record<VideoSourceValidity, string> = {
+  checking: "bi-arrow-repeat",
+  valid: "bi-check-circle-fill",
+  warning: "bi-exclamation-triangle-fill",
+  invalid: "bi-x-circle-fill",
+};
+
 const tableActionButtonClassName = "h-7 px-2 text-xs";
+const defaultValidityKeyword = "斗罗大陆";
 
 const defaultDraft: EditableVideoSource = {
   originalKey: null,
@@ -106,7 +117,7 @@ function isVideoSourceType(value: unknown): value is VideoSourceType {
 }
 
 function isVideoSourceValidity(value: unknown): value is VideoSourceValidity {
-  return value === "valid" || value === "warning" || value === "invalid";
+  return value === "checking" || value === "valid" || value === "warning" || value === "invalid";
 }
 
 function normalizeVideoSourceItem(payload: unknown): VideoSourceItem | null {
@@ -131,6 +142,7 @@ function normalizeVideoSourceItem(payload: unknown): VideoSourceItem | null {
     name: raw.name,
     key: raw.key,
     apiUrl: raw.apiUrl,
+    no: typeof raw.no === "number" && Number.isFinite(raw.no) ? Math.max(0, Math.round(raw.no)) : 0,
     status: raw.status,
     adult: raw.adult,
     type: raw.type,
@@ -157,6 +169,47 @@ function normalizeVideoSourceCollection(payload: unknown): VideoSourceCollection
     sources,
     updatedAt: typeof raw.updatedAt === "string" || raw.updatedAt === null ? raw.updatedAt : null,
   };
+}
+
+function normalizeValidityCheckResult(payload: unknown): Pick<VideoSourceItem, "key" | "validity"> | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+
+  const raw = payload as Record<string, unknown>;
+
+  if (typeof raw.key !== "string" || !isVideoSourceValidity(raw.validity)) {
+    return null;
+  }
+
+  return {
+    key: raw.key,
+    validity: raw.validity,
+  };
+}
+
+function parseSseEvent(block: string) {
+  const lines = block.split(/\r?\n/);
+  let event = "message";
+  const dataLines: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith("event:")) {
+      event = line.slice("event:".length).trim();
+    } else if (line.startsWith("data:")) {
+      dataLines.push(line.slice("data:".length).trimStart());
+    }
+  }
+
+  if (dataLines.length === 0) {
+    return null;
+  }
+
+  try {
+    return { data: JSON.parse(dataLines.join("\n")) as unknown, event };
+  } catch {
+    return null;
+  }
 }
 
 async function readApiErrorMessage(response: Response, fallback: string) {
@@ -309,15 +362,183 @@ function VideoSourceSelect<TValue extends string>({
   );
 }
 
+type VideoSourceTableProps = {
+  operationSourceKey: string | null;
+  onDeleteSource: (key: string) => void;
+  onOpenEditSource: (source: VideoSourceItem) => void;
+  onSaveSourcePatch: (key: string, patch: Partial<VideoSourceItem>, successMessage: string) => void;
+  onSelectionChange: (selection: Selection) => void;
+  selectedSourceKeySet: Set<string>;
+  sources: VideoSourceItem[];
+};
+
+const VideoSourceTable = memo(function VideoSourceTable({
+  operationSourceKey,
+  onDeleteSource,
+  onOpenEditSource,
+  onSaveSourcePatch,
+  onSelectionChange,
+  selectedSourceKeySet,
+  sources,
+}: VideoSourceTableProps) {
+  return (
+    <Table>
+      <Table.ScrollContainer className="rounded-xl">
+        <Table.Content
+          aria-label="视频源列表"
+          className="min-w-[960px] text-sm"
+          selectedKeys={selectedSourceKeySet}
+          selectionMode="multiple"
+          onSelectionChange={onSelectionChange}
+        >
+          <Table.Header>
+            <Table.Column className="w-14">
+              <div className="flex items-center">
+                <Checkbox aria-label="选择全部视频源" slot="selection">
+                  <Checkbox.Control>
+                    <Checkbox.Indicator>
+                      {({ isIndeterminate, isSelected }) =>
+                        isIndeterminate ? (
+                          <i aria-hidden="true" className="bi bi-dash" />
+                        ) : isSelected ? (
+                          <i aria-hidden="true" className="bi bi-check" />
+                        ) : null
+                      }
+                    </Checkbox.Indicator>
+                  </Checkbox.Control>
+                </Checkbox>
+              </div>
+            </Table.Column>
+            <Table.Column isRowHeader className="min-w-40">
+              名称
+            </Table.Column>
+            <Table.Column className="min-w-32">KEY</Table.Column>
+            <Table.Column className="min-w-20 text-center">状态</Table.Column>
+            <Table.Column className="min-w-20 text-center">成人资源</Table.Column>
+            <Table.Column className="min-w-20 text-center">源类型</Table.Column>
+            <Table.Column className="min-w-16 text-center">权重</Table.Column>
+            <Table.Column className="min-w-20 text-center">有效性</Table.Column>
+            <Table.Column className="text-end">操作</Table.Column>
+          </Table.Header>
+          <Table.Body>
+            {sources.map((source) => (
+              <Table.Row key={source.key} id={source.key}>
+                <Table.Cell>
+                  <div className="flex min-h-10 items-center">
+                    <Checkbox aria-label={`选择${source.name}`} slot="selection">
+                      <Checkbox.Control>
+                        <Checkbox.Indicator>
+                          {({ isSelected }) =>
+                            isSelected ? <i aria-hidden="true" className="bi bi-check" /> : null
+                          }
+                        </Checkbox.Indicator>
+                      </Checkbox.Control>
+                    </Checkbox>
+                  </div>
+                </Table.Cell>
+                <Table.Cell className="min-w-40 font-medium text-foreground">{source.name}</Table.Cell>
+                <Table.Cell className="min-w-32 font-mono text-xs text-default-600">{source.key}</Table.Cell>
+                <Table.Cell className="min-w-20 text-center">
+                  <Chip color={sourceStatusChipColorMap[source.status]} size="sm" variant="soft">
+                    {sourceStatusLabelMap[source.status]}
+                  </Chip>
+                </Table.Cell>
+                <Table.Cell className="min-w-20 text-center">
+                  <Switch
+                    aria-label={`切换${source.name}成人资源`}
+                    isDisabled={operationSourceKey === source.key}
+                    isSelected={source.adult}
+                    onChange={() => onSaveSourcePatch(source.key, { adult: !source.adult }, "视频源已保存")}
+                  >
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                  </Switch>
+                </Table.Cell>
+                <Table.Cell className="min-w-20 text-center">
+                  <Chip color={sourceTypeChipColorMap[source.type]} size="sm" variant="soft">
+                    {sourceTypeLabelMap[source.type]}
+                  </Chip>
+                </Table.Cell>
+                <Table.Cell className="min-w-16 text-center">
+                  <Chip color="accent" size="sm" variant="soft">
+                    {source.weight}
+                  </Chip>
+                </Table.Cell>
+                <Table.Cell className="min-w-20 text-center">
+                  <Chip color={sourceValidityChipColorMap[source.validity]} size="sm" variant="soft">
+                    <span className="inline-flex items-center gap-1.5">
+                      <i aria-hidden="true" className={`bi ${sourceValidityIconMap[source.validity]}`} />
+                      {sourceValidityLabelMap[source.validity]}
+                    </span>
+                  </Chip>
+                </Table.Cell>
+                <Table.Cell className="text-end">
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      className={tableActionButtonClassName}
+                      size="sm"
+                      variant={source.status === "enabled" ? "danger-soft" : "primary"}
+                      isDisabled={operationSourceKey === source.key}
+                      onPress={() =>
+                        onSaveSourcePatch(
+                          source.key,
+                          { status: source.status === "enabled" ? "disabled" : "enabled" },
+                          source.status === "enabled" ? "视频源已禁用" : "视频源已启用",
+                        )
+                      }
+                    >
+                      {source.status === "enabled" ? "禁用" : "启用"}
+                    </Button>
+                    <Button
+                      className={tableActionButtonClassName}
+                      size="sm"
+                      variant="secondary"
+                      isDisabled={operationSourceKey === source.key}
+                      onPress={() => onOpenEditSource(source)}
+                    >
+                      编辑
+                    </Button>
+                    <Button
+                      className={tableActionButtonClassName}
+                      size="sm"
+                      variant="danger"
+                      isDisabled={operationSourceKey === source.key}
+                      onPress={() => onDeleteSource(source.key)}
+                    >
+                      删除
+                    </Button>
+                  </div>
+                </Table.Cell>
+              </Table.Row>
+            ))}
+          </Table.Body>
+        </Table.Content>
+      </Table.ScrollContainer>
+    </Table>
+  );
+}, areVideoSourceTablePropsEqual);
+
+function areVideoSourceTablePropsEqual(previous: VideoSourceTableProps, next: VideoSourceTableProps) {
+  return (
+    previous.operationSourceKey === next.operationSourceKey &&
+    previous.selectedSourceKeySet === next.selectedSourceKeySet &&
+    previous.sources === next.sources
+  );
+}
+
 export function VideoSourcePanel() {
   const editSourceModal = useOverlayState();
+  const validityCheckModal = useOverlayState();
   const [sources, setSources] = useState<VideoSourceItem[]>([]);
   const [selectedSourceKeys, setSelectedSourceKeys] = useState<string[]>([]);
   const [editingSource, setEditingSource] = useState<EditableVideoSource | null>(null);
+  const [validityKeyword, setValidityKeyword] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [operationSourceKey, setOperationSourceKey] = useState<string | null>(null);
   const [isBatchSaving, setIsBatchSaving] = useState(false);
+  const [isValidityChecking, setIsValidityChecking] = useState(false);
 
   const sourceKeys = useMemo(() => sources.map((source) => source.key), [sources]);
   const selectedSourceKeySet = useMemo(
@@ -421,6 +642,94 @@ export function VideoSourcePanel() {
     editSourceModal.open();
   };
 
+  const openValidityCheck = () => {
+    setValidityKeyword(defaultValidityKeyword);
+    validityCheckModal.open();
+  };
+
+  const closeValidityCheck = () => {
+    if (isValidityChecking) {
+      return;
+    }
+
+    setValidityKeyword("");
+    validityCheckModal.close();
+  };
+
+  const runValidityCheck = async () => {
+    const keyword = validityKeyword.trim();
+
+    if (!keyword) {
+      toast.danger("请输入检测关键词。");
+      return;
+    }
+
+    setIsValidityChecking(true);
+    setSources((current) => current.map((source) => ({ ...source, validity: "checking" })));
+    validityCheckModal.close();
+
+    try {
+      const response = await fetch(`/api/admin/video-source/validity-check?keyword=${encodeURIComponent(keyword)}`, {
+        headers: { Accept: "text/event-stream" },
+        method: "GET",
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error("视频源有效性检测失败");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split(/\r?\n\r?\n/);
+        buffer = blocks.pop() ?? "";
+
+        for (const block of blocks) {
+          const message = parseSseEvent(block);
+
+          if (!message) {
+            continue;
+          }
+
+          if (message.event === "result") {
+            const result = normalizeValidityCheckResult(message.data);
+
+            if (result) {
+              setSources((current) =>
+                current.map((source) => (source.key === result.key ? { ...source, validity: result.validity } : source)),
+              );
+            }
+          } else if (message.event === "complete") {
+            updateSourcesFromCollection(normalizeVideoSourceCollection(message.data));
+          } else if (message.event === "error") {
+            const raw = message.data;
+            const messageText =
+              raw && typeof raw === "object" && !Array.isArray(raw) && typeof (raw as Record<string, unknown>).message === "string"
+                ? String((raw as Record<string, unknown>).message)
+                : "视频源有效性检测失败";
+            throw new Error(messageText);
+          }
+        }
+      }
+
+      toast.success("视频源有效性检测完成");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "视频源有效性检测失败";
+      toast.danger(message);
+    } finally {
+      setIsValidityChecking(false);
+    }
+  };
+
   const saveEditingSource = async () => {
     if (!editingSource) {
       return;
@@ -483,7 +792,7 @@ export function VideoSourcePanel() {
     }
   };
 
-  const updateSelectedSources = async (patch: Partial<VideoSourceItem>, successMessage: string) => {
+  const updateSelectedSources = async (action: VideoSourceBatchAction, successMessage: string) => {
     if (selectedCount === 0) {
       return;
     }
@@ -494,7 +803,7 @@ export function VideoSourcePanel() {
       const data = await requestJson(
         "/api/admin/video-source/batch",
         {
-          body: JSON.stringify({ keys: Array.from(selectedSourceKeySet), patch }),
+          body: JSON.stringify({ action, keys: Array.from(selectedSourceKeySet) }),
           headers: { "Content-Type": "application/json" },
           method: "PUT",
         },
@@ -601,7 +910,7 @@ export function VideoSourcePanel() {
                     size="sm"
                     variant="secondary"
                     isDisabled={isBatchSaving}
-                    onPress={() => updateSelectedSources({ status: "enabled" }, "视频源已批量启用")}
+                    onPress={() => updateSelectedSources("enable", "视频源已批量启用")}
                   >
                     批量启用
                   </Button>
@@ -609,7 +918,7 @@ export function VideoSourcePanel() {
                     size="sm"
                     variant="secondary"
                     isDisabled={isBatchSaving}
-                    onPress={() => updateSelectedSources({ status: "disabled" }, "视频源已批量禁用")}
+                    onPress={() => updateSelectedSources("disable", "视频源已批量禁用")}
                   >
                     批量禁用
                   </Button>
@@ -618,143 +927,29 @@ export function VideoSourcePanel() {
                   </Button>
                 </>
               ) : null}
+              <Button
+                size="sm"
+                variant="secondary"
+                isDisabled={isLoading || sources.length === 0 || isValidityChecking}
+                onPress={openValidityCheck}
+              >
+                {isValidityChecking ? "检测中" : "有效性检测"}
+              </Button>
               <Button size="sm" variant="primary" isDisabled={isLoading} onPress={addSource}>
                 添加
               </Button>
             </div>
           </div>
 
-          <Table>
-            <Table.ScrollContainer className="rounded-xl">
-              <Table.Content
-                aria-label="视频源列表"
-                className="min-w-[960px] text-sm"
-                selectedKeys={selectedSourceKeySet}
-                selectionMode="multiple"
-                onSelectionChange={handleTableSelectionChange}
-              >
-                <Table.Header>
-                  <Table.Column className="w-14">
-                    <div className="flex items-center">
-                      <Checkbox aria-label="选择全部视频源" slot="selection">
-                        <Checkbox.Control>
-                          <Checkbox.Indicator>
-                            {({ isIndeterminate, isSelected }) =>
-                              isIndeterminate ? (
-                                <i aria-hidden="true" className="bi bi-dash" />
-                              ) : isSelected ? (
-                                <i aria-hidden="true" className="bi bi-check" />
-                              ) : null
-                            }
-                          </Checkbox.Indicator>
-                        </Checkbox.Control>
-                      </Checkbox>
-                    </div>
-                  </Table.Column>
-                  <Table.Column isRowHeader className="min-w-40">
-                    名称
-                  </Table.Column>
-                  <Table.Column className="min-w-32">KEY</Table.Column>
-                  <Table.Column className="min-w-20 text-center">状态</Table.Column>
-                  <Table.Column className="min-w-20 text-center">成人资源</Table.Column>
-                  <Table.Column className="min-w-20 text-center">源类型</Table.Column>
-                  <Table.Column className="min-w-16 text-center">权重</Table.Column>
-                  <Table.Column className="min-w-20 text-center">有效性</Table.Column>
-                  <Table.Column className="text-end">操作</Table.Column>
-                </Table.Header>
-                <Table.Body>
-                  {sources.map((source) => (
-                    <Table.Row key={source.key} id={source.key}>
-                      <Table.Cell>
-                        <div className="flex min-h-10 items-center">
-                          <Checkbox aria-label={`选择${source.name}`} slot="selection">
-                            <Checkbox.Control>
-                              <Checkbox.Indicator>
-                                {({ isSelected }) =>
-                                  isSelected ? <i aria-hidden="true" className="bi bi-check" /> : null
-                                }
-                              </Checkbox.Indicator>
-                            </Checkbox.Control>
-                          </Checkbox>
-                        </div>
-                      </Table.Cell>
-                      <Table.Cell className="min-w-40 font-medium text-foreground">{source.name}</Table.Cell>
-                      <Table.Cell className="min-w-32 font-mono text-xs text-default-600">{source.key}</Table.Cell>
-                      <Table.Cell className="min-w-20 text-center">
-                        <Chip color={sourceStatusChipColorMap[source.status]} size="sm" variant="soft">
-                          {sourceStatusLabelMap[source.status]}
-                        </Chip>
-                      </Table.Cell>
-                      <Table.Cell className="min-w-20 text-center">
-                        <Switch
-                          aria-label={`切换${source.name}成人资源`}
-                          isDisabled={operationSourceKey === source.key}
-                          isSelected={source.adult}
-                          onChange={() => saveSourcePatch(source.key, { adult: !source.adult }, "视频源已保存")}
-                        >
-                          <Switch.Control>
-                            <Switch.Thumb />
-                          </Switch.Control>
-                        </Switch>
-                      </Table.Cell>
-                      <Table.Cell className="min-w-20 text-center">
-                        <Chip color={sourceTypeChipColorMap[source.type]} size="sm" variant="soft">
-                          {sourceTypeLabelMap[source.type]}
-                        </Chip>
-                      </Table.Cell>
-                      <Table.Cell className="min-w-16 text-center">
-                        <Chip color="accent" size="sm" variant="soft">
-                          {source.weight}
-                        </Chip>
-                      </Table.Cell>
-                      <Table.Cell className="min-w-20 text-center">
-                        <Chip color={sourceValidityChipColorMap[source.validity]} size="sm" variant="soft">
-                          {sourceValidityLabelMap[source.validity]}
-                        </Chip>
-                      </Table.Cell>
-                      <Table.Cell className="text-end">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            className={tableActionButtonClassName}
-                            size="sm"
-                            variant={source.status === "enabled" ? "danger-soft" : "primary"}
-                            isDisabled={operationSourceKey === source.key}
-                            onPress={() =>
-                              saveSourcePatch(
-                                source.key,
-                                { status: source.status === "enabled" ? "disabled" : "enabled" },
-                                source.status === "enabled" ? "视频源已禁用" : "视频源已启用",
-                              )
-                            }
-                          >
-                            {source.status === "enabled" ? "禁用" : "启用"}
-                          </Button>
-                          <Button
-                            className={tableActionButtonClassName}
-                            size="sm"
-                            variant="secondary"
-                            isDisabled={operationSourceKey === source.key}
-                            onPress={() => openEditSource(source)}
-                          >
-                            编辑
-                          </Button>
-                          <Button
-                            className={tableActionButtonClassName}
-                            size="sm"
-                            variant="danger"
-                            isDisabled={operationSourceKey === source.key}
-                            onPress={() => deleteSource(source.key)}
-                          >
-                            删除
-                          </Button>
-                        </div>
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table.Content>
-            </Table.ScrollContainer>
-          </Table>
+          <VideoSourceTable
+            operationSourceKey={operationSourceKey}
+            selectedSourceKeySet={selectedSourceKeySet}
+            sources={sources}
+            onDeleteSource={deleteSource}
+            onOpenEditSource={openEditSource}
+            onSaveSourcePatch={saveSourcePatch}
+            onSelectionChange={handleTableSelectionChange}
+          />
         </Card.Content>
       </Card>
 
@@ -873,6 +1068,51 @@ export function VideoSourcePanel() {
                 </Button>
                 <Button variant="primary" type="submit" form="edit-video-source-form" isDisabled={isSaving}>
                   {isSaving ? "保存中" : "保存"}
+                </Button>
+              </Modal.Footer>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+      </Modal>
+
+      <Modal state={validityCheckModal}>
+        <Modal.Backdrop isDismissable={!isValidityChecking}>
+          <Modal.Container placement="center" size="sm">
+            <Modal.Dialog>
+              <Modal.Header>
+                <Modal.Heading>有效性检测</Modal.Heading>
+              </Modal.Header>
+              <Modal.Body className="p-6">
+                <Form
+                  id="validity-check-form"
+                  className="space-y-5"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void runValidityCheck();
+                  }}
+                >
+                  <TextField fullWidth name="validityKeyword">
+                    <Label>关键词</Label>
+                    <Input
+                      aria-label="关键词"
+                      name="validityKeyword"
+                      value={validityKeyword}
+                      onChange={(event) => setValidityKeyword(event.target.value)}
+                    />
+                  </TextField>
+                </Form>
+              </Modal.Body>
+              <Modal.Footer className="flex items-center justify-end gap-2">
+                <Button variant="outline" isDisabled={isValidityChecking} onPress={closeValidityCheck}>
+                  取消
+                </Button>
+                <Button
+                  variant="primary"
+                  type="submit"
+                  form="validity-check-form"
+                  isDisabled={isValidityChecking}
+                >
+                  确定
                 </Button>
               </Modal.Footer>
             </Modal.Dialog>
