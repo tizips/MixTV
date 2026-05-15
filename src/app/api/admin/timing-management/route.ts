@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import {
-  AdminModuleValidationError,
+  getAdminConfigValidationMessage,
+  timingManagementConfigRequestSchema,
+} from "@/modules/admin/server/admin-config-schemas";
+import {
   getTimingManagementConfig,
   saveTimingManagementConfig,
-} from "@/modules/admin/server/admin-modules-service";
-
-export const runtime = "edge";
+} from "@/modules/admin/server/timing-management-service";
 
 function badRequest(message: string) {
   return NextResponse.json({ message }, { status: 400 });
@@ -29,12 +30,15 @@ export async function POST(request: Request) {
     return badRequest("Request body must be valid JSON.");
   }
 
+  const parsed = timingManagementConfigRequestSchema.safeParse(payload);
+
+  if (!parsed.success) {
+    return badRequest(getAdminConfigValidationMessage(parsed.error));
+  }
+
   try {
-    return NextResponse.json(await saveTimingManagementConfig(payload));
+    return NextResponse.json(await saveTimingManagementConfig(parsed.data));
   } catch (error) {
-    if (error instanceof AdminModuleValidationError) {
-      return badRequest(error.message);
-    }
     console.error("Failed to save timing management config.", error);
     return NextResponse.json({ message: "Failed to save timing management config." }, { status: 500 });
   }

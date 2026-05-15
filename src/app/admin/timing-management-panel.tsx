@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Alert, Button, Card, Chip, Description, Form, Input, Label, Switch, TextField } from "@heroui/react";
+import { useEffect, useState } from "react";
+import { z } from "zod";
+import { Alert, Button, Card, Chip, Description, Form, Input, Label, Switch, TextField, toast } from "@heroui/react";
 
 type TimingManagementConfig = {
   autoRefreshEnabled: boolean;
@@ -10,6 +11,7 @@ type TimingManagementConfig = {
   onlyRefreshOngoingSeries: boolean;
   maxSearchPages: number;
   siteCacheSeconds: number;
+  updatedAt: string | null;
 };
 
 const defaultConfig: TimingManagementConfig = {
@@ -19,7 +21,17 @@ const defaultConfig: TimingManagementConfig = {
   onlyRefreshOngoingSeries: true,
   maxSearchPages: 3,
   siteCacheSeconds: 3600,
+  updatedAt: null,
 };
+
+const timingManagementConfigSchema = z.object({
+  autoRefreshEnabled: z.boolean(),
+  maxRecordsPerRun: z.number().int().min(1, "每次最多处理记录数至少为 1。").max(1000, "每次最多处理记录数不能超过 1000。"),
+  recentActiveDays: z.number().int().min(1, "最近活跃天数至少为 1 天。").max(365, "最近活跃天数不能超过 365 天。"),
+  onlyRefreshOngoingSeries: z.boolean(),
+  maxSearchPages: z.number().int().min(1, "最大页数至少为 1。").max(20, "最大页数不能超过 20。"),
+  siteCacheSeconds: z.number().int().min(0, "缓存时间不能小于 0 秒。").max(86400, "缓存时间不能超过 86400 秒。"),
+});
 
 function normalizeInteger(value: string, fallback: number, min: number, max: number) {
   const number = Number(value);
@@ -31,12 +43,170 @@ function normalizeInteger(value: string, fallback: number, min: number, max: num
   return Math.min(max, Math.max(min, Math.round(number)));
 }
 
+function normalizeConfig(payload: unknown): TimingManagementConfig {
+  const raw = payload && typeof payload === "object" && !Array.isArray(payload) ? (payload as Record<string, unknown>) : {};
+
+  return {
+    autoRefreshEnabled:
+      typeof raw.autoRefreshEnabled === "boolean" ? raw.autoRefreshEnabled : defaultConfig.autoRefreshEnabled,
+    maxRecordsPerRun:
+      typeof raw.maxRecordsPerRun === "number"
+        ? normalizeInteger(String(raw.maxRecordsPerRun), defaultConfig.maxRecordsPerRun, 1, 1000)
+        : defaultConfig.maxRecordsPerRun,
+    recentActiveDays:
+      typeof raw.recentActiveDays === "number"
+        ? normalizeInteger(String(raw.recentActiveDays), defaultConfig.recentActiveDays, 1, 365)
+        : defaultConfig.recentActiveDays,
+    onlyRefreshOngoingSeries:
+      typeof raw.onlyRefreshOngoingSeries === "boolean"
+        ? raw.onlyRefreshOngoingSeries
+        : defaultConfig.onlyRefreshOngoingSeries,
+    maxSearchPages:
+      typeof raw.maxSearchPages === "number"
+        ? normalizeInteger(String(raw.maxSearchPages), defaultConfig.maxSearchPages, 1, 20)
+        : defaultConfig.maxSearchPages,
+    siteCacheSeconds:
+      typeof raw.siteCacheSeconds === "number"
+        ? normalizeInteger(String(raw.siteCacheSeconds), defaultConfig.siteCacheSeconds, 0, 86400)
+        : defaultConfig.siteCacheSeconds,
+    updatedAt: typeof raw.updatedAt === "string" || raw.updatedAt === null ? raw.updatedAt : null,
+  };
+}
+
+async function readApiErrorMessage(response: Response, fallback: string) {
+  if (response.status !== 400) {
+    return fallback;
+  }
+
+  try {
+    const payload = (await response.json()) as unknown;
+
+    if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+      const message = (payload as Record<string, unknown>).message;
+
+      if (typeof message === "string" && message.trim()) {
+        return message;
+      }
+    }
+  } catch {
+    return fallback;
+  }
+
+  return fallback;
+}
+
+function getZodErrorMessage(error: z.ZodError) {
+  return error.issues[0]?.message ?? "表单校验失败。";
+}
+
+function createSavePayload(config: TimingManagementConfig) {
+  return {
+    autoRefreshEnabled: config.autoRefreshEnabled,
+    maxRecordsPerRun: config.maxRecordsPerRun,
+    maxSearchPages: config.maxSearchPages,
+    onlyRefreshOngoingSeries: config.onlyRefreshOngoingSeries,
+    recentActiveDays: config.recentActiveDays,
+    siteCacheSeconds: config.siteCacheSeconds,
+  };
+}
+
+let timingManagementConfigLoadRequest: Promise<TimingManagementConfig> | null = null;
+
+async function fetchTimingManagementConfig() {
+  const response = await fetch("/api/admin/timing-management");
+
+  if (!response.ok) {
+    throw new Error("定时管理配置读取失败");
+  }
+
+  return normalizeConfig(await response.json());
+}
+
+function loadTimingManagementConfigOnce() {
+  if (timingManagementConfigLoadRequest) {
+    return timingManagementConfigLoadRequest;
+  }
+
+  const request = fetchTimingManagementConfig();
+  timingManagementConfigLoadRequest = request;
+
+  void request
+    .finally(() => {
+      if (timingManagementConfigLoadRequest === request) {
+        timingManagementConfigLoadRequest = null;
+      }
+    })
+    .catch(() => undefined);
+
+  return request;
+}
+
 export function TimingManagementPanel() {
   const [config, setConfig] = useState<TimingManagementConfig>(defaultConfig);
-  const [saveMessage, setSaveMessage] = useState("尚未保存更改");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const saveConfig = () => {
-    setSaveMessage(`已保存，单次最多处理 ${config.maxRecordsPerRun} 条`);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadConfig() {
+      setIsLoading(true);
+
+      try {
+        const nextConfig = await loadTimingManagementConfigOnce();
+
+        if (!cancelled) {
+          setConfig(nextConfig);
+          toast.success("定时管理配置已加载");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : "定时管理配置读取失败";
+          toast.danger(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadConfig();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const saveConfig = async () => {
+    const parsed = timingManagementConfigSchema.safeParse(createSavePayload(config));
+
+    if (!parsed.success) {
+      toast.danger(getZodErrorMessage(parsed.error));
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const response = await fetch("/api/admin/timing-management", {
+        body: JSON.stringify(parsed.data),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiErrorMessage(response, "定时管理配置保存失败"));
+      }
+
+      setConfig(normalizeConfig(await response.json()));
+      toast.success("定时管理配置已保存");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "定时管理配置保存失败";
+      toast.danger(message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -58,7 +228,7 @@ export function TimingManagementPanel() {
               {config.autoRefreshEnabled ? "自动刷新开启" : "自动刷新关闭"}
             </Chip>
             <Chip color="accent" variant="soft">
-              {saveMessage}
+              {config.updatedAt ? `最近保存 ${config.updatedAt}` : isLoading ? "正在加载配置" : "尚未保存过自定义配置"}
             </Chip>
           </div>
         </div>
@@ -69,7 +239,7 @@ export function TimingManagementPanel() {
           className="space-y-6"
           onSubmit={(event) => {
             event.preventDefault();
-            saveConfig();
+            void saveConfig();
           }}
         >
           <Alert status={config.autoRefreshEnabled ? "accent" : "warning"}>
@@ -89,6 +259,7 @@ export function TimingManagementPanel() {
             </div>
             <Switch
               aria-label="启用自动刷新播放记录和收藏"
+              isDisabled={isLoading}
               isSelected={config.autoRefreshEnabled}
               onChange={(autoRefreshEnabled) => setConfig((current) => ({ ...current, autoRefreshEnabled }))}
             >
@@ -179,6 +350,7 @@ export function TimingManagementPanel() {
             </div>
             <Switch
               aria-label="仅刷新连载中的剧集"
+              isDisabled={isLoading}
               isSelected={config.onlyRefreshOngoingSeries}
               onChange={(onlyRefreshOngoingSeries) =>
                 setConfig((current) => ({ ...current, onlyRefreshOngoingSeries }))
@@ -192,7 +364,7 @@ export function TimingManagementPanel() {
 
           <Button variant="primary" type="submit" fullWidth>
             <i aria-hidden="true" className="bi bi-save" />
-            保存配置
+            {isSaving ? "保存中" : "保存配置"}
           </Button>
         </Form>
       </Card.Content>
