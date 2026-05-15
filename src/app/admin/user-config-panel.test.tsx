@@ -282,7 +282,7 @@ describe("UserConfigPanel", () => {
 
     const addForm = host.querySelector("#add-user-form") as HTMLFormElement | null;
     const usernameInput = addForm?.querySelector('input[autocomplete="username"]') as HTMLInputElement | null;
-    const passwordInputs = addForm?.querySelectorAll('input[autocomplete="new-password"]');
+    const passwordInputs = addForm?.querySelectorAll<HTMLInputElement>('input[autocomplete="new-password"]');
 
     await act(async () => {
       if (usernameInput) {
@@ -326,7 +326,7 @@ describe("UserConfigPanel", () => {
 
     const addForm = host.querySelector("#add-user-form") as HTMLFormElement | null;
     const usernameInput = addForm?.querySelector('input[autocomplete="username"]') as HTMLInputElement | null;
-    const passwordInputs = addForm?.querySelectorAll('input[autocomplete="new-password"]');
+    const passwordInputs = addForm?.querySelectorAll<HTMLInputElement>('input[autocomplete="new-password"]');
 
     await act(async () => {
       if (usernameInput) {
@@ -481,7 +481,7 @@ describe("UserConfigPanel", () => {
     });
 
     const passwordForm = host.querySelector("#change-password-form") as HTMLFormElement | null;
-    const passwordInputs = passwordForm?.querySelectorAll('input[type="password"]');
+    const passwordInputs = passwordForm?.querySelectorAll<HTMLInputElement>('input[type="password"]');
     await act(async () => {
       if (passwordInputs?.[0]) {
         changeInputValue(passwordInputs[0], "Newsecret1");
