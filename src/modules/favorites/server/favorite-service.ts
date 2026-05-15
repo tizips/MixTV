@@ -74,7 +74,7 @@ export function createFavoriteKey(source: string, id: string) {
 }
 
 function createUserFavoriteHashKey(userId: string) {
-  return `user:${userId}:fav`;
+  return `${userId}:fav`;
 }
 
 function defaultNowMs() {

@@ -61,7 +61,7 @@ function createProgressStore(initialValues: Record<string, unknown> = {}): Scrip
   return {
     del: vi.fn(),
     dumpHash(key) {
-      return key === "user:user-1:pr" ? Object.fromEntries(values) : {};
+      return key === "user-1:pr" ? Object.fromEntries(values) : {};
     },
     get: vi.fn(),
     set: vi.fn(),
@@ -228,7 +228,7 @@ describe("getPlaybackPageData", () => {
     );
 
     expect(result.status).toBe("ready");
-    expect(JSON.parse(progressStore.dumpHash("user:user-1:pr")["dyttzyapi.com:80474"] ?? "{}")).toMatchObject({
+    expect(JSON.parse(progressStore.dumpHash("user-1:pr")["dyttzyapi.com:80474"] ?? "{}")).toMatchObject({
       index: 1,
       play_time: 0,
       total_time: 0,
@@ -268,6 +268,6 @@ describe("getPlaybackPageData", () => {
 
     expect(result.status === "ready" ? result.data.currentEpisode : null).toBe(2);
     expect(result.status === "ready" ? result.data.resumeTimeSeconds : null).toBe(125);
-    expect(JSON.parse(progressStore.dumpHash("user:user-1:pr")["dyttzyapi.com:80474"] ?? "{}").save_time).toBe(1768535315661);
+    expect(JSON.parse(progressStore.dumpHash("user-1:pr")["dyttzyapi.com:80474"] ?? "{}").save_time).toBe(1768535315661);
   });
 });

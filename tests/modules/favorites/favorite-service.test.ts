@@ -85,7 +85,7 @@ describe("favorite service", () => {
     expect(favorite).not.toHaveProperty("index");
     expect(favorite).not.toHaveProperty("play_time");
     expect(favorite).not.toHaveProperty("total_time");
-    expect(JSON.parse(store.dumpHash("user:user-1:fav")["alpha:100"] ?? "{}")).toEqual({
+    expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).toEqual({
       cover: "https://image.test/poster.jpg",
       douban_id: 0,
       original_episodes: 3,
@@ -97,10 +97,10 @@ describe("favorite service", () => {
       total_episodes: 3,
       year: "2026",
     });
-    expect(JSON.parse(store.dumpHash("user:user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("favoriteKey");
-    expect(JSON.parse(store.dumpHash("user:user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("index");
-    expect(JSON.parse(store.dumpHash("user:user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("play_time");
-    expect(JSON.parse(store.dumpHash("user:user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("total_time");
+    expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("favoriteKey");
+    expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("index");
+    expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("play_time");
+    expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("total_time");
     await expect(listFavorites("user-1", { store })).resolves.toEqual([favorite]);
     await expect(listFavorites("user-2", { store })).resolves.toEqual([]);
   });

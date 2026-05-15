@@ -92,7 +92,7 @@ export function createPlaybackProgressField(source: string, id: string) {
 }
 
 function createUserPlaybackProgressHashKey(userId: string) {
-  return `user:${userId}:pr`;
+  return `${userId}:pr`;
 }
 
 function readRequiredString(value: unknown, name: string) {

@@ -126,7 +126,7 @@ describe("playback progress service", () => {
       total_time: 1247,
       year: "2026",
     });
-    expect(JSON.parse(store.dumpHash("user:user-1:pr")["alpha:100"] ?? "{}")).toEqual({
+    expect(JSON.parse(store.dumpHash("user-1:pr")["alpha:100"] ?? "{}")).toEqual({
       cover: "https://image.test/poster.jpg",
       douban_id: 0,
       index: 2,
@@ -154,7 +154,7 @@ describe("playback progress service", () => {
     expect(progress.index).toBe(1);
     expect(progress.play_time).toBe(0);
     expect(progress.total_time).toBe(0);
-    expect(JSON.parse(store.dumpHash("user:user-1:pr")["alpha:100"] ?? "{}")).toMatchObject({
+    expect(JSON.parse(store.dumpHash("user-1:pr")["alpha:100"] ?? "{}")).toMatchObject({
       index: 1,
       play_time: 0,
       total_time: 0,
