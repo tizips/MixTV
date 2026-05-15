@@ -233,6 +233,9 @@ export function PlayPageShell({
   const [volumePanelLeft, setVolumePanelLeft] = useState<number | null>(null);
   const [isPlaybackReady, setIsPlaybackReady] = useState(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const activeEpisodeRef = useRef(activeEpisode);
+  const currentPlaybackSecondsRef = useRef(currentPlaybackSeconds);
+  const currentPlaybackDurationRef = useRef(currentPlaybackDuration);
 
   const episodeGroups = useMemo(() => getEpisodeGroups(playbackData.episodes), [playbackData.episodes]);
   const episodeCount = playbackData.episodes.length;
@@ -253,6 +256,13 @@ export function PlayPageShell({
     danmakuSpeedOptions.find((speed) => speed.value === danmakuSpeed)?.label ?? danmakuSpeedOptions[2].label;
   const shouldShowPlaybackOverlay = !isPlaying && (isPlaybackReady || playbackError);
   const shouldShowPlaybackCover = !isPlaying && !playbackError && Boolean(playbackCoverUrl);
+  const progressEndpoint = useMemo(() => {
+    if (!playbackData.progressSource || !playbackData.progressId) {
+      return "";
+    }
+
+    return `/api/playback/progress/${encodeURIComponent(playbackData.progressSource)}/${encodeURIComponent(playbackData.progressId)}`;
+  }, [playbackData.progressId, playbackData.progressSource]);
   const danmakuOption = useMemo<DanmakuOption>(() => ({
     danmuku: getEpisodeDanmuku(activeEpisode),
     visible: isDanmakuEnabled,
@@ -283,6 +293,26 @@ export function PlayPageShell({
   ]);
   const initialPlaybackUrlRef = useRef(currentSource.url);
   const initialDanmakuOptionRef = useRef(danmakuOption);
+  const uploadPlaybackProgress = useCallback(() => {
+    const art = artPlayerRef.current;
+
+    if (!progressEndpoint || hasPlaybackPlaceholderError || !art) {
+      return;
+    }
+
+    const playTime = Math.floor(Math.max(0, art.currentTime || currentPlaybackSecondsRef.current));
+    const totalTime = Math.floor(Math.max(0, art.duration || currentPlaybackDurationRef.current));
+
+    void fetch(progressEndpoint, {
+      body: JSON.stringify({
+        index: activeEpisodeRef.current,
+        play_time: playTime,
+        total_time: totalTime,
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    }).catch(() => undefined);
+  }, [hasPlaybackPlaceholderError, progressEndpoint]);
   const capturePlaybackCover = useCallback((art: Artplayer) => {
     const video = art.video;
 
@@ -422,7 +452,10 @@ export function PlayPageShell({
       });
       art.on("video:timeupdate", () => setCurrentPlaybackSeconds(art.currentTime));
       art.on("video:loadeddata", () => capturePlaybackCover(art));
-      art.on("video:seeked", () => capturePlaybackCover(art));
+      art.on("video:seeked", () => {
+        capturePlaybackCover(art);
+        uploadPlaybackProgress();
+      });
       art.on("video:play", () => {
         setPlaybackError(null);
         setIsPlaybackReady(true);
@@ -432,6 +465,7 @@ export function PlayPageShell({
       art.on("video:pause", () => {
         setIsControlBarVisible(true);
         setIsPlaying(false);
+        uploadPlaybackProgress();
       });
       art.on("video:waiting", () => setIsPlaybackReady(false));
       art.on("video:stalled", () => setIsPlaybackReady(false));
@@ -444,6 +478,7 @@ export function PlayPageShell({
         capturePlaybackCover(art);
       });
       art.on("video:ended", () => {
+        uploadPlaybackProgress();
         setActiveEpisode((currentEpisode) => (currentEpisode >= episodeCount ? 1 : currentEpisode + 1));
         setCurrentPlaybackSeconds(0);
         setPlaybackCoverUrl(playbackData.posterUrl);
@@ -462,7 +497,48 @@ export function PlayPageShell({
       artPlayerRef.current?.destroy(false);
       artPlayerRef.current = null;
     };
-  }, [capturePlaybackCover, episodeCount, hasPlaybackPlaceholderError, initialResumeTimeSeconds, playbackData.posterUrl]);
+  }, [capturePlaybackCover, episodeCount, hasPlaybackPlaceholderError, initialResumeTimeSeconds, playbackData.posterUrl, uploadPlaybackProgress]);
+
+  useEffect(() => {
+    activeEpisodeRef.current = activeEpisode;
+  }, [activeEpisode]);
+
+  useEffect(() => {
+    currentPlaybackSecondsRef.current = currentPlaybackSeconds;
+  }, [currentPlaybackSeconds]);
+
+  useEffect(() => {
+    currentPlaybackDurationRef.current = currentPlaybackDuration;
+  }, [currentPlaybackDuration]);
+
+  useEffect(() => {
+    if (!isPlaying) {
+      return;
+    }
+
+    const intervalId = window.setInterval(uploadPlaybackProgress, 20000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isPlaying, uploadPlaybackProgress]);
+
+  useEffect(() => {
+    const handlePageHide = () => uploadPlaybackProgress();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        uploadPlaybackProgress();
+      }
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [uploadPlaybackProgress]);
 
   useEffect(() => {
     if (!artPlayerRef.current) {
