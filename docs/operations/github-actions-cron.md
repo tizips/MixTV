@@ -1,10 +1,16 @@
 # GitHub Actions Cron Notes
 
-This repository uses [.github/workflows/cron.yml](/Users/orange/Developer/Project/nextjs/MixTV/.github/workflows/cron.yml) to trigger the scheduled API jobs:
+This repository uses three separate workflows under [.github/workflows/](/Users/orange/Developer/Project/nextjs/MixTV/.github/workflows) to trigger the scheduled API jobs:
 
 - `/api/cron/history`
 - `/api/cron/subscription`
 - `/api/cron/source-check`
+
+Workflow files:
+
+- [.github/workflows/cron-history.yml](/Users/orange/Developer/Project/nextjs/MixTV/.github/workflows/cron-history.yml)
+- [.github/workflows/cron-subscription.yml](/Users/orange/Developer/Project/nextjs/MixTV/.github/workflows/cron-subscription.yml)
+- [.github/workflows/cron-source-check.yml](/Users/orange/Developer/Project/nextjs/MixTV/.github/workflows/cron-source-check.yml)
 
 ## Known failure mode
 

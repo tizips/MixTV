@@ -1,0 +1,40 @@
+name: Cron source-check job
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: cron-source-check-${{ github.event_name }}-${{ github.event.schedule || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  source-check:
+    name: Run source-check cron
+    runs-on: ubuntu-latest
+    env:
+      CRON_BASE_URL: ${{ vars.CRON_BASE_URL }}
+    steps:
+      - name: Validate base URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_BASE_URL:-}" ]; then
+            echo "CRON_BASE_URL is not set."
+            exit 1
+          fi
+
+      - name: Request source-check cron
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Edge hosts can reset the connection after the JSON response is already sent.
+          curl --fail --silent --show-error \
+            --http1.1 \
+            --connect-timeout 10 \
+            --max-time 120 \
+            --retry 5 \
+            --retry-all-errors \
+            --retry-delay 2 \
+            "${CRON_BASE_URL%/}/api/cron/source-check"
