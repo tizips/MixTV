@@ -174,7 +174,8 @@ async function fetchJson(url: string, options: Required<Pick<VideoSourceAdapterO
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
 
   try {
-    const response = await options.fetcher(url, {
+    const fetcher = options.fetcher === fetch ? createTrackedThirdPartyFetch(fetch) : options.fetcher;
+    const response = await fetcher(url, {
       headers: defaultHeaders,
       signal: controller.signal,
     });
@@ -198,7 +199,8 @@ async function fetchText(url: string, options: Required<Pick<VideoSourceAdapterO
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
 
   try {
-    const response = await options.fetcher(url, {
+    const fetcher = options.fetcher === fetch ? createTrackedThirdPartyFetch(fetch) : options.fetcher;
+    const response = await fetcher(url, {
       headers: defaultHeaders,
       signal: controller.signal,
     });
@@ -555,3 +557,4 @@ function generatePunctuationVariant(query: string) {
   }
   return null;
 }
+import { createTrackedThirdPartyFetch } from "@/modules/stats";
