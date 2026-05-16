@@ -17,6 +17,15 @@ vi.mock("@/components/site-header", () => ({
   SiteHeader: () => <header data-testid="site-header" />,
 }));
 
+vi.mock("holy-loader", () => ({
+  default: (props: {
+    boxShadow?: string;
+    color?: string;
+    height?: string;
+    showSpinner?: boolean;
+  }) => <div data-testid="holy-loader" data-color={props.color} data-height={props.height} data-show-spinner={String(props.showSpinner)} />,
+}));
+
 vi.mock("@/app/providers", () => ({
   Providers: ({ children }: { children: ReactNode }) => (
     <div data-testid="theme-provider" data-storage-key="mixtv-theme-mode">
@@ -36,6 +45,10 @@ describe("RootLayout", () => {
     expect(html).toContain('data-storage-key="mixtv-theme-mode"');
     expect(html).toContain('class="text-foreground"');
     expect(html).toContain('class="min-h-[calc(100dvh+4rem)] pt-16"');
+    expect(html).toContain("holy-loader");
+    expect(html).toContain('data-color="var(--accent)"');
+    expect(html).toContain('data-height="2px"');
+    expect(html).toContain('data-show-spinner="false"');
     expect(html).toContain("site-header");
     expect(html).toContain("page-child");
   });

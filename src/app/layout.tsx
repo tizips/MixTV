@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import HolyLoader from "holy-loader";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "./globals.css";
 import { auth } from "@/auth";
@@ -12,6 +13,12 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body className="text-foreground">
+        <HolyLoader
+          color="var(--accent)"
+          height="2px"
+          boxShadow="0 0 18px color-mix(in oklab, var(--accent) 78%, transparent)"
+          showSpinner={false}
+        />
         <Providers>
           <SiteHeader
             accessToken={session?.user?.accessToken}
