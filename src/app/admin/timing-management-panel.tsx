@@ -277,6 +277,7 @@ export function TimingManagementPanel() {
                 min={1}
                 max={1000}
                 type="number"
+                variant="secondary"
                 value={String(config.maxRecordsPerRun)}
                 onChange={(event) =>
                   setConfig((current) => ({
@@ -295,6 +296,7 @@ export function TimingManagementPanel() {
                 min={1}
                 max={365}
                 type="number"
+                variant="secondary"
                 value={String(config.recentActiveDays)}
                 onChange={(event) =>
                   setConfig((current) => ({
@@ -313,6 +315,7 @@ export function TimingManagementPanel() {
                 min={1}
                 max={20}
                 type="number"
+                variant="secondary"
                 value={String(config.maxSearchPages)}
                 onChange={(event) =>
                   setConfig((current) => ({
@@ -331,6 +334,7 @@ export function TimingManagementPanel() {
                 min={0}
                 max={86400}
                 type="number"
+                variant="secondary"
                 value={String(config.siteCacheSeconds)}
                 onChange={(event) =>
                   setConfig((current) => ({

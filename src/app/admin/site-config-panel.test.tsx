@@ -86,8 +86,6 @@ describe("SiteConfigPanel", () => {
         doubanDataProxyUrl: "",
         doubanImageProxyMode: "direct",
         doubanImageProxyUrl: "",
-        enableKeywordFilter: true,
-        enableStreamingSearch: true,
         showAdultContent: false,
         siteAnnouncement: `欢迎来到 ${env.NEXT_PUBLIC_SITE_NAME}，请注意站点公告。`,
         siteName: env.NEXT_PUBLIC_SITE_NAME,

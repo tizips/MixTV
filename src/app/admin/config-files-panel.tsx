@@ -342,6 +342,7 @@ export function ConfigFilesPanel() {
                 id="subscription-url"
                 className="min-w-0 flex-1"
                 value={subscriptionUrl}
+                variant="secondary"
                 onChange={(event) => setSubscriptionUrl(event.target.value)}
                 placeholder="输入订阅链接"
               />
@@ -386,6 +387,7 @@ export function ConfigFilesPanel() {
             <TextArea
               id="config-content"
               className="w-full"
+              variant="secondary"
               value={configText}
               onChange={(event) => setConfigText(event.target.value)}
               placeholder="配置内容将显示在这里"

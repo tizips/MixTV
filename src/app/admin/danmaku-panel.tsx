@@ -314,6 +314,7 @@ export function DanmakuPanel() {
             <TextField fullWidth name="apiUrl">
               <Label>弹幕服务地址</Label>
               <Input
+                variant="secondary"
                 value={config.apiUrl}
                 onChange={(event) => setConfig((current) => ({ ...current, apiUrl: event.target.value }))}
                 placeholder="例如 https://smonedanmu.vercel.app"
@@ -324,6 +325,7 @@ export function DanmakuPanel() {
             <TextField fullWidth name="apiToken">
               <Label>访问令牌</Label>
               <Input
+                variant="secondary"
                 value={config.apiToken}
                 onChange={(event) => setConfig((current) => ({ ...current, apiToken: event.target.value }))}
                 placeholder="请输入 API TOKEN"
@@ -338,6 +340,7 @@ export function DanmakuPanel() {
                 max={120}
                 min={1}
                 type="number"
+                variant="secondary"
                 value={String(config.requestTimeoutSeconds)}
                 onChange={(event) =>
                   setConfig((current) => ({

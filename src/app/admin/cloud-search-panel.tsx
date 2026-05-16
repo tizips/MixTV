@@ -467,6 +467,7 @@ export function CloudSearchPanel() {
             <TextField fullWidth name="panSouUrl">
               <Label>PanSou 服务地址</Label>
               <Input
+                variant="secondary"
                 value={config.panSouUrl}
                 onChange={(event) => setConfig((current) => ({ ...current, panSouUrl: event.target.value }))}
                 placeholder="例如 https://so.252035.xyz"
@@ -481,6 +482,7 @@ export function CloudSearchPanel() {
                 min={1}
                 max={120}
                 type="number"
+                variant="secondary"
                 value={String(config.requestTimeoutSeconds)}
                 onChange={(event) =>
                   setConfig((current) => ({

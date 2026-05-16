@@ -35,16 +35,12 @@ export type SiteConfigFormValues = {
   doubanImageProxyMode: ProxyMode;
   doubanImageProxyUrl: string;
   doubanAuth: string;
-  enableKeywordFilter: boolean;
   showAdultContent: boolean;
-  enableStreamingSearch: boolean;
 };
 
 type SiteConfigResponse = SiteConfigFormValues & {
   updatedAt: string | null;
 };
-
-type SiteConfigSwitchKey = "enableKeywordFilter" | "showAdultContent" | "enableStreamingSearch";
 
 const proxyModeValues = [
   "direct",
@@ -107,9 +103,7 @@ const defaultValues: SiteConfigFormValues = {
   doubanImageProxyMode: "direct",
   doubanImageProxyUrl: "",
   doubanAuth: "",
-  enableKeywordFilter: true,
   showAdultContent: false,
-  enableStreamingSearch: true,
 };
 
 function mergeInitialValues(initialValues?: Partial<SiteConfigFormValues>) {
@@ -139,13 +133,8 @@ function normalizeSiteConfigResponse(payload: unknown): SiteConfigResponse {
     doubanImageProxyUrl:
       typeof raw.doubanImageProxyUrl === "string" ? raw.doubanImageProxyUrl : defaultValues.doubanImageProxyUrl,
     doubanAuth: typeof raw.doubanAuth === "string" ? raw.doubanAuth : defaultValues.doubanAuth,
-    enableKeywordFilter:
-      typeof raw.enableKeywordFilter === "boolean" ? raw.enableKeywordFilter : defaultValues.enableKeywordFilter,
-    showAdultContent: typeof raw.showAdultContent === "boolean" ? raw.showAdultContent : defaultValues.showAdultContent,
-    enableStreamingSearch:
-      typeof raw.enableStreamingSearch === "boolean"
-        ? raw.enableStreamingSearch
-        : defaultValues.enableStreamingSearch,
+    showAdultContent:
+      typeof raw.showAdultContent === "boolean" ? raw.showAdultContent : defaultValues.showAdultContent,
     updatedAt: typeof raw.updatedAt === "string" || raw.updatedAt === null ? raw.updatedAt : null,
   };
 }
@@ -216,6 +205,8 @@ function getZodErrorMessage(error: z.ZodError) {
   return error.issues[0]?.message ?? "表单校验失败。";
 }
 
+type SiteConfigSwitchKey = "showAdultContent";
+
 function ProxySelect({
   name,
   label,
@@ -243,6 +234,7 @@ function ProxySelect({
     <Select
       fullWidth
       name={name}
+      variant="secondary"
       selectedKey={selectedKey}
       onSelectionChange={handleSelectionChange}
       placeholder="选择代理模式"
@@ -384,7 +376,7 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
               </div>
             </div>
             <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
-              这里维护豆瓣代理和全站开关，站点名称和站点公告暂时不开放编辑。
+              这里维护豆瓣代理和认证信息，页面只保留当前需要的配置项，布局也收紧成更直接的单页表单。
             </p>
           </div>
 
@@ -394,7 +386,7 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
         </div>
       </Card.Header>
 
-      <Card.Content className="grid gap-6 p-6 pt-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] md:p-8 md:pt-5">
+      <Card.Content className="p-6 pt-5 md:p-8 md:pt-5">
         <Form
           className="space-y-6"
           onSubmit={(event) => {
@@ -402,26 +394,22 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
             saveConfig();
           }}
         >
-          {/* <TextField fullWidth name="siteName">
-            <Label>站点名称</Label>
-            <Input
-              id="site-name"
-              value={values.siteName}
-              onChange={(event) => setValues((current) => ({ ...current, siteName: event.target.value }))}
-              placeholder="输入站点名称"
-            />
-          </TextField>
-
-          <TextField fullWidth name="siteAnnouncement">
-            <Label>站点公告</Label>
-            <TextArea
-              id="site-announcement"
-              value={values.siteAnnouncement}
-              onChange={(event) => setValues((current) => ({ ...current, siteAnnouncement: event.target.value }))}
-              placeholder="输入站点公告"
-              rows={5}
-            />
-          </TextField> */}
+          <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-[var(--surface)] px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">显示成人内容</p>
+              <p className="text-xs text-default-500">适配成人内容展示场景。</p>
+            </div>
+            <Switch
+              isDisabled={isLoading || savingSwitchKey === "showAdultContent"}
+              isSelected={values.showAdultContent}
+              onChange={(enabled) => void saveSwitch("showAdultContent", enabled)}
+              aria-label="显示成人内容"
+            >
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+            </Switch>
+          </div>
 
           <div className="space-y-6">
             <ProxySelect
@@ -458,6 +446,7 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
               <Label>豆瓣代理地址</Label>
               <Input
                 id="douban-data-proxy-url"
+                variant="secondary"
                 value={values.doubanDataProxyUrl}
                 onChange={(event) =>
                   setValues((current) => ({
@@ -475,6 +464,7 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
               <Label>图片代理地址</Label>
               <Input
                 id="douban-image-proxy-url"
+                variant="secondary"
                 value={values.doubanImageProxyUrl}
                 onChange={(event) =>
                   setValues((current) => ({
@@ -491,6 +481,7 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
             <Label>豆瓣认证</Label>
             <TextArea
               id="douban-auth"
+              variant="secondary"
               value={values.doubanAuth}
               onChange={(event) => setValues((current) => ({ ...current, doubanAuth: event.target.value }))}
               placeholder="输入豆瓣认证信息"
@@ -499,73 +490,13 @@ export function SiteConfigPanel({ initialValues }: { initialValues?: Partial<Sit
             <Description>用于保存豆瓣认证字符串。</Description>
           </TextField>
 
-          <Button variant="primary" fullWidth type="submit" isDisabled={isLoading || isSavingMain}>
-            <i aria-hidden="true" className="bi bi-save" />
-            {isSavingMain ? "保存中" : "保存配置"}
-          </Button>
+          <div className="flex justify-end">
+            <Button className="md:w-auto" variant="primary" fullWidth type="submit" isDisabled={isLoading || isSavingMain}>
+              <i aria-hidden="true" className="bi bi-save" />
+              {isSavingMain ? "保存中" : "保存配置"}
+            </Button>
+          </div>
         </Form>
-
-        <aside className="space-y-6 rounded-3xl border border-default-200/70  bg-background/50 p-5">
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold tracking-tight text-foreground">全站开关</h3>
-            <p className="text-sm leading-6 text-default-500">
-              开关调整后会立即写入站点配置接口。
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-[var(--surface)] px-4 py-3">
-              <div>
-                <p className="text-sm font-medium text-foreground">启用关键词过滤</p>
-                <p className="text-xs text-default-500">过滤低质量搜索结果。</p>
-              </div>
-              <Switch
-                isDisabled={isLoading || savingSwitchKey === "enableKeywordFilter"}
-                isSelected={values.enableKeywordFilter}
-                onChange={(enabled) => void saveSwitch("enableKeywordFilter", enabled)}
-                aria-label="启用关键词过滤"
-              >
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-              </Switch>
-            </div>
-
-            <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-[var(--surface)] px-4 py-3">
-              <div>
-                <p className="text-sm font-medium text-foreground">显示成人内容</p>
-                <p className="text-xs text-default-500">适配成人内容展示场景。</p>
-              </div>
-              <Switch
-                isDisabled={isLoading || savingSwitchKey === "showAdultContent"}
-                isSelected={values.showAdultContent}
-                onChange={(enabled) => void saveSwitch("showAdultContent", enabled)}
-                aria-label="显示成人内容"
-              >
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-              </Switch>
-            </div>
-
-            <div className="flex items-center justify-between gap-4 rounded-2xl border border-default-200/80 bg-[var(--surface)] px-4 py-3">
-              <div>
-                <p className="text-sm font-medium text-foreground">启用流式搜索</p>
-                <p className="text-xs text-default-500">让搜索结果更快呈现给用户。</p>
-              </div>
-              <Switch
-                isDisabled={isLoading || savingSwitchKey === "enableStreamingSearch"}
-                isSelected={values.enableStreamingSearch}
-                onChange={(enabled) => void saveSwitch("enableStreamingSearch", enabled)}
-                aria-label="启用流式搜索"
-              >
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-              </Switch>
-            </div>
-          </div>
-        </aside>
       </Card.Content>
     </Card>
   );

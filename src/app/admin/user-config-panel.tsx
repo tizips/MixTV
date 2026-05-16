@@ -201,7 +201,6 @@ export function UserConfigPanel() {
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
-  const [isNewPasswordVisible, setIsNewPasswordVisible] = useState(false);
   const [newRole, setNewRole] = useState<UserRole>("user");
   const [newStatus, setNewStatus] = useState<UserStatus>("active");
   const [formError, setFormError] = useState("");
@@ -249,7 +248,6 @@ export function UserConfigPanel() {
     setNewUsername("");
     setNewPassword("");
     setNewPasswordConfirm("");
-    setIsNewPasswordVisible(false);
     setNewRole("user");
     setNewStatus("active");
     setFormError("");
@@ -598,6 +596,7 @@ export function UserConfigPanel() {
                       <Input
                         autoComplete="username"
                         placeholder="请输入用户名"
+                        variant="secondary"
                         value={newUsername}
                         onChange={(event) => {
                           setNewUsername(event.target.value);
@@ -608,27 +607,17 @@ export function UserConfigPanel() {
 
                     <TextField fullWidth name="password">
                       <Label>初始密码</Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          autoComplete="new-password"
-                          placeholder="请输入初始密码"
-                          type={isNewPasswordVisible ? "text" : "password"}
-                          value={newPassword}
-                          onChange={(event) => {
-                            setNewPassword(event.target.value);
-                            setFormError("");
-                          }}
-                        />
-                        <Button
-                          aria-label={isNewPasswordVisible ? "隐藏初始密码" : "查看初始密码"}
-                          className="h-10 w-10 shrink-0 px-0"
-                          type="button"
-                          variant="secondary"
-                          onPress={() => setIsNewPasswordVisible((visible) => !visible)}
-                        >
-                          <i aria-hidden="true" className={`bi ${isNewPasswordVisible ? "bi-eye-slash" : "bi-eye"}`} />
-                        </Button>
-                      </div>
+                      <Input
+                        autoComplete="new-password"
+                        placeholder="请输入初始密码"
+                        type="password"
+                        variant="secondary"
+                        value={newPassword}
+                        onChange={(event) => {
+                          setNewPassword(event.target.value);
+                          setFormError("");
+                        }}
+                      />
                     </TextField>
 
                     <TextField fullWidth name="passwordConfirm">
@@ -637,6 +626,7 @@ export function UserConfigPanel() {
                         autoComplete="new-password"
                         placeholder="请再次输入初始密码"
                         type="password"
+                        variant="secondary"
                         value={newPasswordConfirm}
                         onChange={(event) => {
                           setNewPasswordConfirm(event.target.value);
@@ -647,6 +637,7 @@ export function UserConfigPanel() {
 
                     <Select
                       fullWidth
+                      variant="secondary"
                       selectedKey={newRole}
                       onSelectionChange={(key) => {
                         if (key != null) {
@@ -673,6 +664,7 @@ export function UserConfigPanel() {
 
                     <Select
                       fullWidth
+                      variant="secondary"
                       selectedKey={newStatus}
                       onSelectionChange={(key) => {
                         if (key != null) {
@@ -736,7 +728,7 @@ export function UserConfigPanel() {
                   <div className="space-y-4">
                     <TextField fullWidth name="passwordUsername">
                       <Label>用户名</Label>
-                      <Input readOnly value={passwordUsername} />
+                      <Input readOnly variant="secondary" value={passwordUsername} />
                     </TextField>
 
                     <TextField fullWidth name="password">
@@ -745,6 +737,7 @@ export function UserConfigPanel() {
                         autoComplete="new-password"
                         placeholder="请输入新密码"
                         type="password"
+                        variant="secondary"
                         value={passwordValue}
                         onChange={(event) => {
                           setPasswordValue(event.target.value);
@@ -759,6 +752,7 @@ export function UserConfigPanel() {
                         autoComplete="new-password"
                         placeholder="请再次输入新密码"
                         type="password"
+                        variant="secondary"
                         value={passwordConfirmValue}
                         onChange={(event) => {
                           setPasswordConfirmValue(event.target.value);

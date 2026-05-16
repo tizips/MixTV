@@ -96,6 +96,7 @@ export function DataMigrationPanel() {
                   <Input
                     autoComplete="new-password"
                     type="password"
+                    variant="secondary"
                     value={exportPassword}
                     onChange={(event) => setExportPassword(event.target.value)}
                   />
@@ -133,6 +134,7 @@ export function DataMigrationPanel() {
                   <Input
                     accept="application/json,.json"
                     type="file"
+                    variant="secondary"
                     onChange={(event) => setImportFile(event.target.files?.[0] ?? null)}
                   />
                   <Description>{importFile ? importFile.name : `请选择 ${env.NEXT_PUBLIC_SITE_NAME} 备份文件。`}</Description>
@@ -143,6 +145,7 @@ export function DataMigrationPanel() {
                   <Input
                     autoComplete="new-password"
                     type="password"
+                    variant="secondary"
                     value={importPassword}
                     onChange={(event) => setImportPassword(event.target.value)}
                   />
