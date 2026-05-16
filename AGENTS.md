@@ -34,6 +34,15 @@
 - `src/integrations/*` normalizes third-party/platform data before business modules consume it. Current example: `src/integrations/tmdb/tmdb-adapter.ts`.
 - `src/infrastructure/*` contains concrete adapters that implement shared ports. Current examples: in-memory storage/cache adapters.
 
+## Storage / DB Rules
+
+- Use `src/infrastructure/db/db-adapter.ts` and the shared `DbPort` as the storage boundary for Redis/Upstash-backed module persistence.
+- Do not add specialized storage methods to the DB port or concrete DB adapters for feature-specific Redis commands.
+- Direct DB operations are limited to the existing basic `get`, `set`, and `del` methods.
+- Any storage behavior beyond basic `get`/`set`/`del` must use `DbPort.script`, with Lua scripts kept close to the module/service boundary that owns the behavior.
+- For Redis data structures such as lists, sets, sorted sets, counters, deduplication, trimming, batch mutation, or read-modify-write flows, call the relevant Redis commands from a script instead of expanding the DB adapter API.
+- Example pattern: search history uses a Redis list through `DbPort.script` with `LRANGE`, `LREM`, `LPUSH`, `LTRIM`, and `DEL`; it must not introduce a `db.list` adapter API.
+
 ## UI Conventions
 
 - When a component, spec, or request says "icon", default to Bootstrap Icons (`bi`) unless the user explicitly asks for a different icon set.
