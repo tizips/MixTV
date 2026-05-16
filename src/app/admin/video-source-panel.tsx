@@ -986,6 +986,8 @@ export function VideoSourcePanel() {
                       <TextField fullWidth name="sourceKey">
                         <Label>KEY</Label>
                         <Input
+                          disabled={Boolean(editingSource.originalKey)}
+                          name="sourceKey"
                           value={editingSource.key}
                           onChange={(event) =>
                             setEditingSource((current) =>

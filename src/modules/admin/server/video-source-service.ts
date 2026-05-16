@@ -399,6 +399,12 @@ export async function updateVideoSource(
   input: unknown,
   store: VideoSourceStore = createVideoSourceStore(),
 ) {
+  const payload = asObject(input);
+
+  if (typeof payload.key === "string" && payload.key.trim() !== key) {
+    throw new AdminModuleValidationError("source key cannot be changed.");
+  }
+
   const current = await readStoredVideoSourceItems(store);
   const existing = current.find((source) => source.key === key);
 
@@ -406,7 +412,7 @@ export async function updateVideoSource(
     throw new AdminModuleValidationError("source not found.");
   }
 
-  const updated = normalizeVideoSource(input, existing);
+  const updated = normalizeVideoSource(payload, existing);
   await saveVideoSourceRecord(updated, store);
 
   const sources = current.map((source) => (source.key === key ? updated : source));

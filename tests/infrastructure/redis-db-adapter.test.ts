@@ -79,6 +79,23 @@ describe("redis db adapter", () => {
     });
   });
 
+  it("leaves keys unprefixed when namespace is empty", async () => {
+    const client = createFakeRedisClient();
+    const db = createRedisDbAdapter({
+      client,
+      namespace: "",
+    });
+
+    await db.script("return KEYS[1]", {
+      keys: ["cache:video:dyttzyapi.com:80474"],
+    });
+
+    expect(client.eval).toHaveBeenCalledWith("return KEYS[1]", {
+      arguments: [],
+      keys: ["cache:video:dyttzyapi.com:80474"],
+    });
+  });
+
   it("disconnects open client", async () => {
     const client = createFakeRedisClient();
     client.isOpen = true;

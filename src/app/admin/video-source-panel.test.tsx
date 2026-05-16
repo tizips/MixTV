@@ -70,15 +70,17 @@ vi.mock("@heroui/react", () => ({
   ),
   Input: ({
     "aria-label": ariaLabel,
+    disabled,
     name,
     onChange,
     value,
   }: {
     "aria-label"?: string;
+    disabled?: boolean;
     name?: string;
     onChange?: React.ChangeEventHandler<HTMLInputElement>;
     value?: string;
-  }) => <input aria-label={ariaLabel} name={name} onChange={onChange} value={value} />,
+  }) => <input aria-label={ariaLabel} disabled={disabled} name={name} onChange={onChange} value={value} />,
   Label: ({ children }: { children?: ReactNode }) => <label>{children}</label>,
   ListBox: Object.assign(({ children }: { children?: ReactNode }) => <div>{children}</div>, {
     Item: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -248,6 +250,73 @@ describe("VideoSourcePanel", () => {
 
     act(() => {
       root.unmount();
+    });
+  });
+
+  it("disables the key field only when editing an existing video source", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue({
+      json: async () => ({
+        sources: [
+          {
+            adult: false,
+            apiUrl: "https://alpha.test/api",
+            key: "alpha",
+            name: "Alpha",
+            no: 1,
+            status: "enabled",
+            type: "normal",
+            updatedAt: null,
+            validity: "warning",
+            weight: 10,
+          },
+        ],
+        updatedAt: null,
+      }),
+      ok: true,
+    } as Response);
+
+    const { host, root } = renderVideoSourcePanel();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const editButton = Array.from(host.querySelectorAll("button")).find((button) => button.textContent === "编辑");
+
+    await act(async () => {
+      editButton?.click();
+      await Promise.resolve();
+    });
+
+    const editingKeyInput = host.querySelector('input[name="sourceKey"]') as HTMLInputElement | null;
+    expect(editingKeyInput).not.toBeNull();
+    expect(editingKeyInput?.value).toBe("alpha");
+    expect(editingKeyInput?.disabled).toBe(true);
+
+    await act(async () => {
+      root.unmount();
+    });
+
+    const second = renderVideoSourcePanel();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const addButton = Array.from(second.host.querySelectorAll("button")).find((button) => button.textContent === "添加");
+
+    await act(async () => {
+      addButton?.click();
+      await Promise.resolve();
+    });
+
+    const addingKeyInput = second.host.querySelector('input[name="sourceKey"]') as HTMLInputElement | null;
+    expect(addingKeyInput).not.toBeNull();
+    expect(addingKeyInput?.disabled).toBe(false);
+
+    act(() => {
+      second.root.unmount();
     });
   });
 

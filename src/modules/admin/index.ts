@@ -17,6 +17,7 @@ export {
 export {
   batchUpdateVideoSources,
   createVideoSource,
+  createVideoSourceStore,
   deleteVideoSource,
   getVideoSources,
   updateVideoSource,
@@ -79,6 +80,7 @@ export type {
   VideoSourceBatchAction,
   VideoSourceCollection,
   VideoSourceItem,
+  VideoSourceStore,
   VideoSourceStatus,
   VideoSourceType,
   VideoSourceValidity,

@@ -2,19 +2,23 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'via.placeholder.com',
+        protocol: "https",
+        hostname: "**.*",
       },
       {
-        protocol: 'https',
-        hostname: 'ts1.tc.mm.bing.net',
+        protocol: "http",
+        hostname: "**.*",
       },
       {
-        protocol: 'http',
-        hostname: 'localhost',
-        port: '3000',
+        protocol: "https",
+        hostname: "*",
+      },
+      {
+        protocol: "http",
+        hostname: "*",
       },
     ],
   },

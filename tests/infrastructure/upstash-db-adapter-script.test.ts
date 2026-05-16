@@ -76,6 +76,27 @@ describe("upstash db adapter script", () => {
     );
   });
 
+  it("leaves script keys unprefixed when namespace is empty", async () => {
+    const client = createFakeRedisClient();
+    const db = createUpstashDbAdapter({
+      client,
+      namespace: "",
+    });
+
+    await expect(
+      db.script("return KEYS[1]", {
+        keys: ["cache:video:dyttzyapi.com:80474"],
+        readOnly: true,
+      }),
+    ).resolves.toBe("read-result");
+
+    expect(client.evalRo).toHaveBeenCalledWith(
+      "return KEYS[1]",
+      ["cache:video:dyttzyapi.com:80474"],
+      [],
+    );
+  });
+
   it("creates an upstash redis client from Upstash env names", async () => {
     const client = createUpstashRedisClient({
       env: {
