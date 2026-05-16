@@ -41,15 +41,55 @@ body {
   display: none;
 }
 
-[data-mixtv-artplayer] .art-bottom,
-[data-mixtv-artplayer] .art-controls,
-[data-mixtv-artplayer] .art-control,
-[data-mixtv-artplayer] .art-progress,
-[data-mixtv-artplayer] .art-mask {
-  display: none !important;
-}
-
 [data-mixtv-artplayer] .art-video-player {
   height: 100% !important;
   width: 100% !important;
+}
+
+[data-mixtv-artplayer] .art-bottom {
+  position: absolute !important;
+  inset: auto auto 1rem 50% !important;
+  top: auto !important;
+  bottom: 1rem !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  width: min(calc(100% - 1.5rem), 56rem) !important;
+  height: auto !important;
+  min-height: 5.75rem !important;
+  max-height: 7rem !important;
+  padding: 0.85rem 0.85rem 0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 16px !important;
+  background: color-mix(in srgb, var(--surface) 24%, transparent) !important;
+  backdrop-filter: blur(26px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(26px) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  overflow: visible !important;
+}
+
+.dark [data-mixtv-artplayer] .art-bottom {
+  background: color-mix(in srgb, var(--surface) 42%, transparent) !important;
+}
+
+[data-mixtv-artplayer] .art-progress {
+  margin: 0 0 0 !important;
+  overflow: visible !important;
+}
+
+[data-mixtv-artplayer] .art-controls {
+  min-height: 2.15rem !important;
+}
+
+[data-mixtv-artplayer] .art-controls-left,
+[data-mixtv-artplayer] .art-controls-center,
+[data-mixtv-artplayer] .art-controls-right {
+  align-items: center !important;
+}
+
+[data-mixtv-artplayer] .art-controls-left {
+  gap: 0.25rem !important;
 }

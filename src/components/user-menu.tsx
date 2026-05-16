@@ -20,7 +20,7 @@ type MenuItem = {
 const menuItems: MenuItem[] = [
   { label: "设置", href: "/settings", iconClassName: "bi-gear" },
   { label: "更新提醒", href: "/updates", iconClassName: "bi-bell" },
-  { label: "继续观看", href: "/continue-watching", iconClassName: "bi-play-circle" },
+  { label: "继续观看", href: "/history", iconClassName: "bi-play-circle" },
   { label: "我的收藏", href: "/favorites", iconClassName: "bi-heart" },
   { label: "管理面板", href: "/admin", iconClassName: "bi-speedometer2", adminOnly: true },
   { label: "播放统计", href: "/stats", iconClassName: "bi-bar-chart" },

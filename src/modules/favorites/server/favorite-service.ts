@@ -55,6 +55,10 @@ const readFavoritesScript = `
 return redis.call("HGETALL", KEYS[1])
 `;
 
+const readFavoriteScript = `
+return redis.call("HGET", KEYS[1], ARGV[1])
+`;
+
 const saveFavoriteScript = `
 redis.call("HSET", KEYS[1], ARGV[1], ARGV[2])
 return ARGV[2]
@@ -252,6 +256,23 @@ export async function listFavorites(userId: string, { store = createFavoriteStor
     Object.entries(await readFavoriteRecord(userId, store))
       .map(([field, value]) => parseFavoriteEntry(field, value))
       .filter((favorite): favorite is FavoriteItem => favorite !== null),
+  );
+}
+
+export async function hasFavorite(
+  userId: string,
+  input: unknown,
+  { store = createFavoriteStore() }: { store?: FavoriteStore } = {},
+) {
+  const { id, source } = readFavoriteInput(input);
+  const favoriteKey = createFavoriteKey(source, id);
+
+  return Boolean(
+    await store.script(readFavoriteScript, {
+      args: [favoriteKey],
+      keys: [createUserFavoriteHashKey(userId)],
+      readOnly: true,
+    }),
   );
 }
 

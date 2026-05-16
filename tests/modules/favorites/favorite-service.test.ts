@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createFavorite, deleteFavorite, listFavorites } from "@/modules/favorites/server/favorite-service";
+import { createFavorite, deleteFavorite, hasFavorite, listFavorites } from "@/modules/favorites/server/favorite-service";
 import type { VideoSourceResource } from "@/integrations/video-sources";
 import type { VideoSourceStore } from "@/modules/admin/server/video-source-service";
 import { createScriptFavoriteStore } from "./favorite-test-store";
@@ -123,5 +123,26 @@ describe("favorite service", () => {
     const favorites = await deleteFavorite("user-1", { id: "100", source: "alpha" }, { store });
 
     expect(favorites).toEqual([]);
+  });
+
+  it("checks one favorite by key without listing the whole favorite hash", async () => {
+    const store = createScriptFavoriteStore();
+    const options = {
+      detailFetcher: vi.fn(async () => createDetail()),
+      now: () => 1768435200000,
+      store,
+      userId: "user-1",
+      videoSourceStore: createVideoSourceStore(),
+    };
+
+    await createFavorite({ id: "100", source: "alpha" }, options);
+
+    await expect(hasFavorite("user-1", { id: "100", source: "alpha" }, { store })).resolves.toBe(true);
+    await expect(hasFavorite("user-1", { id: "missing", source: "alpha" }, { store })).resolves.toBe(false);
+    expect(store.script).toHaveBeenLastCalledWith(expect.stringContaining("HGET"), {
+      args: ["alpha:missing"],
+      keys: ["user-1:fav"],
+      readOnly: true,
+    });
   });
 });

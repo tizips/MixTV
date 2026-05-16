@@ -16,7 +16,7 @@ export function createScriptFavoriteStore(): ScriptFavoriteStore {
       return { ...(hashes.get(key) ?? {}) };
     },
     get: vi.fn(async () => null),
-    async script<TResult = unknown>(script: string, options?: DbScriptOptions<string>) {
+    script: vi.fn(async <TResult = unknown>(script: string, options?: DbScriptOptions<string>) => {
       const key = options?.keys?.[0] ?? "";
       const field = String(options?.args?.[0] ?? "");
       const value = String(options?.args?.[1] ?? "");
@@ -36,8 +36,16 @@ export function createScriptFavoriteStore(): ScriptFavoriteStore {
         return value as TResult;
       }
 
+      if (script.includes("HGETALL")) {
+        return hash as TResult;
+      }
+
+      if (script.includes("HGET")) {
+        return (hash[field] ?? null) as TResult;
+      }
+
       return hash as TResult;
-    },
+    }),
     set: vi.fn(async () => undefined),
   };
 }

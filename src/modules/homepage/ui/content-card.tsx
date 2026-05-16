@@ -53,14 +53,6 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
           </span>
           {isContinueWatching && progress && (
             <>
-              <Chip
-                className="absolute right-2.5 top-2.5 z-10 h-6 rounded-full bg-danger px-2.5 text-[11px] font-semibold text-danger-foreground shadow-lg ring-1 ring-white/20 backdrop-blur-md"
-                color="danger"
-                size="sm"
-                variant="primary"
-              >
-                +{extraEpisodes}
-              </Chip>
               <div className="absolute left-2.5 top-2.5 z-10 inline-flex overflow-hidden rounded-full shadow-sm ring-1 ring-white/20 backdrop-blur-md">
                 <span className="bg-danger px-2.5 py-1 text-[11px] font-semibold leading-none text-danger-foreground">
                   EP.{progress.currentEpisode}
@@ -69,6 +61,16 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
                   {progress.latestEpisode}
                 </span>
               </div>
+              {extraEpisodes > 0 && (
+                <Chip
+                  className="absolute right-2.5 top-2.5 z-10 h-6 rounded-full bg-danger px-2.5 text-[11px] font-semibold text-danger-foreground shadow-lg ring-1 ring-white/20 backdrop-blur-md"
+                  color="danger"
+                  size="sm"
+                  variant="primary"
+                >
+                  +{extraEpisodes}
+                </Chip>
+              )}
             </>
           )}
           {item.rating && !isContinueWatching && (
@@ -123,7 +125,7 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
             <h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground transition-colors group-hover:text-accent">
               {item.title}
             </h3>
-            <div className="flex min-w-0 items-center gap-2 text-xs text-muted">
+            <div className="flex min-w-0 items-center justify-between gap-2 text-xs text-muted">
               {item.year && <span>{item.year}</span>}
               {progress && <span className="truncate text-foreground/80">{progress.sourceName}</span>}
             </div>

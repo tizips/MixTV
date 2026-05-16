@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -59,6 +59,22 @@ function renderFavoritesPageShell() {
   return { host, root };
 }
 
+function renderFavoritesPageShellInStrictMode() {
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+
+  act(() => {
+    root.render(
+      <StrictMode>
+        <FavoritesPageShell />
+      </StrictMode>,
+    );
+  });
+
+  return { host, root };
+}
+
 function favoritesResponse(favorites = [
   {
     cover: "https://image.test/poster.jpg",
@@ -98,6 +114,24 @@ afterEach(() => {
 });
 
 describe("FavoritesPageShell", () => {
+  it("loads favorites only once when mounted in Strict Mode", async () => {
+    const { host, root } = renderFavoritesPageShellInStrictMode();
+
+    await act(async () => {
+      await flushPromises();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("/api/favorites", {
+      headers: { Accept: "application/json" },
+    });
+    expect(host.textContent).toContain("庆余年 第二季");
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
   it("loads and renders favorites from the favorites API", async () => {
     const { host, root } = renderFavoritesPageShell();
 

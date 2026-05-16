@@ -41,7 +41,39 @@ describe("ContentCard", () => {
     expect(html).toContain(`${item.continueWatching.latestEpisode}`);
     expect(html).toContain(`+${item.continueWatching.latestEpisode - item.continueWatching.currentEpisode}`);
     expect(html).toContain(item.continueWatching.sourceName);
+    expect(html).toContain("justify-between");
     expect(html).toContain("收藏");
     expect(html).toContain("删除");
+  });
+
+  it("hides the extra episodes badge when there are no new episodes", async () => {
+    const data = await getHomepageData();
+    const section = data.sections.find((currentSection) => currentSection.key === "continueWatching");
+
+    if (!section) {
+      throw new Error("continueWatching section is missing");
+    }
+
+    const baseItem = section.items[0];
+    const item = {
+      ...baseItem,
+      continueWatching: {
+        currentEpisode: 12,
+        latestEpisode: 12,
+        sourceName: "Alpha",
+      },
+    };
+
+    const html = renderToStaticMarkup(
+      <ContentCard
+        item={item}
+        variant="continueWatching"
+      />,
+    );
+
+    expect(html).not.toContain("+0");
+    expect(html).toContain("EP.12");
+    expect(html).toContain("2024");
+    expect(html).toContain("Alpha");
   });
 });

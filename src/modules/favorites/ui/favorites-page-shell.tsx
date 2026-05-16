@@ -45,6 +45,28 @@ function readFavoritesFromApi(data: FavoritesApiResponse) {
   return data.favorites.filter(isFavoriteItem);
 }
 
+let favoritesLoadPromise: Promise<FavoriteItem[]> | null = null;
+
+function loadFavorites() {
+  favoritesLoadPromise ??= fetch("/api/favorites", {
+    headers: { Accept: "application/json" },
+  })
+    .then(async (response) => {
+      const data = (await response.json()) as FavoritesApiResponse;
+
+      if (!response.ok) {
+        throw new Error(data.message || "收藏加载失败。");
+      }
+
+      return readFavoritesFromApi(data);
+    })
+    .finally(() => {
+      favoritesLoadPromise = null;
+    });
+
+  return favoritesLoadPromise;
+}
+
 function createPlayHref(favorite: FavoriteItem) {
   const params = new URLSearchParams({
     source: favorite.source,
@@ -182,33 +204,22 @@ export function FavoritesPageShell() {
   useEffect(() => {
     let isMounted = true;
 
-    async function loadFavorites() {
-      setLoadState("loading");
-      setErrorMessage("");
+    setLoadState("loading");
+    setErrorMessage("");
 
-      try {
-        const response = await fetch("/api/favorites", {
-          headers: { Accept: "application/json" },
-        });
-        const data = (await response.json()) as FavoritesApiResponse;
-
-        if (!response.ok) {
-          throw new Error(data.message || "收藏加载失败。");
-        }
-
+    void loadFavorites()
+      .then((loadedFavorites) => {
         if (isMounted) {
-          setFavorites(readFavoritesFromApi(data));
+          setFavorites(loadedFavorites);
           setLoadState("ready");
         }
-      } catch (error) {
+      })
+      .catch((error) => {
         if (isMounted) {
           setLoadState("error");
           setErrorMessage(error instanceof Error ? error.message : "收藏加载失败。");
         }
-      }
-    }
-
-    void loadFavorites();
+      });
 
     return () => {
       isMounted = false;
