@@ -71,6 +71,25 @@ describe("proxy", () => {
     expect(getTokenMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ secureCookie: false }));
   });
 
+  it("adds proxy auth diagnostics when requested", async () => {
+    getTokenMock.mockResolvedValueOnce(null);
+    getTokenMock.mockResolvedValueOnce({ id: "user-1" });
+
+    const response = await proxy({
+      ...createRequest("/?__proxy_debug=1", null),
+      headers: new Headers({
+        cookie: "__Secure-authjs.session-token=redacted; theme=dark",
+      }),
+    } as never);
+
+    expect(response.headers.get("x-mixtv-proxy-authenticated")).toBe("1");
+    expect(response.headers.get("x-mixtv-proxy-auth-request")).toBe("0");
+    expect(response.headers.get("x-mixtv-proxy-auth-secure-token")).toBe("0");
+    expect(response.headers.get("x-mixtv-proxy-auth-plain-token")).toBe("1");
+    expect(response.headers.get("x-mixtv-proxy-auth-secret")).toBe("unset");
+    expect(response.headers.get("x-mixtv-proxy-auth-cookies")).toBe("__Secure-authjs.session-token");
+  });
+
   it("passes protected api requests through to route-level auth", async () => {
     const response = await runProxy("/api/history", null);
 

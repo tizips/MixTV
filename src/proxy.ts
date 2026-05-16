@@ -7,15 +7,56 @@ type ProxyRequest = Request & {
   auth?: {
     user?: unknown;
   } | null;
+  nextUrl: URL;
+  url: string;
+};
+
+type AuthCheck = {
+  authenticated: boolean;
+  hasPlainToken: boolean;
+  hasRequestAuth: boolean;
+  hasSecureToken: boolean;
+  hasSecret: boolean;
 };
 
 function readAuthSecret() {
   return process.env.AUTH_SECRET || "mixtv-development-auth-secret";
 }
 
-async function hasAuthenticatedSession(request: ProxyRequest) {
+function listAuthCookieNames(request: ProxyRequest) {
+  const cookieHeader = request.headers.get("cookie") ?? "";
+
+  return cookieHeader
+    .split(";")
+    .map((part) => part.trim().split("=")[0] ?? "")
+    .filter((name) => name.includes("authjs"))
+    .join(",");
+}
+
+function addDebugHeaders(response: NextResponse, request: ProxyRequest, authCheck: AuthCheck) {
+  if (request.nextUrl.searchParams.get("__proxy_debug") !== "1") {
+    return response;
+  }
+
+  response.headers.set("x-mixtv-proxy-authenticated", authCheck.authenticated ? "1" : "0");
+  response.headers.set("x-mixtv-proxy-auth-request", authCheck.hasRequestAuth ? "1" : "0");
+  response.headers.set("x-mixtv-proxy-auth-secure-token", authCheck.hasSecureToken ? "1" : "0");
+  response.headers.set("x-mixtv-proxy-auth-plain-token", authCheck.hasPlainToken ? "1" : "0");
+  response.headers.set("x-mixtv-proxy-auth-secret", authCheck.hasSecret ? "set" : "unset");
+  response.headers.set("x-mixtv-proxy-auth-cookies", listAuthCookieNames(request));
+
+  return response;
+}
+
+async function checkAuthenticatedSession(request: ProxyRequest): Promise<AuthCheck> {
   if (request.auth?.user) {
-    return true;
+    return {
+      authenticated: true,
+      hasPlainToken: false,
+      hasRequestAuth: true,
+      hasSecret: Boolean(process.env.AUTH_SECRET),
+      hasSecureToken: false,
+    };
   }
 
   const secret = readAuthSecret();
@@ -26,7 +67,13 @@ async function hasAuthenticatedSession(request: ProxyRequest) {
   });
 
   if (secureToken) {
-    return true;
+    return {
+      authenticated: true,
+      hasPlainToken: false,
+      hasRequestAuth: false,
+      hasSecret: Boolean(process.env.AUTH_SECRET),
+      hasSecureToken: true,
+    };
   }
 
   const token = await getToken({
@@ -35,7 +82,13 @@ async function hasAuthenticatedSession(request: ProxyRequest) {
     secureCookie: false,
   });
 
-  return Boolean(token);
+  return {
+    authenticated: Boolean(token),
+    hasPlainToken: Boolean(token),
+    hasRequestAuth: false,
+    hasSecret: Boolean(process.env.AUTH_SECRET),
+    hasSecureToken: false,
+  };
 }
 
 export default auth(async (request) => {
@@ -49,28 +102,29 @@ export default auth(async (request) => {
   const nextPath = resolveSafeNextPath(
     `${request.nextUrl.pathname}${request.nextUrl.search}`,
   );
-  const isAuthenticated = await hasAuthenticatedSession(request);
+  const authCheck = await checkAuthenticatedSession(request);
+  const isAuthenticated = authCheck.authenticated;
 
   if (pathname === "/login") {
     if (!isAuthenticated) {
-      return NextResponse.next();
+      return addDebugHeaders(NextResponse.next(), request, authCheck);
     }
 
     const redirectTo = resolveSafeNextPath(
       request.nextUrl.searchParams.get("next"),
     );
 
-    return NextResponse.redirect(new URL(redirectTo, request.url));
+    return addDebugHeaders(NextResponse.redirect(new URL(redirectTo, request.url)), request, authCheck);
   }
 
   if (isAuthenticated) {
-    return NextResponse.next();
+    return addDebugHeaders(NextResponse.next(), request, authCheck);
   }
 
   const loginUrl = new URL("/login", request.url);
   loginUrl.searchParams.set("next", nextPath);
 
-  return NextResponse.redirect(loginUrl);
+  return addDebugHeaders(NextResponse.redirect(loginUrl), request, authCheck);
 });
 
 export const config = {
