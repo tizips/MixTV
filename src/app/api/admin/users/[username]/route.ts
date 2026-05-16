@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { deleteUser, updateUser, UserConfigValidationError } from "@/modules/admin/server/user-config-service";
+import { withApiTraffic } from "@/modules/stats";
 import { userPasswordPattern, userPasswordPatternMessage } from "@/shared/user-credentials";
 
 type RouteContext = {
@@ -30,7 +31,7 @@ function getUpdateUserValidationMessage(error: z.ZodError) {
   return error.issues[0]?.message ?? "表单校验失败。";
 }
 
-export async function PUT(request: Request, context: RouteContext) {
+export const PUT = withApiTraffic(async function PUT(request: Request, context: RouteContext) {
   let payload: unknown;
 
   try {
@@ -59,9 +60,9 @@ export async function PUT(request: Request, context: RouteContext) {
     console.error("Failed to update user.", error);
     return NextResponse.json({ message: "Failed to update user." }, { status: 500 });
   }
-}
+});
 
-export async function DELETE(_request: Request, context: RouteContext) {
+export const DELETE = withApiTraffic(async function DELETE(_request: Request, context: RouteContext) {
   try {
     const { username } = await context.params;
     return NextResponse.json(await deleteUser(username));
@@ -72,4 +73,4 @@ export async function DELETE(_request: Request, context: RouteContext) {
     console.error("Failed to delete user.", error);
     return NextResponse.json({ message: "Failed to delete user." }, { status: 500 });
   }
-}
+});

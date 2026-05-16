@@ -4,6 +4,7 @@ import {
   deleteVideoSource,
   updateVideoSource,
 } from "@/modules/admin/server/video-source-service";
+import { withApiTraffic } from "@/modules/stats";
 
 type RouteContext = {
   params: Promise<{ key: string }>;
@@ -13,7 +14,7 @@ function badRequest(message: string) {
   return NextResponse.json({ message }, { status: 400 });
 }
 
-export async function PUT(request: Request, context: RouteContext) {
+export const PUT = withApiTraffic(async function PUT(request: Request, context: RouteContext) {
   let payload: unknown;
 
   try {
@@ -32,9 +33,9 @@ export async function PUT(request: Request, context: RouteContext) {
     console.error("Failed to update video source.", error);
     return NextResponse.json({ message: "Failed to update video source." }, { status: 500 });
   }
-}
+});
 
-export async function DELETE(_request: Request, context: RouteContext) {
+export const DELETE = withApiTraffic(async function DELETE(_request: Request, context: RouteContext) {
   try {
     const { key } = await context.params;
     return NextResponse.json(await deleteVideoSource(key));
@@ -45,4 +46,4 @@ export async function DELETE(_request: Request, context: RouteContext) {
     console.error("Failed to delete video source.", error);
     return NextResponse.json({ message: "Failed to delete video source." }, { status: 500 });
   }
-}
+});

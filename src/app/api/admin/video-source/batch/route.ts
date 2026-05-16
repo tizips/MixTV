@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { AdminModuleValidationError, batchUpdateVideoSources } from "@/modules/admin/server/video-source-service";
+import { withApiTraffic } from "@/modules/stats";
 
-export async function PUT(request: Request) {
+export const PUT = withApiTraffic(async function PUT(request: Request) {
   let payload: unknown;
 
   try {
@@ -19,4 +20,4 @@ export async function PUT(request: Request) {
     console.error("Failed to batch update video sources.", error);
     return NextResponse.json({ message: "Failed to batch update video sources." }, { status: 500 });
   }
-}
+});

@@ -1,5 +1,6 @@
 import { AdminModuleValidationError } from "./admin-module-error";
 import { asObject, now, readString } from "./admin-modules-store";
+import { env } from "@/shared/env";
 
 export async function exportMigrationBackup(input: unknown) {
   const payload = asObject(input);
@@ -10,7 +11,7 @@ export async function exportMigrationBackup(input: unknown) {
   }
 
   return {
-    app: "MixTV",
+    app: env.NEXT_PUBLIC_SITE_NAME,
     version: 1,
     exportedAt: now(),
     includes: ["管理配置", "用户数据", "播放记录", "收藏夹", "想看"],

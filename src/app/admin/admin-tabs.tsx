@@ -13,6 +13,7 @@ import { SiteConfigPanel } from "./site-config-panel";
 import { TimingManagementPanel } from "./timing-management-panel";
 import { UserConfigPanel } from "./user-config-panel";
 import { VideoSourcePanel } from "./video-source-panel";
+import { env } from "@/shared/env";
 
 type AdminTabKey =
   | "config-files"
@@ -56,7 +57,7 @@ const adminTabs: AdminTab[] = [
     accent: "text-accent",
     description: "管理全站开关、公告、主题和站点基础信息。",
     cards: [
-      { title: "站点名称", value: "MixTV" },
+      { title: "站点名称", value: env.NEXT_PUBLIC_SITE_NAME },
       { title: "公告状态", value: "可编辑" },
       { title: "主题配置", value: "默认主题" },
     ],

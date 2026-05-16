@@ -4,12 +4,13 @@ import {
   homepageConfigSwitchRequestSchema,
 } from "@/modules/admin/server/admin-config-schemas";
 import { saveHomepageConfigSwitch } from "@/modules/admin/server/homepage-modules-service";
+import { withApiTraffic } from "@/modules/stats";
 
 function badRequest(message: string) {
   return NextResponse.json({ message }, { status: 400 });
 }
 
-export async function POST(request: Request) {
+export const POST = withApiTraffic(async function POST(request: Request) {
   let payload: unknown;
 
   try {
@@ -30,4 +31,4 @@ export async function POST(request: Request) {
     console.error("Failed to update homepage config switch.", error);
     return NextResponse.json({ message: "Failed to update homepage config switch." }, { status: 500 });
   }
-}
+});

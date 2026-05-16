@@ -6,6 +6,7 @@ export {
   saveConfigFilesSubscriptionPull,
   saveConfigFilesContent,
   saveConfigFilesSubscription,
+  runConfigFilesSubscriptionAutoUpdate,
 } from "./server/config-files-service";
 export { getSiteConfig, isSiteConfigSwitchKey, saveSiteConfigLeft, saveSiteConfigSwitch } from "./server/site-config-service";
 export {
@@ -56,7 +57,12 @@ export {
   verifyPasswordHash,
   verifyUserPassword,
 } from "./server/user-config-service";
-export type { ConfigFilesContent, ConfigFilesData, ConfigFilesSubscription } from "./server/config-files-service";
+export type {
+  ConfigFilesContent,
+  ConfigFilesData,
+  ConfigFilesSubscription,
+  ConfigFilesSubscriptionUpdateResult,
+} from "./server/config-files-service";
 export type {
   CacheCategory,
   CacheData,

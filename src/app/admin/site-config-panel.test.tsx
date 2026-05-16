@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SiteConfigPanel } from "./site-config-panel";
+import { env } from "@/shared/env";
 
 const toastState = vi.hoisted(() => ({
   danger: vi.fn(),
@@ -88,8 +89,8 @@ describe("SiteConfigPanel", () => {
         enableKeywordFilter: true,
         enableStreamingSearch: true,
         showAdultContent: false,
-        siteAnnouncement: "欢迎来到 MixTV，请注意站点公告。",
-        siteName: "MixTV",
+        siteAnnouncement: `欢迎来到 ${env.NEXT_PUBLIC_SITE_NAME}，请注意站点公告。`,
+        siteName: env.NEXT_PUBLIC_SITE_NAME,
         updatedAt: null,
       }),
       ok: true,

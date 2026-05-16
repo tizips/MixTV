@@ -1,4 +1,5 @@
 import { createDbAdapter } from "@/infrastructure/db/db-adapter";
+import { createTrackedThirdPartyFetch } from "@/modules/stats";
 import type { DbPort } from "@/shared/db/db-port";
 import { createVideoSourceStore, syncVideoSourcesFromConfigContent } from "./video-source-service";
 import type { VideoSourceStore } from "./video-source-service";
@@ -17,6 +18,11 @@ export interface ConfigFilesContent {
 export interface ConfigFilesData {
   content: ConfigFilesContent;
   subscription: ConfigFilesSubscription;
+}
+
+export interface ConfigFilesSubscriptionUpdateResult {
+  subscription: ConfigFilesSubscription;
+  updated: boolean;
 }
 
 export type ConfigFilesStore = DbPort<ConfigFilesContent, string>;
@@ -202,7 +208,7 @@ export async function saveConfigFilesSubscriptionPull(
 ): Promise<ConfigFilesSubscription> {
   const [current, response] = await Promise.all([
     getConfigFilesSubscription(store),
-    fetchImpl(url, {
+    (fetchImpl === fetch ? createTrackedThirdPartyFetch(fetch) : fetchImpl)(url, {
       headers: { Accept: "application/json, text/plain;q=0.9, */*;q=0.8" },
     }),
   ]);
@@ -223,6 +229,26 @@ export async function saveConfigFilesSubscriptionPull(
     },
     store,
   );
+}
+
+export async function runConfigFilesSubscriptionAutoUpdate(
+  store: ConfigFilesStore = createConfigFilesStore(),
+  fetchImpl: FetchLike = fetch,
+  videoSourceStore: VideoSourceStore = createVideoSourceStore(),
+): Promise<ConfigFilesSubscriptionUpdateResult> {
+  const current = await getConfigFilesSubscription(store);
+
+  if (!current.autoUpdate || !current.url.trim()) {
+    return {
+      subscription: current,
+      updated: false,
+    };
+  }
+
+  return {
+    subscription: await saveConfigFilesSubscriptionPull(current.url, store, fetchImpl, videoSourceStore),
+    updated: true,
+  };
 }
 
 export async function saveConfigFilesSubscriptionAutoUpdate(

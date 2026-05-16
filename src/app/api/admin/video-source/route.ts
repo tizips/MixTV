@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { AdminModuleValidationError, createVideoSource } from "@/modules/admin/server/video-source-service";
+import { withApiTraffic } from "@/modules/stats";
 
 function badRequest(message: string) {
   return NextResponse.json({ message }, { status: 400 });
 }
 
-export async function POST(request: Request) {
+export const POST = withApiTraffic(async function POST(request: Request) {
   let payload: unknown;
 
   try {
@@ -23,4 +24,4 @@ export async function POST(request: Request) {
     console.error("Failed to create video source.", error);
     return NextResponse.json({ message: "Failed to create video source." }, { status: 500 });
   }
-}
+});

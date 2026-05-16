@@ -1,5 +1,6 @@
 import { createDbAdapter } from "@/infrastructure/db/db-adapter";
 import type { DbPort } from "@/shared/db/db-port";
+import { env } from "@/shared/env";
 
 export type SiteConfigProxyMode =
   | "direct"
@@ -72,8 +73,8 @@ const switchKeys = new Set<SiteConfigSwitchKey>([
 ]);
 
 export const defaultSiteConfig: SiteConfig = {
-  siteName: "MixTV",
-  siteAnnouncement: "欢迎来到 MixTV，请注意站点公告。",
+  siteName: env.NEXT_PUBLIC_SITE_NAME,
+  siteAnnouncement: `欢迎来到 ${env.NEXT_PUBLIC_SITE_NAME}，请注意站点公告。`,
   doubanDataProxyMode: "direct",
   doubanDataProxyUrl: "",
   doubanImageProxyMode: "direct",

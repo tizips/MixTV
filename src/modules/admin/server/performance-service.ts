@@ -1,5 +1,6 @@
 import { now } from "./admin-modules-store";
 import os from "node:os";
+import { formatDurationMs, getTrafficSnapshot } from "@/modules/stats";
 
 export interface PerformanceMetric {
   key: string;
@@ -56,6 +57,7 @@ async function sampleProcessCpuPercent(cpuCount: number) {
 
 export async function getPerformanceMetrics() {
   const checkedAt = now();
+  const trafficSnapshot = await getTrafficSnapshot();
   const cpus = os.cpus();
   const cpuCount = cpus.length || os.availableParallelism?.() || 1;
   const cpuPercent = await sampleProcessCpuPercent(cpuCount);
@@ -92,31 +94,31 @@ export async function getPerformanceMetrics() {
       tone: systemMemoryPercent >= 85 ? "text-danger" : systemMemoryPercent >= 70 ? "text-warning" : "text-accent",
     },
     {
-      key: "db-query",
-      icon: "bi-database",
-      title: "DB 查询/分钟",
-      value: "未接入",
-      detail: "数据库查询计数暂未接入",
-      detailAccent: "待埋点",
-      tone: "text-default-500",
-    },
-    {
-      key: "request",
+      key: "page-traffic",
       icon: "bi-arrow-left-right",
-      title: "请求/分钟",
-      value: "未接入",
-      detail: "请求吞吐统计暂未接入",
-      detailAccent: "待埋点",
-      tone: "text-default-500",
+      title: "页面访问/分钟",
+      value: `${trafficSnapshot.page.count.toFixed(0)} 次`,
+      detail: `平均停留 ${formatDurationMs(trafficSnapshot.page.averageDurationMs)}`,
+      detailAccent: `累计 ${formatDurationMs(trafficSnapshot.page.totalDurationMs)}`,
+      tone: trafficSnapshot.page.count > 0 ? "text-accent" : "text-default-500",
     },
     {
       key: "api-traffic",
       icon: "bi-activity",
       title: "API 流量/分钟",
-      value: "未接入",
-      detail: "API 出入站流量统计暂未接入",
-      detailAccent: "待埋点",
-      tone: "text-default-500",
+      value: `${trafficSnapshot.api.count.toFixed(0)} 次`,
+      detail: `成功 ${trafficSnapshot.api.successCount.toFixed(0)} · 失败 ${trafficSnapshot.api.failCount.toFixed(0)}`,
+      detailAccent: `平均 ${formatDurationMs(trafficSnapshot.api.averageDurationMs)}`,
+      tone: trafficSnapshot.api.failCount > 0 ? "text-warning" : "text-accent",
+    },
+    {
+      key: "third-party-traffic",
+      icon: "bi-cloud-arrow-down",
+      title: "第三方请求/分钟",
+      value: `${trafficSnapshot.thirdParty.count.toFixed(0)} 次`,
+      detail: `成功 ${trafficSnapshot.thirdParty.successCount.toFixed(0)} · 失败 ${trafficSnapshot.thirdParty.failCount.toFixed(0)}`,
+      detailAccent: `平均 ${formatDurationMs(trafficSnapshot.thirdParty.averageDurationMs)}`,
+      tone: trafficSnapshot.thirdParty.failCount > 0 ? "text-warning" : "text-accent",
     },
   ];
 

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { AdminModuleValidationError } from "@/modules/admin/server/admin-module-error";
 import { exportMigrationBackup } from "@/modules/admin/server/migration-service";
+import { withApiTraffic } from "@/modules/stats";
 
-export async function POST(request: Request) {
+export const POST = withApiTraffic(async function POST(request: Request) {
   let payload: unknown;
 
   try {
@@ -19,4 +20,4 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ message: "Failed to export backup." }, { status: 500 });
   }
-}
+});

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withApiTraffic } from "@/modules/stats";
 
 const cloudSearchDriveTypes = [
   { key: "baidu", label: "百度" },
@@ -17,11 +18,11 @@ const cloudSearchDriveTypes = [
   { key: "other", label: "其他" },
 ];
 
-export async function GET() {
+export const GET = withApiTraffic(async function GET() {
   try {
     return NextResponse.json(cloudSearchDriveTypes);
   } catch (error) {
     console.error("Failed to load cloud search drive types.", error);
     return NextResponse.json({ message: "Failed to load cloud search drive types." }, { status: 500 });
   }
-}
+});

@@ -17,6 +17,7 @@ import {
   TextField,
   toast,
 } from "@heroui/react";
+import { env } from "@/shared/env";
 
 type ProxyMode =
   | "direct"
@@ -99,8 +100,8 @@ const imageProxyOptions: Array<{ value: ProxyMode; label: string }> = [
 ];
 
 const defaultValues: SiteConfigFormValues = {
-  siteName: "MixTV",
-  siteAnnouncement: "欢迎来到 MixTV，请注意站点公告。",
+  siteName: env.NEXT_PUBLIC_SITE_NAME,
+  siteAnnouncement: `欢迎来到 ${env.NEXT_PUBLIC_SITE_NAME}，请注意站点公告。`,
   doubanDataProxyMode: "direct",
   doubanDataProxyUrl: "",
   doubanImageProxyMode: "direct",

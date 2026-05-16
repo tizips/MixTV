@@ -4,8 +4,9 @@ import {
   danmakuTestRequestSchema,
   getAdminConfigValidationMessage,
 } from "@/modules/admin/server/admin-config-schemas";
+import { withApiTraffic } from "@/modules/stats";
 
-export async function POST(request: Request) {
+export const POST = withApiTraffic(async function POST(request: Request) {
   let payload: unknown;
 
   try {
@@ -25,4 +26,4 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ message: "Failed to test danmaku connection." }, { status: 500 });
   }
-}
+});

@@ -6,6 +6,7 @@ import {
   saveSiteConfigSwitch,
   type SiteConfigStore,
 } from "@/modules/admin/server/site-config-service";
+import { env } from "@/shared/env";
 
 const createFakeStore = (initial: Record<string, unknown> = {}, hashInitial: Record<string, string> = {}): SiteConfigStore => {
   const data = new Map(Object.entries(initial));
@@ -195,8 +196,8 @@ describe("site config service", () => {
     expect(saved.enableStreamingSearch).toBe(true);
     expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
       args: [
-        "MixTV",
-        "欢迎来到 MixTV，请注意站点公告。",
+        env.NEXT_PUBLIC_SITE_NAME,
+        `欢迎来到 ${env.NEXT_PUBLIC_SITE_NAME}，请注意站点公告。`,
         "direct",
         "",
         "direct",

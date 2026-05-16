@@ -1,4 +1,5 @@
 import { createDbAdapter } from "@/infrastructure/db/db-adapter";
+import { createTrackedThirdPartyFetch } from "@/modules/stats";
 import type { DbPort } from "@/shared/db/db-port";
 import { AdminModuleValidationError } from "./admin-module-error";
 
@@ -278,7 +279,8 @@ async function detectVideoSourceValidity(
   const timeout = setTimeout(() => controller.abort(), 10_000);
 
   try {
-    const response = await fetcher(createVideoSourceSearchUrl(source, keyword), { signal: controller.signal });
+    const trackedFetcher = fetcher === fetch ? createTrackedThirdPartyFetch(fetch) : fetcher;
+    const response = await trackedFetcher(createVideoSourceSearchUrl(source, keyword), { signal: controller.signal });
 
     if (!response.ok) {
       return "invalid";

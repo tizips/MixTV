@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPerformanceMetrics } from "@/modules/admin/server/performance-service";
+import { withApiTraffic } from "@/modules/stats";
 
-export async function GET() {
+export const GET = withApiTraffic(async function GET() {
   return NextResponse.json(await getPerformanceMetrics());
-}
+});

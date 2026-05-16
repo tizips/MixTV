@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Alert, Button, Card, Chip, Description, Form, Input, Label, Separator, TextField } from "@heroui/react";
+import { env } from "@/shared/env";
 
 const backupItems = [
   { icon: "bi-sliders", title: "管理配置" },
@@ -25,7 +26,7 @@ export function DataMigrationPanel() {
 
   const exportBackup = () => {
     const payload = {
-      app: "MixTV",
+      app: env.NEXT_PUBLIC_SITE_NAME,
       version: 1,
       exportedAt: new Date().toISOString(),
       includes: backupItems.map((item) => item.title),
@@ -134,7 +135,7 @@ export function DataMigrationPanel() {
                     type="file"
                     onChange={(event) => setImportFile(event.target.files?.[0] ?? null)}
                   />
-                  <Description>{importFile ? importFile.name : "请选择 MixTV 备份文件。"}</Description>
+                  <Description>{importFile ? importFile.name : `请选择 ${env.NEXT_PUBLIC_SITE_NAME} 备份文件。`}</Description>
                 </TextField>
 
                 <TextField fullWidth isRequired name="importPassword">
