@@ -90,6 +90,23 @@ describe("proxy", () => {
     expect(response.headers.get("x-mixtv-proxy-auth-cookies")).toBe("__Secure-authjs.session-token");
   });
 
+  it("adds sanitized environment diagnostics when requested", async () => {
+    vi.stubEnv("AUTH_SECRET", "test-secret");
+    vi.stubEnv("USERNAME", "admin");
+    vi.stubEnv("NEXT_PUBLIC_SITE_NAME", "MixTV");
+
+    const response = await runProxy("/?__proxy_debug=env", null);
+
+    expect(response.headers.get("x-mixtv-env-auth-secret")).toBe("set");
+    expect(response.headers.get("x-mixtv-env-username")).toBe("set");
+    expect(response.headers.get("x-mixtv-env-password")).toBe("unset");
+    expect(response.headers.get("x-mixtv-env-next-public-site-name")).toBe("set");
+    expect(response.headers.get("x-mixtv-env-keys")).toContain("AUTH_SECRET");
+    expect(response.headers.get("x-mixtv-env-keys")).toContain("NEXT_PUBLIC_SITE_NAME");
+
+    vi.unstubAllEnvs();
+  });
+
   it("passes protected api requests through to route-level auth", async () => {
     const response = await runProxy("/api/history", null);
 
