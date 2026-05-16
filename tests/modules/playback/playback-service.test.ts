@@ -5,11 +5,13 @@ import { getPlaybackPageData } from "@/modules/playback/server/playback-service"
 import type { DbPort, DbScriptOptions } from "@/shared/db/db-port";
 
 function createStore(record: Record<string, string>): VideoSourceStore {
+  const script: VideoSourceStore["script"] = async <TResult = unknown>() => record as TResult;
+
   return {
     get: vi.fn(),
     set: vi.fn(),
     del: vi.fn(),
-    script: vi.fn(async () => record),
+    script: vi.fn(script) as VideoSourceStore["script"],
   };
 }
 
@@ -31,21 +33,25 @@ function createSource(overrides: Record<string, unknown> = {}) {
 
 function createCacheStore(initialValues: Record<string, unknown> = {}): DbPort<unknown, string> {
   const values = new Map(Object.entries(initialValues).map(([key, value]) => [key, JSON.stringify(value)]));
+  const script: DbPort<unknown, string>["script"] = async <TResult = unknown>(
+    scriptText: string,
+    options: DbScriptOptions<string> = {},
+  ) => {
+    const key = options.keys?.[0] ?? "";
+
+    if (scriptText.includes("GET")) {
+      return (values.get(key) ?? null) as TResult;
+    }
+
+    values.set(key, String(options.args?.[0] ?? ""));
+    return 1 as TResult;
+  };
 
   return {
     get: vi.fn(),
     set: vi.fn(),
     del: vi.fn(),
-    script: vi.fn(async (script: string, options = {}) => {
-      const key = options.keys?.[0] ?? "";
-
-      if (script.includes("GET")) {
-        return values.get(key) ?? null;
-      }
-
-      values.set(key, String(options.args?.[0] ?? ""));
-      return 1;
-    }),
+    script: vi.fn(script) as DbPort<unknown, string>["script"],
   };
 }
 
@@ -61,6 +67,20 @@ function createProgressStore(initialValues: Record<string, unknown> = {}): Scrip
   const values = new Map(
     Object.entries(initialValues).map(([field, value]) => [field, typeof value === "string" ? value : JSON.stringify(value)]),
   );
+  const script: ScriptProgressStore["script"] = async <TResult = unknown>(scriptText: string, options?: DbScriptOptions<string>) => {
+    const field = String(options?.args?.[0] ?? "");
+
+    if (scriptText.includes("HGET")) {
+      return (values.get(field) ?? null) as TResult;
+    }
+
+    if (scriptText.includes("HSET")) {
+      values.set(field, String(options?.args?.[1] ?? ""));
+      return String(options?.args?.[1] ?? "") as TResult;
+    }
+
+    return null as TResult;
+  };
 
   return {
     del: vi.fn(),
@@ -69,20 +89,7 @@ function createProgressStore(initialValues: Record<string, unknown> = {}): Scrip
     },
     get: vi.fn(),
     set: vi.fn(),
-    script: vi.fn(async <TResult = unknown>(script: string, options?: DbScriptOptions<string>) => {
-      const field = String(options?.args?.[0] ?? "");
-
-      if (script.includes("HGET")) {
-        return (values.get(field) ?? null) as TResult;
-      }
-
-      if (script.includes("HSET")) {
-        values.set(field, String(options?.args?.[1] ?? ""));
-        return String(options?.args?.[1] ?? "") as TResult;
-      }
-
-      return null as TResult;
-    }),
+    script: vi.fn(script) as ScriptProgressStore["script"],
   };
 }
 
@@ -90,6 +97,15 @@ function createFavoriteStore(initialValues: Record<string, unknown> = {}): Scrip
   const values = new Map(
     Object.entries(initialValues).map(([field, value]) => [field, typeof value === "string" ? value : JSON.stringify(value)]),
   );
+  const script: ScriptFavoriteStore["script"] = async <TResult = unknown>(scriptText: string, options?: DbScriptOptions<string>) => {
+    const field = String(options?.args?.[0] ?? "");
+
+    if (scriptText.includes("HGET")) {
+      return (values.get(field) ?? null) as TResult;
+    }
+
+    return null as TResult;
+  };
 
   return {
     del: vi.fn(),
@@ -98,15 +114,7 @@ function createFavoriteStore(initialValues: Record<string, unknown> = {}): Scrip
     },
     get: vi.fn(),
     set: vi.fn(),
-    script: vi.fn(async <TResult = unknown>(script: string, options?: DbScriptOptions<string>) => {
-      const field = String(options?.args?.[0] ?? "");
-
-      if (script.includes("HGET")) {
-        return (values.get(field) ?? null) as TResult;
-      }
-
-      return null as TResult;
-    }),
+    script: vi.fn(script) as ScriptFavoriteStore["script"],
   };
 }
 

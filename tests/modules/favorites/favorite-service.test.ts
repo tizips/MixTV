@@ -5,23 +5,25 @@ import type { VideoSourceStore } from "@/modules/admin/server/video-source-servi
 import { createScriptFavoriteStore } from "./favorite-test-store";
 
 function createVideoSourceStore(): VideoSourceStore {
+  const script: VideoSourceStore["script"] = async <TResult = unknown>() => ({
+    alpha: JSON.stringify({
+      adult: false,
+      apiUrl: "https://alpha.test/api",
+      key: "alpha",
+      name: "Alpha Source",
+      no: 1,
+      status: "enabled",
+      type: "normal",
+      updatedAt: null,
+      validity: "valid",
+      weight: 10,
+    }),
+  } as TResult);
+
   return {
     del: vi.fn(async () => undefined),
     get: vi.fn(async () => null),
-    script: vi.fn(async <TResult = unknown>() => ({
-      alpha: JSON.stringify({
-        adult: false,
-        apiUrl: "https://alpha.test/api",
-        key: "alpha",
-        name: "Alpha Source",
-        no: 1,
-        status: "enabled",
-        type: "normal",
-        updatedAt: null,
-        validity: "valid",
-        weight: 10,
-      }),
-    }) as TResult),
+    script: vi.fn(script) as VideoSourceStore["script"],
     set: vi.fn(async () => undefined),
   };
 }

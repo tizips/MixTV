@@ -1,6 +1,5 @@
 "use client";
 
-import type { Selection } from "@react-types/shared";
 import { memo, type Key, useEffect, useMemo, useState } from "react";
 import {
   Button,
@@ -18,6 +17,7 @@ import {
   TextField,
   toast,
   useOverlayState,
+  type Selection,
 } from "@heroui/react";
 import type {
   VideoSourceCollection,

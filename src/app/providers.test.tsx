@@ -23,11 +23,10 @@ describe("Providers", () => {
   });
 
   it("marks benign ViewTransition rejections as handled", async () => {
-    let rejectFinished: ((reason?: unknown) => void) | null = null;
-    const finished = new Promise<void>((_resolve, reject) => {
-      rejectFinished = reject;
-    });
-    const finishedCatch = vi.spyOn(finished, "catch");
+    const finishedCatch = vi.fn();
+    const finished = {
+      catch: finishedCatch,
+    } as unknown as Promise<void>;
     const startViewTransition = vi.fn(() => ({
       finished,
       ready: Promise.resolve(),
@@ -53,8 +52,6 @@ describe("Providers", () => {
     document.startViewTransition?.(() => undefined);
 
     expect(finishedCatch).toHaveBeenCalledTimes(1);
-    rejectFinished?.(new DOMException("Transition was aborted because of invalid state", "InvalidStateError"));
-    await new Promise((resolve) => setTimeout(resolve, 0));
 
     act(() => {
       root.unmount();

@@ -14,6 +14,25 @@ type ScriptPlaybackProgressStore = DbPort<unknown, string> & {
 
 function createPlaybackProgressStore(): ScriptPlaybackProgressStore {
   const hashes = new Map<string, Record<string, string>>();
+  const script: ScriptPlaybackProgressStore["script"] = async <TResult = unknown>(scriptText: string, options?: DbScriptOptions<string>) => {
+    const key = options?.keys?.[0] ?? "";
+    const field = String(options?.args?.[0] ?? "");
+    const value = String(options?.args?.[1] ?? "");
+    const hash = hashes.get(key) ?? {};
+
+    if (scriptText.includes("HGET")) {
+      return (hash[field] ?? null) as TResult;
+    }
+
+    if (scriptText.includes("HSET")) {
+      hash[field] = value;
+      hashes.set(key, hash);
+
+      return value as TResult;
+    }
+
+    return hash as TResult;
+  };
 
   return {
     del: vi.fn(async (key) => {
@@ -23,47 +42,31 @@ function createPlaybackProgressStore(): ScriptPlaybackProgressStore {
       return { ...(hashes.get(key) ?? {}) };
     },
     get: vi.fn(async () => null),
-    async script<TResult = unknown>(script: string, options?: DbScriptOptions<string>) {
-      const key = options?.keys?.[0] ?? "";
-      const field = String(options?.args?.[0] ?? "");
-      const value = String(options?.args?.[1] ?? "");
-      const hash = hashes.get(key) ?? {};
-
-      if (script.includes("HGET")) {
-        return (hash[field] ?? null) as TResult;
-      }
-
-      if (script.includes("HSET")) {
-        hash[field] = value;
-        hashes.set(key, hash);
-
-        return value as TResult;
-      }
-
-      return hash as TResult;
-    },
+    script: vi.fn(script) as ScriptPlaybackProgressStore["script"],
     set: vi.fn(async () => undefined),
   };
 }
 
 function createVideoSourceStore(): VideoSourceStore {
+  const script: VideoSourceStore["script"] = async <TResult = unknown>() => ({
+    alpha: JSON.stringify({
+      adult: false,
+      apiUrl: "https://alpha.test/api",
+      key: "alpha",
+      name: "Alpha Source",
+      no: 1,
+      status: "enabled",
+      type: "normal",
+      updatedAt: null,
+      validity: "valid",
+      weight: 10,
+    }),
+  } as TResult);
+
   return {
     del: vi.fn(async () => undefined),
     get: vi.fn(async () => null),
-    script: vi.fn(async <TResult = unknown>() => ({
-      alpha: JSON.stringify({
-        adult: false,
-        apiUrl: "https://alpha.test/api",
-        key: "alpha",
-        name: "Alpha Source",
-        no: 1,
-        status: "enabled",
-        type: "normal",
-        updatedAt: null,
-        validity: "valid",
-        weight: 10,
-      }),
-    }) as TResult),
+    script: vi.fn(script) as VideoSourceStore["script"],
     set: vi.fn(async () => undefined),
   };
 }

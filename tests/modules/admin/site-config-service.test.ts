@@ -11,37 +11,39 @@ import { env } from "@/shared/env";
 const createFakeStore = (initial: Record<string, unknown> = {}, hashInitial: Record<string, string> = {}): SiteConfigStore => {
   const data = new Map(Object.entries(initial));
   const hash = new Map(Object.entries(hashInitial));
+  const script: SiteConfigStore["script"] = async <TResult = unknown>(scriptText: string, options = {}) => {
+    const runOptions = options as { args?: unknown[] };
+
+    if (scriptText.includes("HGETALL")) {
+      return Object.fromEntries(hash) as TResult;
+    }
+
+    if (scriptText.includes("HSET")) {
+      const args = runOptions.args ?? [];
+
+      for (let index = 0; index < args.length; index += 2) {
+        const field = args[index];
+        const value = args[index + 1];
+
+        if (typeof field === "string" && typeof value === "string") {
+          hash.set(field, value);
+        }
+      }
+
+      return 1 as TResult;
+    }
+
+    return {} as TResult;
+  };
+  const scriptMock = vi.fn(script) as SiteConfigStore["script"];
 
   return {
     del: vi.fn(async () => undefined),
-    get: vi.fn(async (key: string) => data.get(key) ?? null),
-    script: vi.fn(async <TResult = unknown>(script: string, options = {}) => {
-      const runOptions = options as { args?: unknown[] };
-
-      if (script.includes("HGETALL")) {
-        return Object.fromEntries(hash) as TResult;
-      }
-
-      if (script.includes("HSET")) {
-        const args = runOptions.args ?? [];
-
-        for (let index = 0; index < args.length; index += 2) {
-          const field = args[index];
-          const value = args[index + 1];
-
-          if (typeof field === "string" && typeof value === "string") {
-            hash.set(field, value);
-          }
-        }
-
-        return 1 as TResult;
-      }
-
-      return {} as TResult;
-    }) as SiteConfigStore["script"],
+    get: vi.fn(async (key: string) => data.get(key) ?? null) as SiteConfigStore["get"],
+    script: scriptMock,
     set: vi.fn(async (key: string, value: unknown) => {
       data.set(key, value);
-    }),
+    }) as SiteConfigStore["set"],
   };
 };
 
@@ -214,9 +216,9 @@ describe("site config service", () => {
 
   it("reads hgetall array responses", async () => {
     const arrayStore = {
-      del: vi.fn(async () => undefined),
-      get: vi.fn(async () => null),
-      script: vi.fn(async <TResult = unknown>() => [
+      del: vi.fn(async () => undefined) as SiteConfigStore["del"],
+      get: vi.fn(async () => null) as SiteConfigStore["get"],
+      script: vi.fn((async <TResult = unknown>() => [
         "siteName",
         "Array MixTV",
         "siteAnnouncement",
@@ -239,8 +241,8 @@ describe("site config service", () => {
         "false",
         "updatedAt",
         "2026-05-14T01:00:00.000Z",
-      ] as TResult) as SiteConfigStore["script"],
-      set: vi.fn(async () => undefined),
+      ] as TResult) as SiteConfigStore["script"]) as SiteConfigStore["script"],
+      set: vi.fn(async () => undefined) as SiteConfigStore["set"],
     } satisfies SiteConfigStore;
 
     await expect(getSiteConfig(arrayStore)).resolves.toEqual({

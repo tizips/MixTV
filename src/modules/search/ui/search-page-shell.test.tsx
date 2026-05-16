@@ -132,12 +132,31 @@ beforeEach(() => {
   vi.useFakeTimers();
   (globalThis as typeof globalThis & {
     matchMedia?: typeof window.matchMedia;
-  }).matchMedia = vi.fn(() => ({
-    addEventListener: vi.fn(),
-    matches: false,
-    media: "",
-    removeEventListener: vi.fn(),
-  }));
+  }).matchMedia = vi.fn((query: string) => {
+    const listeners = new Set<(event: MediaQueryListEvent) => void>();
+
+    return {
+      addEventListener: vi.fn((_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        listeners.add(listener);
+      }),
+      addListener: vi.fn((listener: (event: MediaQueryListEvent) => void) => {
+        listeners.add(listener);
+      }),
+      dispatchEvent: vi.fn((event: Event) => {
+        listeners.forEach((listener) => listener(event as MediaQueryListEvent));
+        return true;
+      }),
+      matches: false,
+      media: query,
+      onchange: null,
+      removeEventListener: vi.fn((_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        listeners.delete(listener);
+      }),
+      removeListener: vi.fn((listener: (event: MediaQueryListEvent) => void) => {
+        listeners.delete(listener);
+      }),
+    } as MediaQueryList;
+  });
   fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
