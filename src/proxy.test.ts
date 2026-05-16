@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import middleware, { config } from "./proxy";
+import proxy, { config } from "./proxy";
 
 const authMock = vi.hoisted(() => vi.fn((handler: unknown) => handler));
+const getTokenMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/auth", () => ({
   auth: authMock,
+}));
+
+vi.mock("next-auth/jwt", () => ({
+  getToken: getTokenMock,
 }));
 
 function createRequest(pathname: string, authState: unknown = null) {
@@ -18,17 +23,19 @@ function createRequest(pathname: string, authState: unknown = null) {
   };
 }
 
-async function runMiddleware(pathname: string, authState: unknown = null) {
-  return (await middleware(createRequest(pathname, authState) as never, undefined as never)) as Response;
+async function runProxy(pathname: string, authState: unknown = null) {
+  return (await proxy(createRequest(pathname, authState) as never, undefined as never)) as Response;
 }
 
-describe("middleware", () => {
+describe("proxy", () => {
   beforeEach(() => {
     authMock.mockClear();
+    getTokenMock.mockReset();
+    getTokenMock.mockResolvedValue(null);
   });
 
   it("redirects unauthenticated home requests to /login", async () => {
-    const response = await runMiddleware("/", null);
+    const response = await runProxy("/", null);
     const location = new URL(response.headers.get("location") ?? "");
 
     expect(response.status).toBe(307);
@@ -37,35 +44,44 @@ describe("middleware", () => {
   });
 
   it("allows authenticated home requests through", async () => {
-    const response = await runMiddleware("/", { user: { id: "user-1" } });
+    const response = await runProxy("/", { user: { id: "user-1" } });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+  });
+
+  it("allows page requests when the Auth.js session token is valid", async () => {
+    getTokenMock.mockResolvedValue({ id: "user-1" });
+
+    const response = await runProxy("/", null);
 
     expect(response.status).toBe(200);
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
   it("passes protected api requests through to route-level auth", async () => {
-    const response = await runMiddleware("/api/history", null);
+    const response = await runProxy("/api/history", null);
 
     expect(response.status).toBe(200);
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
   it("allows public api routes without a session", async () => {
-    const response = await runMiddleware("/api/login", null);
+    const response = await runProxy("/api/login", null);
 
     expect(response.status).toBe(200);
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
   it("allows account lookups without a session so credentials sign-in can validate bearer tokens", async () => {
-    const response = await runMiddleware("/api/account", null);
+    const response = await runProxy("/api/account", null);
 
     expect(response.status).toBe(200);
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
   it("redirects authenticated visitors away from /login using the next query", async () => {
-    const response = await runMiddleware("/login?next=/stats", { user: { id: "user-1" } });
+    const response = await runProxy("/login?next=/stats", { user: { id: "user-1" } });
     const location = new URL(response.headers.get("location") ?? "");
 
     expect(response.status).toBe(307);
@@ -73,7 +89,7 @@ describe("middleware", () => {
   });
 
   it("normalizes unsafe next values on /login", async () => {
-    const response = await runMiddleware("/login?next=//evil.example", { user: { id: "user-1" } });
+    const response = await runProxy("/login?next=//evil.example", { user: { id: "user-1" } });
     const location = new URL(response.headers.get("location") ?? "");
 
     expect(response.status).toBe(307);
@@ -81,7 +97,7 @@ describe("middleware", () => {
   });
 });
 
-describe("middleware config", () => {
+describe("proxy config", () => {
   it("matches page routes and excludes static assets", () => {
     expect(config.matcher).toEqual(["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"]);
   });

@@ -26,7 +26,7 @@ describe("NextAuth config", () => {
     nextAuthMock.mockClear();
   });
 
-  it("uses secure cookies in production so middleware reads the same session token set by HTTPS callbacks", async () => {
+  it("uses secure cookies in production so proxy reads the same session token set by HTTPS callbacks", async () => {
     vi.stubEnv("NODE_ENV", "production");
 
     await import("@/auth");

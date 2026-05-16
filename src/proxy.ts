@@ -1,8 +1,33 @@
 import { NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 import { auth } from "@/auth";
 import { resolveSafeNextPath } from "@/modules/auth/server/redirect";
 
-export default auth((request) => {
+type ProxyRequest = Request & {
+  auth?: {
+    user?: unknown;
+  } | null;
+};
+
+function readAuthSecret() {
+  return process.env.AUTH_SECRET || "mixtv-development-auth-secret";
+}
+
+async function hasAuthenticatedSession(request: ProxyRequest) {
+  if (request.auth?.user) {
+    return true;
+  }
+
+  const token = await getToken({
+    req: request,
+    secret: readAuthSecret(),
+    secureCookie: process.env.NODE_ENV === "production",
+  });
+
+  return Boolean(token);
+}
+
+export default auth(async (request) => {
   const pathname = request.nextUrl.pathname;
   const isApiRoute = pathname.startsWith("/api");
 
@@ -13,9 +38,10 @@ export default auth((request) => {
   const nextPath = resolveSafeNextPath(
     `${request.nextUrl.pathname}${request.nextUrl.search}`,
   );
+  const isAuthenticated = await hasAuthenticatedSession(request);
 
   if (pathname === "/login") {
-    if (!request.auth?.user) {
+    if (!isAuthenticated) {
       return NextResponse.next();
     }
 
@@ -26,7 +52,7 @@ export default auth((request) => {
     return NextResponse.redirect(new URL(redirectTo, request.url));
   }
 
-  if (request.auth?.user) {
+  if (isAuthenticated) {
     return NextResponse.next();
   }
 
