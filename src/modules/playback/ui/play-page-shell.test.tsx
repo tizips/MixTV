@@ -2,8 +2,10 @@
 
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import { PlayPageShell } from "./play-page-shell";
 import type { PlayPageData } from "../domain/playback-page-data";
 
@@ -12,6 +14,8 @@ type ArtplayerHandler = (...args: unknown[]) => void;
 
 const artplayerState = vi.hoisted(() => ({
   instances: [] as FakeArtplayer[],
+  controls: [] as Array<{ name?: string; position?: string; tooltip?: string; index?: number }>,
+  settings: [] as Array<{ name?: string; html?: string }>,
 }));
 
 class FakeArtplayer {
@@ -21,6 +25,7 @@ class FakeArtplayer {
   muted = false;
   playbackRate = 1;
   playing = false;
+  poster = "";
   url: string;
   video = {
     readyState: 2,
@@ -29,10 +34,23 @@ class FakeArtplayer {
   } as HTMLVideoElement;
   volume = 0;
   plugins = {};
+  controls = {
+    add: (option: { name?: string; position?: string; tooltip?: string; index?: number }) => {
+      artplayerState.controls.push(option);
+      return document.createElement("div");
+    },
+  };
+  setting = {
+    add: (option: { name?: string; html?: string }) => {
+      artplayerState.settings.push(option);
+      return this;
+    },
+  };
   private handlers = new Map<ArtplayerEventName, ArtplayerHandler[]>();
 
-  constructor(options: { url: string }) {
+  constructor(options: { url: string; poster?: string }) {
     this.url = options.url;
+    this.poster = options.poster ?? "";
     artplayerState.instances.push(this);
   }
 
@@ -93,37 +111,21 @@ vi.mock("@heroui/react", () => ({
   Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,
+    isDisabled,
     onPress,
     type,
   }: {
     children: ReactNode;
+    isDisabled?: boolean;
     onPress?: () => void;
     type?: "button" | "submit" | "reset";
   }) => (
-    <button type={type ?? "button"} onClick={onPress}>
+    <button disabled={isDisabled} type={type ?? "button"} onClick={onPress}>
       {children}
     </button>
   ),
   Chip: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  Popover: Object.assign(
-    ({ children }: { children: ReactNode }) => <>{children}</>,
-    {
-      Content: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-      Dialog: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-      Heading: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
-      Trigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
-    },
-  ),
   Separator: () => <hr />,
-  Switch: Object.assign(
-    ({ isSelected, onValueChange }: { isSelected?: boolean; onValueChange?: (value: boolean) => void }) => (
-      <input checked={Boolean(isSelected)} type="checkbox" onChange={(event) => onValueChange?.(event.currentTarget.checked)} />
-    ),
-    {
-      Control: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-      Thumb: () => <span />,
-    },
-  ),
   Tabs: Object.assign(
     ({ children }: { children: ReactNode }) => <div>{children}</div>,
     {
@@ -135,28 +137,35 @@ vi.mock("@heroui/react", () => ({
   ),
 }));
 
+beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ favorites: [] }))));
+});
+
 afterEach(() => {
   document.body.innerHTML = "";
   artplayerState.instances = [];
+  artplayerState.controls = [];
+  artplayerState.settings = [];
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
 function createInitialData(): PlayPageData {
-  return {
-    area: "电影天堂资源",
-    category: "剧集",
-    currentEpisode: 1,
-    description: "播放详情简介",
-    episodes: [{ duration: "未知", number: 1, title: "第1集" }],
-    originalTitle: "剧集",
-    posterUrl: "https://image.test/poster.jpg",
-    progressId: "80474",
-    progressSource: "dyttzyapi.com",
-    rating: "暂无",
-    sourceName: "电影天堂资源",
-    sources: [
+    return {
+      area: "电影天堂资源",
+      category: "剧集",
+      current_episode: 1,
+      description: "播放详情简介",
+      episodes: [{ duration: "未知", number: 1, title: "第1集" }],
+      original_title: "剧集",
+      cover_default: "https://image.test/poster.jpg",
+      cover: "https://image.test/poster.jpg",
+      progress_id: "80474",
+      progress_source: "dyttzyapi.com",
+      rating: "暂无",
+      source_name: "电影天堂资源",
+      sources: [
       {
         id: "episode-1",
         latency: "在线播放",
@@ -173,18 +182,183 @@ function createInitialData(): PlayPageData {
 }
 
 describe("PlayPageShell client playback cover", () => {
+  it("uses the server favorite state and toggles the playback detail favorite button through the item API", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+      if (url === "/api/favorites/dyttzyapi.com/80474" && init?.method === "DELETE") {
+        return new Response(JSON.stringify({ favorites: [] }));
+      }
+
+      if (url === "/api/favorites/dyttzyapi.com/80474" && init?.method === "POST") {
+        return new Response(JSON.stringify({ favorite: {} }), { status: 201 });
+      }
+
+      return new Response(null, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const initialData = createInitialData();
+    initialData.is_favorite = true;
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={initialData} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/favorites", expect.anything());
+
+    const unfavoriteButton = [...host.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("已收藏")) as HTMLButtonElement | undefined;
+
+    if (!unfavoriteButton) {
+      throw new Error("Loaded favorite button was not rendered");
+    }
+
+    await act(async () => {
+      unfavoriteButton.click();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/favorites/dyttzyapi.com/80474", {
+      headers: { Accept: "application/json" },
+      method: "DELETE",
+    });
+
+    const favoriteButton = [...host.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("收藏") && !button.textContent?.includes("已收藏")) as HTMLButtonElement | undefined;
+
+    if (!favoriteButton) {
+      throw new Error("Favorite button was not rendered after delete");
+    }
+
+    await act(async () => {
+      favoriteButton.click();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/favorites/dyttzyapi.com/80474", {
+      headers: { Accept: "application/json" },
+      method: "POST",
+    });
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("opens the episode group containing the current playback episode", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const initialData = createInitialData();
+    initialData.current_episode = 60;
+    initialData.episodes = Array.from({ length: 60 }, (_, index) => ({
+      duration: "未知",
+      number: index + 1,
+      title: `第${index + 1}集`,
+    }));
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={initialData} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(host.querySelector('button[aria-label="第60集 未知"]')).not.toBeNull();
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("registers Artplayer controls and leaves the built-in playback speed setting available", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={createInitialData()} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(artplayerState.controls.map((control) => control.name)).toEqual([
+      "mixtv-skip-backward",
+      "mixtv-skip-forward",
+      "mixtv-next-episode",
+    ]);
+    expect(artplayerState.controls.map((control) => control.position)).toEqual(["left", "left", "left"]);
+    expect(artplayerState.controls.map((control) => control.index)).toEqual([11, 12, 13]);
+    expect(artplayerState.settings).toEqual([]);
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("renders a placeholder when playback data is missing", () => {
+    const html = renderToStaticMarkup(<PlayPageShell />);
+
+    expect(html).toContain("播放信息不可用");
+    expect(html).not.toContain("星河漫游");
+    expect(html).not.toContain("aria-label=\"播放进度\"");
+  });
+
+  it("uses a generated placeholder image when playback poster data is empty", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const initialData = createInitialData();
+    initialData.cover = "";
+    initialData.cover_default = "";
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={initialData} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const placeholderUrl = createPlaceholderImageUrl({
+      variant: "poster",
+      fileStem: "资源站标题",
+      seed: "dyttzyapi.com-80474",
+    });
+
+    expect(host.innerHTML).toContain(placeholderUrl);
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
   it("captures the initial zero-time frame when the video can play", async () => {
     const host = document.createElement("div");
     document.body.append(host);
     const root = createRoot(host);
 
     await act(async () => {
-      root.render(<PlayPageShell />);
+      root.render(<PlayPageShell initialData={createInitialData()} />);
     });
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
     });
+
+    const art = artplayerState.instances[0];
+
+    if (!art) {
+      throw new Error("Artplayer was not initialized");
+    }
 
     const originalCreateElement = document.createElement.bind(document);
     vi.spyOn(document, "createElement").mockImplementation((tagName: string) => {
@@ -200,17 +374,11 @@ describe("PlayPageShell client playback cover", () => {
       return originalCreateElement(tagName);
     });
 
-    const art = artplayerState.instances[0];
-
-    if (!art) {
-      throw new Error("Artplayer was not initialized");
-    }
-
     await act(async () => {
       art.emit("video:canplay", new Event("canplay"));
     });
 
-    expect(host.innerHTML).toContain("data:image/jpeg;base64,zero-frame");
+    expect(art.poster).toBe("data:image/jpeg;base64,zero-frame");
 
     act(() => {
       root.unmount();
@@ -293,6 +461,83 @@ describe("PlayPageShell client playback cover", () => {
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("switches to the selected episode source and keeps playing when an episode is changed during playback", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const initialData = createInitialData();
+    initialData.sources = [
+      {
+        id: "episode-1",
+        latency: "在线播放",
+        name: "第1集",
+        quality: "HLS",
+        status: "流畅",
+        url: "https://media.test/1.m3u8",
+      },
+      {
+        id: "episode-2",
+        latency: "在线播放",
+        name: "第2集",
+        quality: "HLS",
+        status: "流畅",
+        url: "https://media.test/2.m3u8",
+      },
+    ];
+    initialData.episodes = [
+      { duration: "未知", number: 1, title: "第1集" },
+      { duration: "未知", number: 2, title: "第2集" },
+    ];
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={initialData} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const art = artplayerState.instances[0];
+
+    if (!art) {
+      throw new Error("Artplayer was not initialized");
+    }
+
+    await act(async () => {
+      art.emit("video:play");
+    });
+
+    const nextEpisodeButton = [...host.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "2",
+    ) as HTMLButtonElement | undefined;
+
+    if (!nextEpisodeButton) {
+      throw new Error("Episode button was not rendered");
+    }
+
+    await act(async () => {
+      nextEpisodeButton.click();
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const currentArt = artplayerState.instances.at(-1);
+
+    if (!currentArt) {
+      throw new Error("Artplayer was not reinitialized");
+    }
+
+    expect(host.textContent).toContain("第 2 集");
+    expect(currentArt.url).toBe("https://media.test/2.m3u8");
+    expect(currentArt.playing).toBe(true);
 
     act(() => {
       root.unmount();

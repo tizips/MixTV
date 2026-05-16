@@ -3,8 +3,10 @@ import { auth } from "@/auth";
 import { getPlaybackPageData, PlayPageShell } from "@/modules/playback";
 
 export const metadata: Metadata = {
-  title: "播放 - MixTV",
+  title: `播放 - ${process.env.NEXT_PUBLIC_SITE_NAME}`,
 };
+
+export const runtime = "nodejs";
 
 type PlayPageProps = {
   searchParams: Promise<{ id?: string | string[]; source?: string | string[] }>;

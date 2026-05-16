@@ -3,33 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Hls from "hls.js";
 import type Artplayer from "artplayer";
-import type { Danmu, Mode as DanmakuMode, Option as DanmakuOption, Result as DanmakuPluginResult } from "artplayer-plugin-danmuku";
+import type { Danmu, Option as DanmakuOption, Result as DanmakuPluginResult } from "artplayer-plugin-danmuku";
 import Image from "next/image";
-import { Badge, Button, Chip, Popover, Separator, Switch, Tabs } from "@heroui/react";
+import { Badge, Button, Chip, Separator, Tabs } from "@heroui/react";
 import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import type { Episode, PlayPageData } from "../domain/playback-page-data";
 
 const episodeGroupSize = 50;
-const playbackSourceUrl = "https://cdn.ryplay12.com/20260506/35803_75083138/index.m3u8";
 const playbackDurationSeconds = 45 * 60 + 8;
 const initialPlayerVolume: number = 72;
-const initialPlaybackRate: number = 1;
-const playerControlButtonClassName =
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-lg text-white/50 transition-colors hover:cursor-pointer hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70";
-const danmakuDisplayAreas = [
-  { label: "1/4", value: "quarter" },
-  { label: "半屏", value: "half" },
-  { label: "3/4", value: "three-quarter" },
-  { label: "满屏", value: "full" },
-] as const;
-const danmakuSpeedOptions = [
-  { label: "极慢", value: "very-slow" },
-  { label: "较慢", value: "slow" },
-  { label: "适中", value: "normal" },
-  { label: "较快", value: "fast" },
-  { label: "极快", value: "very-fast" },
-] as const;
-
 const tabBaseClassName =
   "group relative h-[72px] justify-center rounded-none text-sm font-medium transition-colors before:absolute before:inset-x-6 before:top-1/2 before:h-[72px] before:-translate-y-1/2 before:opacity-0 before:transition-opacity data-[selected]:text-accent data-[selected]:before:opacity-100";
 
@@ -41,8 +23,6 @@ const tabGlowClassNames = [
 ] as const;
 
 type TabGlowClassName = (typeof tabGlowClassNames)[number];
-type DanmakuDisplayArea = (typeof danmakuDisplayAreas)[number]["value"];
-type DanmakuSpeed = (typeof danmakuSpeedOptions)[number]["value"];
 type ArtplayerWithHls = Artplayer & { hls?: Hls };
 
 function getRandomTabGlowClass(currentClassName: TabGlowClassName): TabGlowClassName {
@@ -51,42 +31,6 @@ function getRandomTabGlowClass(currentClassName: TabGlowClassName): TabGlowClass
 
   return candidates[Math.floor(Math.random() * candidates.length)] ?? tabGlowClassNames[0];
 }
-
-const defaultPlayPageData: PlayPageData = {
-  title: "星河漫游",
-  originalTitle: "Stellar Roaming",
-  currentEpisode: 18,
-  posterUrl: createPlaceholderImageUrl({
-    variant: "poster",
-    fileStem: "星河漫游",
-    seed: "playback-stellar-roaming",
-  }),
-  progressId: "demo",
-  progressSource: "demo",
-  year: "2026",
-  area: "中国大陆",
-  category: "科幻 / 冒险 / 剧情",
-  rating: "8.7",
-  sourceName: "高清源 1",
-  description:
-    "一支年轻的深空补给队在边境星域发现异常信号，原本例行的护航任务逐渐牵出旧时代航道、失落殖民地与联盟内部的秘密。",
-  tags: ["更新至 120 集", "每周二更新", "支持多线路", "中文字幕"],
-  episodes: Array.from({ length: 120 }, (_, index) => {
-    const number = index + 1;
-
-    return {
-      number,
-      title: `第 ${number} 集`,
-      duration: number % 6 === 0 ? "49 分钟" : "45 分钟",
-    };
-  }),
-  sources: [
-    { id: "source-hd-1", name: "高清源 1", url: playbackSourceUrl, quality: "1080P", latency: "低延迟", status: "流畅" },
-    { id: "source-hd-2", name: "备用源 2", url: playbackSourceUrl, quality: "1080P", latency: "普通", status: "流畅" },
-    { id: "source-uhd", name: "超清源", url: playbackSourceUrl, quality: "4K", latency: "普通", status: "拥挤" },
-    { id: "source-mobile", name: "移动源", url: playbackSourceUrl, quality: "720P", latency: "低流量", status: "流畅" },
-  ],
-};
 
 function getEpisodeDanmuku(episodeNumber: number): Danmu[] {
   const episodeOffset = episodeNumber % 7;
@@ -99,56 +43,6 @@ function getEpisodeDanmuku(episodeNumber: number): Danmu[] {
     { text: "字幕同步正常", time: 72 + episodeOffset, mode: 2, color: "#FFFFFF" },
     { text: "建议开启倍速", time: 105 + episodeOffset, mode: 0, color: "#FFAA02" },
   ];
-}
-
-function getDanmakuDisplayAreaMargin(area: DanmakuDisplayArea): DanmakuOption["margin"] {
-  if (area === "quarter") {
-    return [10, "75%"];
-  }
-  if (area === "half") {
-    return [10, "50%"];
-  }
-  if (area === "three-quarter") {
-    return [10, "25%"];
-  }
-
-  return [10, 10];
-}
-
-function getDanmakuSpeedValue(speed: DanmakuSpeed) {
-  const speedMap: Record<DanmakuSpeed, number> = {
-    "very-slow": 10,
-    slow: 7.5,
-    normal: 5,
-    fast: 2.5,
-    "very-fast": 1,
-  };
-
-  return speedMap[speed];
-}
-
-function getDanmakuVisibleModes({
-  isRollingBlocked,
-  isTopBlocked,
-  isBottomBlocked,
-}: {
-  isRollingBlocked: boolean;
-  isTopBlocked: boolean;
-  isBottomBlocked: boolean;
-}): DanmakuMode[] {
-  const modes: DanmakuMode[] = [];
-
-  if (!isRollingBlocked) {
-    modes.push(0);
-  }
-  if (!isTopBlocked) {
-    modes.push(1);
-  }
-  if (!isBottomBlocked) {
-    modes.push(2);
-  }
-
-  return modes;
 }
 
 function getArtplayerDanmakuPlugin(art: Artplayer): DanmakuPluginResult | undefined {
@@ -168,20 +62,20 @@ function getEpisodeGroups(episodes: Episode[]) {
   });
 }
 
+function getEpisodeGroupKeyForEpisode(episodes: Episode[], episodeNumber: number) {
+  const group = getEpisodeGroups(episodes).find((currentGroup) =>
+    currentGroup.episodes.some((episode) => episode.number === episodeNumber),
+  );
+
+  return group?.key ?? getEpisodeGroups(episodes)[0]?.key ?? "";
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
 function normalizeResumeTime(value: number | undefined) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
-}
-
-function formatPlaybackTime(seconds: number, maxSeconds = playbackDurationSeconds) {
-  const safeSeconds = Math.floor(clamp(seconds, 0, maxSeconds));
-  const minutes = Math.floor(safeSeconds / 60);
-  const remainingSeconds = safeSeconds % 60;
-
-  return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
 }
 
 export function PlayPageShell({
@@ -191,112 +85,112 @@ export function PlayPageShell({
   initialData?: PlayPageData;
   playbackPlaceholderError?: string;
 } = {}) {
-  const playbackData = initialData ?? defaultPlayPageData;
-  const hasPlaybackPlaceholderError = Boolean(playbackPlaceholderError);
-  const playerRef = useRef<HTMLDivElement>(null);
+  const playbackData = initialData ?? null;
+  const placeholderMessage = playbackPlaceholderError ?? "播放信息不可用";
+  const playbackCoverUrl = useMemo(() => {
+    if (!playbackData) {
+      return createPlaceholderImageUrl({
+        variant: "poster",
+        fileStem: "MixTV",
+        seed: "playback-placeholder",
+      });
+    }
+
+    const posterUrl = playbackData.cover_default.trim();
+
+    if (posterUrl) {
+      return posterUrl;
+    }
+
+    return createPlaceholderImageUrl({
+      variant: "poster",
+      fileStem: playbackData.title || "MixTV",
+      seed: `${playbackData.progress_source}-${playbackData.progress_id}`,
+    });
+  }, [playbackData]);
+  const playbackCoverDefaultUrl = useMemo(() => {
+    if (!playbackData) {
+      return createPlaceholderImageUrl({
+        variant: "poster",
+        fileStem: "MixTV",
+        seed: "playback-placeholder",
+      });
+    }
+
+    return playbackData.cover_default.trim() || playbackCoverUrl;
+  }, [playbackData, playbackCoverUrl]);
+  const hasPlaybackPlaceholderError = Boolean(playbackPlaceholderError) || !playbackData;
   const artContainerRef = useRef<HTMLDivElement>(null);
   const artPlayerRef = useRef<Artplayer | null>(null);
-  const controlBarContentRef = useRef<HTMLDivElement>(null);
-  const volumeControlRef = useRef<HTMLDivElement>(null);
-  const volumeHoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const controlBarHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasAppliedResumeTimeRef = useRef(false);
-  const initialResumeTimeSeconds = normalizeResumeTime(playbackData.resumeTimeSeconds);
-  const [activeEpisode, setActiveEpisode] = useState(playbackData.currentEpisode);
-  const [activeSource, setActiveSource] = useState(playbackData.sources[0]?.id ?? "");
-  const [selectedGroupKey, setSelectedGroupKey] = useState(() => getEpisodeGroups(playbackData.episodes)[0]?.key ?? "1-50");
+  const initialResumeTimeSeconds = normalizeResumeTime(playbackData?.resume_time_seconds);
+  const [activeEpisode, setActiveEpisode] = useState(playbackData?.current_episode ?? 1);
+  const [activeSource, setActiveSource] = useState(playbackData?.sources[0]?.id ?? "");
+  const [selectedGroupKey, setSelectedGroupKey] = useState(() =>
+    playbackData ? getEpisodeGroupKeyForEpisode(playbackData.episodes, playbackData.current_episode) : "",
+  );
   const [selectedTabKey, setSelectedTabKey] = useState("episodes");
   const [tabGlowClassName, setTabGlowClassName] = useState<TabGlowClassName>(tabGlowClassNames[0]);
   const [isDescending, setIsDescending] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentPlaybackSeconds, setCurrentPlaybackSeconds] = useState(initialResumeTimeSeconds);
-  const [currentPlaybackDuration, setCurrentPlaybackDuration] = useState(playbackDurationSeconds);
-  const [playbackCoverUrl, setPlaybackCoverUrl] = useState(playbackData.posterUrl);
-  const [volume, setVolume] = useState(initialPlayerVolume);
-  const [activePlayerPanel, setActivePlayerPanel] = useState<"volume" | "danmaku" | "settings" | null>(null);
-  const [isDanmakuEnabled, setIsDanmakuEnabled] = useState(true);
-  const [isRollingDanmakuBlocked, setIsRollingDanmakuBlocked] = useState(false);
-  const [isTopDanmakuBlocked, setIsTopDanmakuBlocked] = useState(false);
-  const [isBottomDanmakuBlocked, setIsBottomDanmakuBlocked] = useState(false);
-  const [isDanmakuOverlapPrevented, setIsDanmakuOverlapPrevented] = useState(true);
-  const [isDanmakuSpeedSynced, setIsDanmakuSpeedSynced] = useState(true);
-  const [danmakuOpacity, setDanmakuOpacity] = useState(80);
-  const [danmakuDisplayArea, setDanmakuDisplayArea] = useState<DanmakuDisplayArea>("full");
-  const [danmakuFontSize, setDanmakuFontSize] = useState(25);
-  const [danmakuSpeed, setDanmakuSpeed] = useState<DanmakuSpeed>("normal");
-  const [playbackRate, setPlaybackRate] = useState(initialPlaybackRate);
+  const [volume, setVolume] = useState<number>(initialPlayerVolume);
   const [isWebFullscreen, setIsWebFullscreen] = useState(false);
-  const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
-  const [isControlBarVisible, setIsControlBarVisible] = useState(true);
-  const [isVolumePanelHovered, setIsVolumePanelHovered] = useState(false);
-  const [volumePanelLeft, setVolumePanelLeft] = useState<number | null>(null);
   const [isPlaybackReady, setIsPlaybackReady] = useState(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [isFavorite, setIsFavorite] = useState(Boolean(playbackData?.is_favorite));
+  const [isFavoritePending, setIsFavoritePending] = useState(false);
   const activeEpisodeRef = useRef(activeEpisode);
-  const currentPlaybackSecondsRef = useRef(currentPlaybackSeconds);
-  const currentPlaybackDurationRef = useRef(currentPlaybackDuration);
+  const isPlayingRef = useRef(isPlaying);
+  const shouldResumePlaybackRef = useRef(false);
+  const currentPlaybackSecondsRef = useRef(initialResumeTimeSeconds);
+  const currentPlaybackDurationRef = useRef(playbackDurationSeconds);
+  const initialDanmakuOptionRef = useRef<DanmakuOption>({
+    danmuku: getEpisodeDanmuku(playbackData?.current_episode ?? 1),
+    speed: 5,
+    margin: [10, 10],
+    opacity: 0.85,
+    color: "#FFFFFF",
+    mode: 0,
+    modes: [0, 1, 2],
+    fontSize: 36,
+    antiOverlap: true,
+    synchronousPlayback: true,
+    visible: true,
+    emitter: false,
+  });
 
-  const episodeGroups = useMemo(() => getEpisodeGroups(playbackData.episodes), [playbackData.episodes]);
-  const episodeCount = playbackData.episodes.length;
+  const episodeGroups = useMemo(() => (playbackData ? getEpisodeGroups(playbackData.episodes) : []), [playbackData]);
   const selectedGroup = episodeGroups.find((group) => group.key === selectedGroupKey) ?? episodeGroups[0];
   const visibleEpisodes = selectedGroup ? (isDescending ? [...selectedGroup.episodes].reverse() : selectedGroup.episodes) : [];
   const currentSource =
-    playbackData.sources.find((source) => source.id === activeSource) ?? playbackData.sources[0] ?? defaultPlayPageData.sources[0];
-  const usablePlaybackDuration =
-    Number.isFinite(currentPlaybackDuration) && currentPlaybackDuration > 0 ? currentPlaybackDuration : playbackDurationSeconds;
-  const currentPlaybackTime = formatPlaybackTime(currentPlaybackSeconds, usablePlaybackDuration);
-  const totalPlaybackTime = formatPlaybackTime(usablePlaybackDuration, usablePlaybackDuration);
-  const volumeIconClassName =
-    volume === 0 ? "bi-volume-mute-fill" : volume < 45 ? "bi-volume-down-fill" : "bi-volume-up-fill";
-  const isVolumePanelVisible = activePlayerPanel === "volume" || isVolumePanelHovered;
-  const selectedDanmakuDisplayAreaLabel =
-    danmakuDisplayAreas.find((area) => area.value === danmakuDisplayArea)?.label ?? danmakuDisplayAreas[0].label;
-  const selectedDanmakuSpeedLabel =
-    danmakuSpeedOptions.find((speed) => speed.value === danmakuSpeed)?.label ?? danmakuSpeedOptions[2].label;
+    playbackData?.sources.find((source) => source.id === activeSource) ?? playbackData?.sources[0];
+  const currentPlaybackUrl =
+    currentSource?.url ??
+    playbackData?.sources[activeEpisode - 1]?.url ??
+    playbackData?.sources[0]?.url ??
+    "";
   const shouldShowPlaybackOverlay = !isPlaying && (isPlaybackReady || playbackError);
-  const shouldShowPlaybackCover = !isPlaying && !playbackError && Boolean(playbackCoverUrl);
   const progressEndpoint = useMemo(() => {
-    if (!playbackData.progressSource || !playbackData.progressId) {
+    const progressSource = playbackData?.progress_source;
+    const progressId = playbackData?.progress_id;
+
+    if (!progressSource || !progressId) {
       return "";
     }
 
-    return `/api/playback/progress/${encodeURIComponent(playbackData.progressSource)}/${encodeURIComponent(playbackData.progressId)}`;
-  }, [playbackData.progressId, playbackData.progressSource]);
-  const danmakuOption = useMemo<DanmakuOption>(() => ({
-    danmuku: getEpisodeDanmuku(activeEpisode),
-    visible: isDanmakuEnabled,
-    emitter: false,
-    opacity: danmakuOpacity / 100,
-    margin: getDanmakuDisplayAreaMargin(danmakuDisplayArea),
-    fontSize: danmakuFontSize,
-    speed: getDanmakuSpeedValue(danmakuSpeed),
-    antiOverlap: isDanmakuOverlapPrevented,
-    synchronousPlayback: isDanmakuSpeedSynced,
-    modes: getDanmakuVisibleModes({
-      isRollingBlocked: isRollingDanmakuBlocked,
-      isTopBlocked: isTopDanmakuBlocked,
-      isBottomBlocked: isBottomDanmakuBlocked,
-    }),
-  }), [
-    activeEpisode,
-    danmakuDisplayArea,
-    danmakuFontSize,
-    danmakuOpacity,
-    danmakuSpeed,
-    isBottomDanmakuBlocked,
-    isDanmakuEnabled,
-    isDanmakuOverlapPrevented,
-    isDanmakuSpeedSynced,
-    isRollingDanmakuBlocked,
-    isTopDanmakuBlocked,
-  ]);
-  const initialPlaybackUrlRef = useRef(currentSource.url);
-  const initialDanmakuOptionRef = useRef(danmakuOption);
+    return `/api/playback/progress/${encodeURIComponent(progressSource)}/${encodeURIComponent(progressId)}`;
+  }, [playbackData]);
+  const playbackActionsRef = useRef<{
+    skipPlayback: (seconds: number) => void;
+    playNextEpisode: () => void;
+  }>({
+    skipPlayback: () => undefined,
+    playNextEpisode: () => undefined,
+  });
   const uploadPlaybackProgress = useCallback(() => {
     const art = artPlayerRef.current;
 
-    if (!progressEndpoint || hasPlaybackPlaceholderError || !art) {
+    if (!progressEndpoint || hasPlaybackPlaceholderError || !art || !playbackData) {
       return;
     }
 
@@ -312,7 +206,82 @@ export function PlayPageShell({
       headers: { "Content-Type": "application/json" },
       method: "POST",
     }).catch(() => undefined);
-  }, [hasPlaybackPlaceholderError, progressEndpoint]);
+  }, [hasPlaybackPlaceholderError, playbackData, progressEndpoint]);
+  const resetPlaybackForEpisode = useCallback((episodeNumber: number) => {
+    const art = artPlayerRef.current;
+
+    if (!playbackData) {
+      return;
+    }
+
+    shouldResumePlaybackRef.current = isPlayingRef.current;
+
+    setActiveEpisode(episodeNumber);
+    setSelectedGroupKey(getEpisodeGroupKeyForEpisode(playbackData.episodes, episodeNumber));
+    setActiveSource(playbackData.sources[episodeNumber - 1]?.id ?? playbackData.sources[0]?.id ?? "");
+    currentPlaybackSecondsRef.current = 0;
+    setIsPlaybackReady(false);
+    setPlaybackError(null);
+    setIsPlaying(false);
+
+    if (art) {
+      art.pause();
+      art.currentTime = 0;
+      art.poster = playbackCoverDefaultUrl;
+    }
+  }, [playbackData, playbackCoverDefaultUrl]);
+  const playNextEpisode = useCallback(() => {
+    if (!playbackData) {
+      return;
+    }
+
+    const currentIndex = playbackData.episodes.findIndex((episode) => episode.number === activeEpisode);
+    const nextEpisode = playbackData.episodes[currentIndex + 1];
+
+    if (!nextEpisode) {
+      return;
+    }
+
+    resetPlaybackForEpisode(nextEpisode.number);
+  }, [activeEpisode, playbackData, resetPlaybackForEpisode]);
+  const skipPlayback = useCallback((seconds: number) => {
+    const art = artPlayerRef.current;
+    const maxSeconds = currentPlaybackDurationRef.current > 0 ? currentPlaybackDurationRef.current : playbackDurationSeconds;
+
+    if (!art) {
+      currentPlaybackSecondsRef.current = clamp(currentPlaybackSecondsRef.current + seconds, 0, maxSeconds);
+      return;
+    }
+
+    const nextTime = clamp(art.currentTime + seconds, 0, maxSeconds);
+    art.currentTime = nextTime;
+    currentPlaybackSecondsRef.current = nextTime;
+  }, []);
+  const togglePlayback = useCallback(async () => {
+    const art = artPlayerRef.current;
+
+    if (!art) {
+      setIsPlaying((value) => !value);
+      return;
+    }
+
+    if (!art.playing) {
+      try {
+        await art.play();
+      } catch {
+        setPlaybackError("浏览器阻止了播放，请再次点击播放。");
+      }
+      return;
+    }
+
+    art.pause();
+  }, []);
+  useEffect(() => {
+    playbackActionsRef.current = {
+      skipPlayback,
+      playNextEpisode,
+    };
+  }, [playNextEpisode, skipPlayback]);
   const capturePlaybackCover = useCallback((art: Artplayer) => {
     const video = art.video;
 
@@ -332,16 +301,16 @@ export function PlayPageShell({
       }
 
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      setPlaybackCoverUrl(canvas.toDataURL("image/jpeg", 0.82));
+      art.poster = canvas.toDataURL("image/jpeg", 0.82);
     } catch {
-      setPlaybackCoverUrl(playbackData.posterUrl);
+      art.poster = playbackCoverDefaultUrl;
     }
-  }, [playbackData.posterUrl]);
+  }, [playbackCoverDefaultUrl]);
 
   useEffect(() => {
     const container = artContainerRef.current;
 
-    if (hasPlaybackPlaceholderError || !container) {
+    if (hasPlaybackPlaceholderError || !container || !playbackData) {
       return;
     }
 
@@ -350,166 +319,202 @@ export function PlayPageShell({
 
     void Promise.all([import("artplayer"), import("artplayer-plugin-danmuku")]).then(
       ([{ default: ArtplayerConstructor }, { default: artplayerPluginDanmuku }]) => {
-      if (!isMounted || !artContainerRef.current) {
-        return;
-      }
+        if (!isMounted || !artContainerRef.current) {
+          return;
+        }
 
-      const art = new ArtplayerConstructor({
-        container: artContainerRef.current,
-        url: initialPlaybackUrlRef.current,
-        type: "m3u8",
-        poster: playbackData.posterUrl,
-        volume: initialPlayerVolume / 100,
-        muted: initialPlayerVolume === 0,
-        playbackRate: true,
-        setting: false,
-        hotkey: true,
-        fullscreen: false,
-        fullscreenWeb: false,
-        miniProgressBar: false,
-        playsInline: true,
-        moreVideoAttr: {
-          crossOrigin: "anonymous",
-          preload: "auto",
-        },
-        plugins: [artplayerPluginDanmuku(initialDanmakuOptionRef.current)],
-        customType: {
-          m3u8(video, url, artInstance) {
-            const player = artInstance as ArtplayerWithHls;
-
-            player.hls?.destroy();
-            player.hls = undefined;
-
-            if (Hls.isSupported()) {
-              const hls = new Hls({
-                backBufferLength: 90,
-                enableWorker: true,
-                fragLoadingTimeOut: 20000,
-                lowLatencyMode: false,
-                manifestLoadingTimeOut: 15000,
-                maxBufferLength: 60,
-                maxMaxBufferLength: 120,
-              });
-
-              hls.loadSource(url);
-              hls.attachMedia(video);
-              hls.on(Hls.Events.ERROR, (_event, data) => {
-                if (data.fatal) {
-                  if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                    hls.startLoad();
-                    return;
-                  }
-
-                  if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                    hls.recoverMediaError();
-                    return;
-                  }
-
-                  setIsPlaybackReady(false);
-                  setPlaybackError("视频加载失败，请稍后重试或切换线路。");
-                }
-              });
-
-              player.hls = hls;
-              artInstance.on("destroy", () => hls.destroy());
-              return;
-            }
-
-            if (video.canPlayType("application/vnd.apple.mpegurl")) {
-              video.src = url;
-              return;
-            }
-
-            setPlaybackError("当前浏览器不支持 HLS 播放。");
+        const art = new ArtplayerConstructor({
+          container: artContainerRef.current,
+          url: currentPlaybackUrl,
+          type: "m3u8",
+          poster: playbackCoverDefaultUrl,
+          volume: initialPlayerVolume / 100,
+          muted: initialPlayerVolume === 0,
+          playbackRate: true,
+          setting: true,
+          hotkey: true,
+          fullscreen: true,
+          fullscreenWeb: true,
+          miniProgressBar: false,
+          playsInline: true,
+          moreVideoAttr: {
+            crossOrigin: "anonymous",
+            preload: "auto",
           },
-        },
-      });
+          plugins: [artplayerPluginDanmuku(initialDanmakuOptionRef.current)],
+          customType: {
+            m3u8(video, url, artInstance) {
+              const player = artInstance as ArtplayerWithHls;
 
-      artPlayerRef.current = art;
-      art.playbackRate = initialPlaybackRate;
-      art.volume = initialPlayerVolume / 100;
-      art.muted = initialPlayerVolume === 0;
+              player.hls?.destroy();
+              player.hls = undefined;
 
-      art.on("video:loadedmetadata", () => {
-        if (Number.isFinite(art.duration) && art.duration > 0) {
-          setCurrentPlaybackDuration(art.duration);
-        }
-        if (!hasAppliedResumeTimeRef.current && initialResumeTimeSeconds > 0) {
-          const nextTime = Number.isFinite(art.duration) && art.duration > 0
-            ? clamp(initialResumeTimeSeconds, 0, art.duration)
-            : initialResumeTimeSeconds;
+              if (Hls.isSupported()) {
+                const hls = new Hls({
+                  backBufferLength: 90,
+                  enableWorker: true,
+                  fragLoadingTimeOut: 20000,
+                  lowLatencyMode: false,
+                  manifestLoadingTimeOut: 15000,
+                  maxBufferLength: 60,
+                  maxMaxBufferLength: 120,
+                });
 
-          hasAppliedResumeTimeRef.current = true;
-          art.currentTime = nextTime;
-          setCurrentPlaybackSeconds(nextTime);
+                hls.loadSource(url);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.ERROR, (_event, data) => {
+                  if (data.fatal) {
+                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                      hls.startLoad();
+                      return;
+                    }
+
+                    if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                      hls.recoverMediaError();
+                      return;
+                    }
+
+                    setIsPlaybackReady(false);
+                    setPlaybackError("视频加载失败，请稍后重试或切换线路。");
+                  }
+                });
+
+                player.hls = hls;
+                artInstance.on("destroy", () => hls.destroy());
+                return;
+              }
+
+              if (video.canPlayType("application/vnd.apple.mpegurl")) {
+                video.src = url;
+                return;
+              }
+
+              setPlaybackError("当前浏览器不支持 HLS 播放。");
+            },
+          },
+        });
+
+        artPlayerRef.current = art;
+        art.playbackRate = 1;
+        art.volume = initialPlayerVolume / 100;
+        art.muted = initialPlayerVolume === 0;
+        art.controls.add({
+          name: "mixtv-skip-backward",
+          html: '<i class="bi bi-skip-backward-fill"></i>',
+          position: "left",
+          index: 11,
+          tooltip: "快退 10 秒",
+          click: () => playbackActionsRef.current.skipPlayback(-10),
+        });
+        art.controls.add({
+          name: "mixtv-skip-forward",
+          html: '<i class="bi bi-skip-forward-fill"></i>',
+          position: "left",
+          index: 12,
+          tooltip: "快进 10 秒",
+          click: () => playbackActionsRef.current.skipPlayback(10),
+        });
+        art.controls.add({
+          name: "mixtv-next-episode",
+          html: '<i class="bi bi-skip-end-fill"></i>',
+          position: "left",
+          index: 13,
+          tooltip: "下一集",
+          click: () => playbackActionsRef.current.playNextEpisode(),
+        });
+        art.on("video:loadedmetadata", () => {
+          if (Number.isFinite(art.duration) && art.duration > 0) {
+            currentPlaybackDurationRef.current = art.duration;
+          }
+          if (!hasAppliedResumeTimeRef.current && initialResumeTimeSeconds > 0) {
+            const nextTime = Number.isFinite(art.duration) && art.duration > 0
+              ? clamp(initialResumeTimeSeconds, 0, art.duration)
+              : initialResumeTimeSeconds;
+
+            hasAppliedResumeTimeRef.current = true;
+            art.currentTime = nextTime;
+            currentPlaybackSecondsRef.current = nextTime;
+          }
+          setIsPlaybackReady(true);
+        });
+        art.on("video:durationchange", () => {
+          if (Number.isFinite(art.duration) && art.duration > 0) {
+            currentPlaybackDurationRef.current = art.duration;
+          }
+        });
+        art.on("video:timeupdate", () => {
+          currentPlaybackSecondsRef.current = art.currentTime;
+        });
+        art.on("video:loadeddata", () => capturePlaybackCover(art));
+        art.on("video:seeked", () => {
+          capturePlaybackCover(art);
+          uploadPlaybackProgress();
+        });
+        art.on("video:play", () => {
+          setPlaybackError(null);
+          setIsPlaybackReady(true);
+          setIsPlaying(true);
+        });
+        art.on("video:pause", () => {
+          setIsPlaying(false);
+          uploadPlaybackProgress();
+        });
+        art.on("video:ended", () => {
+          uploadPlaybackProgress();
+          playNextEpisode();
+        });
+        art.on("video:waiting", () => setIsPlaybackReady(false));
+        art.on("video:stalled", () => setIsPlaybackReady(false));
+        art.on("video:canplay", () => {
+          setIsPlaybackReady(true);
+          capturePlaybackCover(art);
+        });
+        art.on("video:canplaythrough", () => {
+          setIsPlaybackReady(true);
+          capturePlaybackCover(art);
+        });
+        art.on("fullscreenWeb", (state) => setIsWebFullscreen(state));
+        art.on("video:volumechange", () => {
+          const nextVolume = Math.round(art.volume * 100);
+
+          setVolume(nextVolume);
+        });
+        art.on("error", () => {
+          setIsPlaybackReady(false);
+          setPlaybackError("视频加载失败，请稍后重试或切换线路。");
+        });
+
+        if (shouldResumePlaybackRef.current || isPlayingRef.current) {
+          shouldResumePlaybackRef.current = false;
+          void art.play();
         }
-        setIsPlaybackReady(true);
       });
-      art.on("video:durationchange", () => {
-        if (Number.isFinite(art.duration) && art.duration > 0) {
-          setCurrentPlaybackDuration(art.duration);
-        }
-      });
-      art.on("video:timeupdate", () => setCurrentPlaybackSeconds(art.currentTime));
-      art.on("video:loadeddata", () => capturePlaybackCover(art));
-      art.on("video:seeked", () => {
-        capturePlaybackCover(art);
-        uploadPlaybackProgress();
-      });
-      art.on("video:play", () => {
-        setPlaybackError(null);
-        setIsPlaybackReady(true);
-        setIsControlBarVisible(true);
-        setIsPlaying(true);
-      });
-      art.on("video:pause", () => {
-        setIsControlBarVisible(true);
-        setIsPlaying(false);
-        uploadPlaybackProgress();
-      });
-      art.on("video:waiting", () => setIsPlaybackReady(false));
-      art.on("video:stalled", () => setIsPlaybackReady(false));
-      art.on("video:canplay", () => {
-        setIsPlaybackReady(true);
-        capturePlaybackCover(art);
-      });
-      art.on("video:canplaythrough", () => {
-        setIsPlaybackReady(true);
-        capturePlaybackCover(art);
-      });
-      art.on("video:ended", () => {
-        uploadPlaybackProgress();
-        setActiveEpisode((currentEpisode) => (currentEpisode >= episodeCount ? 1 : currentEpisode + 1));
-        setCurrentPlaybackSeconds(0);
-        setPlaybackCoverUrl(playbackData.posterUrl);
-        setIsControlBarVisible(true);
-        setIsPlaying(false);
-      });
-      art.on("fullscreenWeb", (state) => setIsWebFullscreen(state));
-      art.on("error", () => {
-        setIsPlaybackReady(false);
-        setPlaybackError("视频加载失败，请稍后重试或切换线路。");
-      });
-    });
 
     return () => {
       isMounted = false;
       artPlayerRef.current?.destroy(false);
       artPlayerRef.current = null;
     };
-  }, [capturePlaybackCover, episodeCount, hasPlaybackPlaceholderError, initialResumeTimeSeconds, playbackData.posterUrl, uploadPlaybackProgress]);
+    // Intentionally initialize the Artplayer instance once per playback payload.
+  }, [
+    capturePlaybackCover,
+    hasPlaybackPlaceholderError,
+    initialResumeTimeSeconds,
+    currentPlaybackUrl,
+    playbackData,
+    playbackCoverUrl,
+    playbackCoverDefaultUrl,
+    playNextEpisode,
+    uploadPlaybackProgress,
+  ]);
 
   useEffect(() => {
     activeEpisodeRef.current = activeEpisode;
   }, [activeEpisode]);
 
   useEffect(() => {
-    currentPlaybackSecondsRef.current = currentPlaybackSeconds;
-  }, [currentPlaybackSeconds]);
-
-  useEffect(() => {
-    currentPlaybackDurationRef.current = currentPlaybackDuration;
-  }, [currentPlaybackDuration]);
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   useEffect(() => {
     if (!isPlaying) {
@@ -550,22 +555,56 @@ export function PlayPageShell({
   }, [volume]);
 
   useEffect(() => {
-    if (!artPlayerRef.current) {
+    const art = artPlayerRef.current;
+    const danmakuPlugin = art ? getArtplayerDanmakuPlugin(art) : undefined;
+
+    if (!danmakuPlugin) {
       return;
     }
 
-    artPlayerRef.current.playbackRate = playbackRate;
-  }, [playbackRate]);
+    void danmakuPlugin.load(getEpisodeDanmuku(activeEpisode));
+  }, [activeEpisode]);
+
+  const toggleFavorite = useCallback(async () => {
+    if (isFavoritePending) {
+      return;
+    }
+
+    setIsFavoritePending(true);
+
+    try {
+      if (!playbackData) {
+        return;
+      }
+
+      const response = await fetch(`/api/favorites/${encodeURIComponent(playbackData.progress_source)}/${encodeURIComponent(playbackData.progress_id)}`, {
+        headers: { Accept: "application/json" },
+        method: isFavorite ? "DELETE" : "POST",
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      setIsFavorite((value) => !value);
+    } catch {
+      // Keep the current local favorite state when the API call fails.
+    } finally {
+      setIsFavoritePending(false);
+    }
+  }, [isFavorite, isFavoritePending, playbackData]);
 
   useEffect(() => {
     const art = artPlayerRef.current;
 
-    if (!art || art.url === currentSource.url) {
+    if (!art || !currentSource || art.url === currentSource.url) {
       return;
     }
 
-    setCurrentPlaybackSeconds(0);
-    setPlaybackCoverUrl(playbackData.posterUrl);
+    currentPlaybackSecondsRef.current = 0;
+    if (art) {
+      art.poster = playbackCoverDefaultUrl;
+    }
     setIsPlaybackReady(false);
     setPlaybackError(null);
     hasAppliedResumeTimeRef.current = true;
@@ -574,216 +613,25 @@ export function PlayPageShell({
       setIsPlaybackReady(false);
       setPlaybackError("切换线路失败，请稍后重试。");
     });
-  }, [currentSource.url, playbackData.posterUrl]);
+  }, [currentSource, playbackCoverDefaultUrl]);
 
-  useEffect(() => {
-    const danmakuPlugin = artPlayerRef.current ? getArtplayerDanmakuPlugin(artPlayerRef.current) : undefined;
-
-    danmakuPlugin?.config(danmakuOption);
-  }, [danmakuOption]);
-
-  useEffect(() => {
-    const danmakuPlugin = artPlayerRef.current ? getArtplayerDanmakuPlugin(artPlayerRef.current) : undefined;
-
-    void danmakuPlugin?.load(getEpisodeDanmuku(activeEpisode));
-  }, [activeEpisode]);
-
-  useEffect(() => {
-    return () => {
-      if (volumeHoverTimeoutRef.current) {
-        clearTimeout(volumeHoverTimeoutRef.current);
-      }
-      if (controlBarHideTimeoutRef.current) {
-        clearTimeout(controlBarHideTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsNativeFullscreen(document.fullscreenElement === playerRef.current);
-      setIsControlBarVisible(true);
-    };
-
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-    };
-  }, []);
-
-  const resetPlaybackForEpisode = (episodeNumber: number) => {
-    const art = artPlayerRef.current;
-    const episodeSource = playbackData.sources.find((source) => source.id === `episode-${episodeNumber}`);
-
-    setActiveEpisode(episodeNumber);
-    if (episodeSource) {
-      setActiveSource(episodeSource.id);
-    }
-    setCurrentPlaybackSeconds(0);
-    setPlaybackCoverUrl(playbackData.posterUrl);
-    setIsPlaying(false);
-
-    if (art) {
-      art.pause();
-      art.currentTime = 0;
-    }
-  };
-
-  const playNextEpisode = () => {
-    const nextEpisode = activeEpisode >= episodeCount ? 1 : activeEpisode + 1;
-
-    resetPlaybackForEpisode(nextEpisode);
-  };
-
-  const skipPlayback = (seconds: number) => {
-    const art = artPlayerRef.current;
-
-    if (!art) {
-      setCurrentPlaybackSeconds((value) => clamp(value + seconds, 0, usablePlaybackDuration));
-      return;
-    }
-
-    const nextTime = clamp(art.currentTime + seconds, 0, usablePlaybackDuration);
-    art.currentTime = nextTime;
-    setCurrentPlaybackSeconds(nextTime);
-  };
-
-  const togglePlayerPanel = (panel: "volume" | "danmaku" | "settings") => {
-    setIsControlBarVisible(true);
-    setActivePlayerPanel((currentPanel) => (currentPanel === panel ? null : panel));
-  };
-
-  const updateVolumePanelPosition = () => {
-    const contentRect = controlBarContentRef.current?.getBoundingClientRect();
-    const volumeRect = volumeControlRef.current?.getBoundingClientRect();
-
-    if (!contentRect || !volumeRect) {
-      return;
-    }
-
-    setVolumePanelLeft(volumeRect.left - contentRect.left + volumeRect.width / 2);
-  };
-
-  const showVolumePanel = () => {
-    if (volumeHoverTimeoutRef.current) {
-      clearTimeout(volumeHoverTimeoutRef.current);
-      volumeHoverTimeoutRef.current = null;
-    }
-
-    updateVolumePanelPosition();
-    setIsControlBarVisible(true);
-    setIsVolumePanelHovered(true);
-  };
-
-  const hideVolumePanelSoon = () => {
-    if (volumeHoverTimeoutRef.current) {
-      clearTimeout(volumeHoverTimeoutRef.current);
-    }
-
-    volumeHoverTimeoutRef.current = setTimeout(() => {
-      setIsVolumePanelHovered(false);
-    }, 120);
-  };
-
-  const clearControlBarHideTimeout = useCallback(() => {
-    if (controlBarHideTimeoutRef.current) {
-      clearTimeout(controlBarHideTimeoutRef.current);
-      controlBarHideTimeoutRef.current = null;
-    }
-  }, []);
-
-  const scheduleControlBarHide = useCallback(() => {
-    clearControlBarHideTimeout();
-
-    if (!isPlaying || activePlayerPanel || isVolumePanelVisible) {
-      return;
-    }
-
-    controlBarHideTimeoutRef.current = setTimeout(() => {
-      setIsControlBarVisible(false);
-    }, 1800);
-  }, [activePlayerPanel, clearControlBarHideTimeout, isPlaying, isVolumePanelVisible]);
-
-  const showControlBar = useCallback(() => {
-    setIsControlBarVisible(true);
-    scheduleControlBarHide();
-  }, [scheduleControlBarHide]);
-
-  const hideControlBar = useCallback(() => {
-    clearControlBarHideTimeout();
-
-    if (!isPlaying || activePlayerPanel || isVolumePanelVisible) {
-      return;
-    }
-
-    setIsControlBarVisible(false);
-  }, [activePlayerPanel, clearControlBarHideTimeout, isPlaying, isVolumePanelVisible]);
-
-  useEffect(() => {
-    if (!isControlBarVisible) {
-      clearControlBarHideTimeout();
-      return;
-    }
-
-    scheduleControlBarHide();
-
-    return clearControlBarHideTimeout;
-  }, [clearControlBarHideTimeout, isControlBarVisible, scheduleControlBarHide]);
-
-  const toggleNativeFullscreen = async () => {
-    const player = playerRef.current;
-
-    if (!player) {
-      return;
-    }
-
-    try {
-      if (document.fullscreenElement === player) {
-        await document.exitFullscreen();
-        return;
-      }
-
-      await player.requestFullscreen();
-      setIsControlBarVisible(true);
-    } catch {
-      setIsControlBarVisible(true);
-    }
-  };
-
-  const togglePlayback = async () => {
-    const art = artPlayerRef.current;
-
-    if (!art) {
-      setIsControlBarVisible(true);
-      setIsPlaying((value) => !value);
-      return;
-    }
-
-    if (!art.playing) {
-      try {
-        setIsControlBarVisible(true);
-        await art.play();
-      } catch {
-        setPlaybackError("浏览器阻止了播放，请再次点击播放。");
-      }
-      return;
-    }
-
-    setIsControlBarVisible(true);
-    art.pause();
-  };
-
-  const updatePlaybackProgress = (seconds: number) => {
-    const art = artPlayerRef.current;
-    const nextTime = clamp(seconds, 0, usablePlaybackDuration);
-
-    if (art) {
-      art.currentTime = nextTime;
-    }
-
-    setCurrentPlaybackSeconds(nextTime);
-  };
+  if (hasPlaybackPlaceholderError || !playbackData) {
+    return (
+      <div className="min-h-screen px-4 py-5 text-foreground md:px-6 lg:px-8">
+        <div className="mx-auto grid w-full max-w-[100rem] gap-5">
+          <div className="grid min-h-[50vh] place-items-center rounded-2xl border border-default-200/70 bg-surface px-6 text-center shadow-sm">
+            <div className="grid max-w-md justify-items-center gap-3">
+              <span className="grid h-14 w-14 place-items-center rounded-full border border-white/12 bg-white/8 text-2xl text-danger-300">
+                <i aria-hidden="true" className="bi bi-exclamation-triangle" />
+              </span>
+              <h1 className="text-lg font-semibold tracking-normal">播放信息不可用</h1>
+              <p className="text-sm leading-6 text-default-500">{placeholderMessage}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen px-4 py-5 text-foreground md:px-6 lg:px-8">
@@ -798,392 +646,30 @@ export function PlayPageShell({
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
           <div
-            ref={playerRef}
             className={`relative aspect-video min-h-[260px] overflow-hidden bg-zinc-950 md:min-h-[520px] ${isWebFullscreen
               ? "fixed inset-x-0 top-16 z-50 aspect-auto h-[calc(100dvh-4rem)] min-h-0"
-              : ""
-              } ${isNativeFullscreen
-                ? "aspect-auto h-screen w-screen min-h-0"
-                : ""
-              }`}
-            onKeyDown={showControlBar}
-            onMouseEnter={showControlBar}
-            onMouseLeave={hideControlBar}
-            onMouseMove={showControlBar}
-            onTouchStart={showControlBar}
+              : ""}`}
           >
-            {hasPlaybackPlaceholderError ? (
-              <div className="absolute inset-0 grid place-items-center bg-zinc-950 px-6 text-center text-white">
-                <div className="grid max-w-md justify-items-center gap-3">
-                  <span className="grid h-14 w-14 place-items-center rounded-full border border-white/12 bg-white/8 text-2xl text-danger-300">
-                    <i aria-hidden="true" className="bi bi-exclamation-triangle" />
-                  </span>
-                  <h1 className="text-lg font-semibold tracking-normal">播放信息不可用</h1>
-                  <p className="text-sm leading-6 text-white/68">{playbackPlaceholderError}</p>
-                </div>
-              </div>
-            ) : (
-              <>
             <div
               ref={artContainerRef}
               aria-label={`${playbackData.title} 第 ${activeEpisode} 集视频`}
               data-mixtv-artplayer
-              className="absolute inset-0 h-full w-full bg-black [&_.art-bottom]:!hidden [&_.art-controls]:!hidden [&_.art-mask]:!hidden [&_.art-progress]:!hidden [&_.art-video-player]:h-full [&_.art-video-player]:w-full"
-            />
-            <div
-              aria-hidden="true"
-              className={`pointer-events-none absolute inset-0 z-10 bg-black bg-cover bg-center transition-opacity duration-300 ${shouldShowPlaybackCover ? "opacity-100" : "opacity-0"}`}
-              style={{ backgroundImage: playbackCoverUrl ? `url("${playbackCoverUrl}")` : undefined }}
+              className="absolute inset-0 z-20 h-full w-full bg-black [&_.art-video-player]:h-full [&_.art-video-player]:w-full"
             />
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,transparent_56%,rgba(0,0,0,0.32)_100%)]" />
-            <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center gap-5 px-6 text-center text-white transition-opacity ${shouldShowPlaybackOverlay ? "opacity-100" : "pointer-events-none opacity-0"}`}>
+            <div className={`pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-5 px-6 text-center text-white transition-opacity ${shouldShowPlaybackOverlay ? "opacity-100" : "opacity-0"}`}>
               {isPlaybackReady ? (
                 <button
                   type="button"
                   aria-label={isPlaying ? "暂停" : "播放"}
-                  className="inline-flex h-20 w-20 items-center justify-center rounded-full border border-white/30 bg-white/14 text-white shadow-2xl backdrop-blur transition-transform hover:cursor-pointer hover:scale-105"
+                  className="pointer-events-auto inline-flex h-20 w-20 items-center justify-center rounded-full border border-white/30 bg-white/14 text-white shadow-2xl backdrop-blur transition-transform hover:cursor-pointer hover:scale-105"
                   onClick={togglePlayback}
                 >
                   <i aria-hidden="true" className={`bi ${isPlaying ? "bi-pause-fill" : "bi-play-fill"} translate-x-0.5 text-5xl leading-none`} />
                 </button>
               ) : null}
               {playbackError ? <p className="max-w-md text-sm text-danger-300">{playbackError}</p> : null}
-              {/* <div className="min-w-0">
-                <p className="text-sm text-white/64">{currentSource.name} · {currentSource.quality}</p>
-                <h1 className="mt-2 text-2xl font-semibold tracking-normal md:text-3xl">
-                  {playbackData.title} 第 {activeEpisode} 集
-                </h1>
-                {playbackError ? <p className="mt-3 text-sm text-danger-300">{playbackError}</p> : null}
-              </div> */}
             </div>
-            <div className={`absolute bottom-3 left-1/2 z-40 grid w-[calc(100%-1.5rem)] max-w-[620px] -translate-x-1/2 gap-2 rounded-lg border border-white/16 bg-zinc-700/46 px-3 pb-0 pt-3 text-white shadow-2xl backdrop-blur-xl transition-opacity duration-300 sm:w-[min(68%,620px)] sm:px-4 sm:pb-0 ${isControlBarVisible ? "opacity-100" : "pointer-events-none opacity-0"}`}>
-              <input
-                aria-label="播放进度"
-                className="h-1 w-full cursor-pointer accent-[var(--accent)]"
-                max={usablePlaybackDuration}
-                min={0}
-                title="播放进度"
-                type="range"
-                value={currentPlaybackSeconds}
-                onChange={(event) => updatePlaybackProgress(Number(event.currentTarget.value))}
-              />
-
-              <div ref={controlBarContentRef} className="relative">
-                {isVolumePanelVisible ? (
-                  <div
-                    className="absolute bottom-12 z-50 grid -translate-x-1/2 rounded-md border border-white/12 bg-zinc-800/90 px-3 py-3 text-xs shadow-xl backdrop-blur-xl"
-                    style={{ left: volumePanelLeft ?? 0 }}
-                    onMouseEnter={showVolumePanel}
-                    onMouseLeave={hideVolumePanelSoon}
-                  >
-                    <label className="grid justify-items-center gap-2 text-white/82">
-                      <span className="font-medium tabular-nums">{volume}%</span>
-                      <input
-                        aria-label="音量"
-                        className="h-28 w-1 cursor-pointer accent-[var(--accent)] [direction:rtl] [writing-mode:vertical-lr]"
-                        max={100}
-                        min={0}
-                        title="音量"
-                        type="range"
-                        value={volume}
-                        onChange={(event) => setVolume(Number(event.currentTarget.value))}
-                      />
-                    </label>
-                  </div>
-                ) : null}
-
-                {activePlayerPanel === "settings" ? (
-                  <div className="absolute bottom-12 right-12 grid w-44 gap-3 rounded-md border border-white/12 bg-zinc-800/90 p-3 text-xs shadow-xl backdrop-blur-xl">
-                    <label className="grid gap-1 text-white/82">
-                      <span>播放速度</span>
-                      <select
-                        className="rounded border border-white/12 bg-zinc-900 px-2 py-1 text-white"
-                        value={playbackRate}
-                        onChange={(event) => setPlaybackRate(Number(event.currentTarget.value))}
-                      >
-                        <option value={0.75}>0.75x</option>
-                        <option value={1}>1.0x</option>
-                        <option value={1.25}>1.25x</option>
-                        <option value={1.5}>1.5x</option>
-                        <option value={2}>2.0x</option>
-                      </select>
-                    </label>
-                    <label className="grid gap-1 text-white/82">
-                      <span>清晰度</span>
-                      <select
-                        className="rounded border border-white/12 bg-zinc-900 px-2 py-1 text-white"
-                        value={activeSource}
-                        onChange={(event) => setActiveSource(event.currentTarget.value)}
-                      >
-                        {playbackData.sources.map((source) => (
-                          <option key={source.id} value={source.id}>
-                            {source.quality}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                ) : null}
-
-                <div className="scrollbar-hide flex min-w-0 items-center gap-1.5 overflow-x-auto text-white/90 sm:gap-2">
-                  <button
-                    type="button"
-                    aria-label={isPlaying ? "暂停" : "播放"}
-                    title={isPlaying ? "暂停" : "播放"}
-                    className={`${playerControlButtonClassName} text-xl`}
-                    onClick={togglePlayback}
-                  >
-                    <i aria-hidden="true" className={`bi ${isPlaying ? "bi-pause-fill" : "bi-play-fill"}`} />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="下一集"
-                    title="下一集"
-                    className={playerControlButtonClassName}
-                    onClick={playNextEpisode}
-                  >
-                    <i aria-hidden="true" className="bi bi-skip-forward-fill" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="后退 10 秒"
-                    title="后退 10 秒"
-                    className={playerControlButtonClassName}
-                    onClick={() => skipPlayback(-10)}
-                  >
-                    <i aria-hidden="true" className="bi bi-arrow-counterclockwise" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="前进 10 秒"
-                    title="前进 10 秒"
-                    className={playerControlButtonClassName}
-                    onClick={() => skipPlayback(10)}
-                  >
-                    <i aria-hidden="true" className="bi bi-arrow-clockwise" />
-                  </button>
-                  <div
-                    ref={volumeControlRef}
-                    className="shrink-0"
-                    onMouseEnter={showVolumePanel}
-                    onMouseLeave={hideVolumePanelSoon}
-                  >
-                    <button
-                      type="button"
-                      aria-label="声音调节"
-                      title="声音调节"
-                      className={playerControlButtonClassName}
-                      onClick={() => {
-                        updateVolumePanelPosition();
-                        togglePlayerPanel("volume");
-                      }}
-                    >
-                      <i aria-hidden="true" className={`bi ${volumeIconClassName}`} />
-                    </button>
-                  </div>
-
-                  <span
-                    aria-label={`当前时长 ${currentPlaybackTime}，总时长 ${totalPlaybackTime}`}
-                    className="mx-1 shrink-0 text-xs font-medium tabular-nums text-white/78 sm:mx-2 sm:text-sm"
-                    title="当前时长 / 总时长"
-                  >
-                    {currentPlaybackTime} / {totalPlaybackTime}
-                  </span>
-
-                  <span className="min-w-0 flex-1" />
-
-                  <Popover
-                    isOpen={activePlayerPanel === "danmaku"}
-                    onOpenChange={(isOpen) => {
-                      setIsControlBarVisible(true);
-                      setActivePlayerPanel(isOpen ? "danmaku" : null);
-                    }}
-                  >
-                    <Popover.Trigger
-                      aria-label="弹幕设置"
-                      className={playerControlButtonClassName}
-                      title="弹幕设置"
-                    >
-                      <i aria-hidden="true" className={`bi ${isDanmakuEnabled ? "bi-chat-dots-fill" : "bi-chat-dots"}`} />
-                    </Popover.Trigger>
-                    <Popover.Content
-                      className="z-50 w-80 max-w-[calc(100vw-2rem)] rounded-md border border-white/12 bg-zinc-800/92 p-0 text-xs text-white shadow-xl backdrop-blur-xl"
-                      offset={12}
-                      placement="top"
-                    >
-                      <Popover.Dialog className="grid gap-4 p-4 outline-none">
-                        <div className="flex items-center justify-between gap-3">
-                          <Popover.Heading className="font-medium text-white/90">弹幕设置</Popover.Heading>
-                          <Switch
-                            aria-label="开启弹幕"
-                            isSelected={isDanmakuEnabled}
-                            onChange={setIsDanmakuEnabled}
-                          >
-                            <Switch.Control>
-                              <Switch.Thumb />
-                            </Switch.Control>
-                          </Switch>
-                        </div>
-
-                        <div className="grid gap-2">
-                          <span className="text-white/72">按类型屏蔽</span>
-                          <div className="grid grid-cols-3 gap-2">
-                            {[
-                              { label: "滚动", active: isRollingDanmakuBlocked, onClick: () => setIsRollingDanmakuBlocked((value) => !value) },
-                              { label: "顶部", active: isTopDanmakuBlocked, onClick: () => setIsTopDanmakuBlocked((value) => !value) },
-                              { label: "底部", active: isBottomDanmakuBlocked, onClick: () => setIsBottomDanmakuBlocked((value) => !value) },
-                            ].map((item) => (
-                              <button
-                                key={item.label}
-                                type="button"
-                                aria-pressed={item.active}
-                                className={`h-8 rounded border text-xs font-medium transition-colors hover:cursor-pointer ${item.active ? "border-accent bg-accent/18 text-white" : "border-white/12 bg-white/6 text-white/62 hover:text-white"}`}
-                                onClick={item.onClick}
-                              >
-                                {item.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            aria-pressed={isDanmakuOverlapPrevented}
-                            className={`h-8 rounded border text-xs font-medium transition-colors hover:cursor-pointer ${isDanmakuOverlapPrevented ? "border-accent bg-accent/18 text-white" : "border-white/12 bg-white/6 text-white/62 hover:text-white"}`}
-                            onClick={() => setIsDanmakuOverlapPrevented((value) => !value)}
-                          >
-                            防重叠
-                          </button>
-                          <button
-                            type="button"
-                            aria-pressed={isDanmakuSpeedSynced}
-                            className={`h-8 rounded border text-xs font-medium transition-colors hover:cursor-pointer ${isDanmakuSpeedSynced ? "border-accent bg-accent/18 text-white" : "border-white/12 bg-white/6 text-white/62 hover:text-white"}`}
-                            onClick={() => setIsDanmakuSpeedSynced((value) => !value)}
-                          >
-                            同步视频速度
-                          </button>
-                        </div>
-
-                        <label className="grid grid-cols-[4.5rem_minmax(0,1fr)_1.85rem] items-center gap-3 text-white/82">
-                          <span>不透明度</span>
-                          <input
-                            aria-label="弹幕不透明度"
-                            className="h-1 w-full cursor-pointer accent-[var(--accent)]"
-                            max={100}
-                            min={20}
-                            type="range"
-                            value={danmakuOpacity}
-                            onChange={(event) => setDanmakuOpacity(Number(event.currentTarget.value))}
-                          />
-                          <span className="text-right tabular-nums text-white/68">{danmakuOpacity}%</span>
-                        </label>
-
-                        <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_1.85rem] items-center gap-3 text-white/82">
-                          <span>显示区域</span>
-                          <div className="relative grid grid-cols-4 items-start">
-                            <span className="absolute left-5 right-5 top-1 h-px bg-white/18" />
-                            {danmakuDisplayAreas.map((area) => {
-                              const isSelected = danmakuDisplayArea === area.value;
-
-                              return (
-                                <button
-                                  key={area.value}
-                                  type="button"
-                                  aria-pressed={isSelected}
-                                  className="relative z-10 grid justify-items-center gap-1 text-[11px] text-white/62 transition-colors hover:cursor-pointer hover:text-white"
-                                  onClick={() => setDanmakuDisplayArea(area.value)}
-                                >
-                                  <span className={`w-2 h-2 rounded-full border transition-colors ${isSelected ? "border-accent bg-accent shadow-[0_0_0_3px_rgba(255,255,255,0.08)]" : "border-white/28 bg-zinc-800"}`} />
-                                  <span>{area.label}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                          <span className="text-right tabular-nums text-white/68">{selectedDanmakuDisplayAreaLabel}</span>
-                        </div>
-
-                        <label className="grid grid-cols-[4.5rem_minmax(0,1fr)_1.85rem] items-center gap-3 text-white/82">
-                          <span>弹幕字号</span>
-                          <input
-                            aria-label="弹幕字号"
-                            className="h-1 w-full cursor-pointer accent-[var(--accent)]"
-                            max={50}
-                            min={20}
-                            type="range"
-                            value={danmakuFontSize}
-                            onChange={(event) => setDanmakuFontSize(Number(event.currentTarget.value))}
-                          />
-                          <span className="text-right tabular-nums text-white/68">{danmakuFontSize}px</span>
-                        </label>
-
-                        <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_1.85rem] items-center gap-3 text-white/82">
-                          <span>弹幕速度</span>
-                          <div className="relative grid grid-cols-5 items-start">
-                            <span className="absolute left-4 right-4 top-1 h-px bg-white/18" />
-                            {danmakuSpeedOptions.map((speed) => {
-                              const isSelected = danmakuSpeed === speed.value;
-                              const shouldShowLabel =
-                                speed.value === "very-slow" || speed.value === "normal" || speed.value === "very-fast";
-
-                              return (
-                                <button
-                                  key={speed.value}
-                                  type="button"
-                                  aria-pressed={isSelected}
-                                  className="relative z-10 grid justify-items-center gap-1 text-[11px] text-white/62 transition-colors hover:cursor-pointer hover:text-white"
-                                  onClick={() => setDanmakuSpeed(speed.value)}
-                                >
-                                  <span className={`w-2 h-2 rounded-full border transition-colors ${isSelected ? "border-accent bg-accent shadow-[0_0_0_3px_rgba(255,255,255,0.08)]" : "border-white/28 bg-zinc-800"}`} />
-                                  <span>{shouldShowLabel ? speed.label : null}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                          <span className="text-right tabular-nums text-white/68">{selectedDanmakuSpeedLabel}</span>
-                        </div>
-                      </Popover.Dialog>
-                    </Popover.Content>
-                  </Popover>
-                  {/* <button
-                    type="button"
-                    aria-label="设置"
-                    title="设置"
-                    className={playerControlButtonClassName}
-                    onClick={() => togglePlayerPanel("settings")}
-                  >
-                    <i aria-hidden="true" className="bi bi-gear-fill" />
-                  </button> */}
-                  <button
-                    type="button"
-                    aria-label="网页全屏"
-                    title="网页全屏"
-                    className={playerControlButtonClassName}
-                    onClick={() => {
-                      if (artPlayerRef.current) {
-                        artPlayerRef.current.fullscreenWeb = !artPlayerRef.current.fullscreenWeb;
-                        return;
-                      }
-
-                      setIsWebFullscreen((value) => !value);
-                    }}
-                  >
-                    <i aria-hidden="true" className={`bi text-base ${isWebFullscreen ? "bi-fullscreen-exit" : "bi-aspect-ratio"}`} />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="全屏"
-                    title="全屏"
-                    className={playerControlButtonClassName}
-                    onClick={toggleNativeFullscreen}
-                  >
-                    <i aria-hidden="true" className={`bi text-base ${isNativeFullscreen ? "bi-fullscreen-exit" : "bi-arrows-fullscreen"}`} />
-                  </button>
-                </div>
-              </div>
-            </div>
-              </>
-            )}
           </div>
 
           <div className="overflow-hidden rounded-xl border border-default-200/70 bg-surface shadow-sm backdrop-blur">
@@ -1251,7 +737,7 @@ export function PlayPageShell({
                         key={episode.number}
                         type="button"
                         aria-label={`${episode.title} ${episode.duration}`}
-                        className={`h-7 min-w-[3.5rem] rounded px-3 text-sm font-medium transition-colors ${episode.number === activeEpisode
+                        className={`h-7 min-w-[3.5rem] cursor-pointer rounded px-3 text-sm font-medium transition-colors ${episode.number === activeEpisode
                           ? "bg-accent text-accent-foreground"
                           : "bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_12%,transparent),color-mix(in_srgb,var(--surface-secondary)_82%,transparent))] text-default-700 ring-1 ring-inset ring-white/35 hover:bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_18%,transparent),color-mix(in_srgb,var(--surface-secondary)_92%,transparent))] hover:text-foreground"
                           }`}
@@ -1312,7 +798,7 @@ export function PlayPageShell({
         <section className="grid gap-5 rounded-2xl bg-[var(--surface)] p-4 shadow-sm backdrop-blur md:grid-cols-[180px_minmax(0,1fr)] md:p-5">
           <div className="relative aspect-[2/3] w-36 overflow-hidden rounded-lg bg-default-100 md:w-full">
             <Image
-              src={playbackData.posterUrl}
+              src={playbackData.cover || playbackCoverDefaultUrl}
               alt={`${playbackData.title} 封面`}
               fill
               className="object-cover"
@@ -1324,14 +810,15 @@ export function PlayPageShell({
           <div className="min-w-0">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-sm text-default-500">{playbackData.originalTitle}</p>
+                <p className="text-sm text-default-500">{playbackData.original_title}</p>
                 <h2 className="mt-1 text-2xl font-semibold tracking-normal text-foreground">{playbackData.title}</h2>
               </div>
               <Button
                 aria-pressed={isFavorite}
+                isDisabled={isFavoritePending}
                 size="sm"
                 variant={isFavorite ? "primary" : "outline"}
-                onPress={() => setIsFavorite((value) => !value)}
+                onPress={toggleFavorite}
               >
                 <i aria-hidden="true" className={`bi ${isFavorite ? "bi-heart-fill" : "bi-heart"}`} />
                 {isFavorite ? "已收藏" : "收藏"}
@@ -1347,25 +834,6 @@ export function PlayPageShell({
             </div>
 
             <Separator className="my-5" />
-
-            <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <dt className="text-default-500">片源</dt>
-                <dd className="mt-1 font-medium text-foreground">{currentSource.name}</dd>
-              </div>
-              <div>
-                <dt className="text-default-500">年份</dt>
-                <dd className="mt-1 font-medium text-foreground">{playbackData.year}</dd>
-              </div>
-              <div>
-                <dt className="text-default-500">地区</dt>
-                <dd className="mt-1 font-medium text-foreground">{playbackData.area}</dd>
-              </div>
-              <div>
-                <dt className="text-default-500">评分</dt>
-                <dd className="mt-1 font-medium text-foreground">{playbackData.rating}</dd>
-              </div>
-            </dl>
 
             <p className="mt-5 text-sm leading-7 text-default-600">{playbackData.description}</p>
           </div>

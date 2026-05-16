@@ -11,6 +11,7 @@ import {
   type VideoSourceItem,
   type VideoSourceStore,
 } from "@/modules/admin";
+import { hasFavorite, type FavoriteStore } from "@/modules/favorites/server/favorite-service";
 import type { DbPort } from "@/shared/db/db-port";
 import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import type { PlayPageData, VideoSource } from "../domain/playback-page-data";
@@ -26,6 +27,7 @@ export type PlaybackPageResult =
 export interface PlaybackPageOptions {
   cacheStore?: PlaybackCacheStore;
   detailFetcher?: typeof getVideoSourceDetail;
+  favoriteStore?: FavoriteStore;
   fetcher?: VideoSourceAdapterOptions["fetcher"];
   now?: () => number;
   progressStore?: PlaybackProgressStore;
@@ -43,6 +45,21 @@ const missingPlaybackQueryMessage = "缺少 source 或 id 参数，无法加载�
 const playbackCacheTtlSeconds = 2 * 60 * 60;
 
 export type PlaybackCacheStore = DbPort<unknown, string>;
+
+interface ThirdPartyDetailCachePayload {
+  total_episodes: number;
+  id: string;
+  idx: string;
+  key: string;
+  cover: string;
+  source: string;
+  title: string;
+  year: string;
+  remarks: string;
+  tag: string;
+  episodes: string[];
+  description: string;
+}
 
 const readPlaybackCacheScript = `
 return redis.call("GET", KEYS[1])
@@ -74,6 +91,115 @@ function createPlaybackCacheKey(sourceKey: string, id: string) {
   return `cache:video:${sourceKey}:${id}`;
 }
 
+function normalizeTitleForCacheIndex(title: string) {
+  return title
+    .trim()
+    .toLowerCase()
+    .replace(/[：:]/g, " ")
+    .replace(/\s+/g, "")
+    .replace(/第(一|二|三|四|五|六|七|八|九|十|\d+)(季|部)$/g, "");
+}
+
+function createCacheIndex(resource: VideoSourceResource) {
+  if (resource.doubanId) {
+    return `douban:${resource.doubanId}`;
+  }
+
+  const title = normalizeTitleForCacheIndex(resource.title);
+  const year = resource.year.trim();
+  const tag = resource.typeName?.trim() || resource.className?.trim();
+
+  if (title && year && year !== "unknown") {
+    return `title:${title}:year:${year}`;
+  }
+
+  if (title && tag) {
+    return `title:${title}:type:${tag}`;
+  }
+
+  return `source:${resource.sourceKey}:${resource.id}`;
+}
+
+function createThirdPartyDetailCachePayload(resource: VideoSourceResource): ThirdPartyDetailCachePayload {
+  return {
+    total_episodes: resource.episodes.length,
+    id: resource.id,
+    idx: createCacheIndex(resource),
+    key: resource.sourceKey,
+    cover: resource.posterUrl,
+    source: resource.sourceName,
+    title: resource.title,
+    year: resource.year,
+    remarks: resource.remarks ?? "",
+    tag: resource.typeName ?? resource.className ?? "",
+    episodes: resource.episodes,
+    description: resource.description,
+  };
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function parseDoubanId(idx: string) {
+  if (!idx.startsWith("douban:")) {
+    return undefined;
+  }
+
+  const id = Number(idx.slice("douban:".length));
+  return Number.isFinite(id) ? id : undefined;
+}
+
+function parseDetailCachePayload(value: Record<string, unknown>): ThirdPartyDetailCachePayload | null {
+  if (
+    typeof value.total_episodes !== "number" ||
+    typeof value.id !== "string" ||
+    typeof value.idx !== "string" ||
+    typeof value.key !== "string" ||
+    typeof value.cover !== "string" ||
+    typeof value.source !== "string" ||
+    typeof value.title !== "string" ||
+    typeof value.year !== "string" ||
+    typeof value.remarks !== "string" ||
+    typeof value.tag !== "string" ||
+    typeof value.description !== "string" ||
+    !isStringArray(value.episodes)
+  ) {
+    return null;
+  }
+
+  return {
+    description: value.description,
+    id: value.id,
+    idx: value.idx,
+    key: value.key,
+    cover: value.cover,
+    source: value.source,
+    title: value.title,
+    year: value.year,
+    remarks: value.remarks,
+    tag: value.tag,
+    episodes: value.episodes,
+    total_episodes: value.total_episodes,
+  };
+}
+
+function convertDetailCachePayloadToResource(payload: ThirdPartyDetailCachePayload): VideoSourceResource {
+  return {
+    description: payload.description,
+    doubanId: parseDoubanId(payload.idx),
+    episodes: payload.episodes,
+    id: payload.id,
+    posterUrl: payload.cover,
+    remarks: payload.remarks,
+    sourceKey: payload.key,
+    sourceName: payload.source,
+    title: payload.title,
+    typeName: payload.tag,
+    year: payload.year,
+  };
+}
+
 function parseCachedResource(value: unknown): VideoSourceResource | null {
   if (typeof value !== "string") {
     return null;
@@ -86,19 +212,8 @@ function parseCachedResource(value: unknown): VideoSourceResource | null {
       return null;
     }
 
-    const resource = parsed as Partial<VideoSourceResource>;
-
-    if (
-      typeof resource.id !== "string" ||
-      typeof resource.sourceKey !== "string" ||
-      typeof resource.title !== "string" ||
-      !Array.isArray(resource.episodes) ||
-      !Array.isArray(resource.episodeTitles)
-    ) {
-      return null;
-    }
-
-    return resource as VideoSourceResource;
+    const payload = parseDetailCachePayload(parsed as Record<string, unknown>);
+    return payload ? convertDetailCachePayloadToResource(payload) : null;
   } catch {
     return null;
   }
@@ -120,7 +235,7 @@ async function readCachedResource(cacheStore: PlaybackCacheStore, cacheKey: stri
 async function saveCachedResource(cacheStore: PlaybackCacheStore, cacheKey: string, resource: VideoSourceResource) {
   try {
     await cacheStore.script(savePlaybackCacheScript, {
-      args: [JSON.stringify(resource), playbackCacheTtlSeconds],
+      args: [JSON.stringify(createThirdPartyDetailCachePayload(resource)), playbackCacheTtlSeconds],
       keys: [cacheKey],
     });
   } catch {
@@ -158,6 +273,37 @@ function createTags(resource: Awaited<ReturnType<typeof getVideoSourceDetail>>) 
   ].filter((tag): tag is string => Boolean(tag));
 }
 
+async function readPlaybackFavoriteState({
+  favoriteStore,
+  id,
+  sourceKey,
+  userId,
+}: {
+  favoriteStore?: FavoriteStore;
+  id: string;
+  sourceKey: string;
+  userId?: string;
+}) {
+  if (!userId) {
+    return false;
+  }
+
+  try {
+    return await hasFavorite(
+      userId,
+      {
+        id,
+        source: sourceKey,
+      },
+      {
+        ...(favoriteStore ? { store: favoriteStore } : {}),
+      },
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function getPlaybackPageData(
   query: PlaybackPageQuery,
   options: PlaybackPageOptions = {},
@@ -172,6 +318,7 @@ export async function getPlaybackPageData(
   const {
     cacheStore = createPlaybackCacheStore(),
     detailFetcher = getVideoSourceDetail,
+    favoriteStore,
     fetcher,
     now,
     progressStore,
@@ -203,40 +350,49 @@ export async function getPlaybackPageData(
 
     const playbackProgress = userId
       ? await getOrCreateInitialPlaybackProgress(
-          {
-            detail: resource,
-            id,
-            source: sourceKey,
-          },
-          {
-            ...(now ? { now } : {}),
-            ...(progressStore ? { store: progressStore } : {}),
-            userId,
-          },
-        )
+        {
+          detail: resource,
+          id,
+          source: sourceKey,
+        },
+        {
+          ...(now ? { now } : {}),
+          ...(progressStore ? { store: progressStore } : {}),
+          userId,
+        },
+      )
       : null;
-    const sources = createPlaybackSources(resource.episodes, resource.episodeTitles);
+    const isFavorite = await readPlaybackFavoriteState({
+      favoriteStore,
+      id,
+      sourceKey,
+      userId,
+    });
+    const sources = createPlaybackSources(resource.episodes, resource.episodeTitles ?? []);
     const title = resource.title || "未知影片";
+    const coverDefault = createPlaceholderImageUrl({
+      variant: "poster",
+      fileStem: title,
+      seed: `${resource.sourceKey}-${resource.id}`,
+    });
 
     return {
       status: "ready",
       data: {
         title,
-        originalTitle: resource.typeName ?? resource.className ?? resource.sourceName,
-        currentEpisode: playbackProgress?.index ?? 1,
-        posterUrl: resource.posterUrl || createPlaceholderImageUrl({
-          variant: "poster",
-          fileStem: title,
-          seed: `${resource.sourceKey}-${resource.id}`,
-        }),
-        progressId: id,
-        progressSource: sourceKey,
-        resumeTimeSeconds: playbackProgress?.play_time,
+        original_title: resource.typeName ?? resource.className ?? resource.sourceName,
+        current_episode: playbackProgress?.index ?? 1,
+        cover_default: coverDefault,
+        cover: resource.posterUrl || coverDefault,
+        progress_id: id,
+        progress_source: sourceKey,
+        resume_time_seconds: playbackProgress?.play_time,
+        is_favorite: isFavorite,
         year: resource.year,
         area: resource.sourceName,
         category: resource.className ?? resource.typeName ?? "未知",
         rating: "暂无",
-        sourceName: resource.sourceName,
+        source_name: resource.sourceName,
         description: resource.description || "暂无简介。",
         tags: createTags(resource),
         episodes: sources.map((sourceItem, index) => ({

@@ -15,17 +15,19 @@ export type VideoSource = {
 
 export type PlayPageData = {
   title: string;
-  originalTitle: string;
-  currentEpisode: number;
-  posterUrl: string;
-  progressId: string;
-  progressSource: string;
-  resumeTimeSeconds?: number;
+  original_title: string;
+  current_episode: number;
+  cover_default: string;
+  cover: string;
+  progress_id: string;
+  progress_source: string;
+  resume_time_seconds?: number;
+  is_favorite?: boolean;
   year: string;
   area: string;
   category: string;
   rating: string;
-  sourceName: string;
+  source_name: string;
   description: string;
   tags: string[];
   episodes: Episode[];
