@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { listPlaybackHistory } from "@/modules/history/server/history-service";
 import { listHistoryResponse } from "./history-response";
+import { withApiTraffic } from "@/modules/stats";
 
 function readUserId(session: unknown) {
   if (!session || typeof session !== "object") {
@@ -19,7 +20,7 @@ function readUserId(session: unknown) {
   return typeof id === "string" ? id : "";
 }
 
-export async function GET() {
+export const GET = withApiTraffic(async function GET() {
   const userId = readUserId(await auth());
 
   if (!userId) {
@@ -29,4 +30,4 @@ export async function GET() {
   const history = await listPlaybackHistory(userId);
 
   return NextResponse.json({ history: await listHistoryResponse(userId, history) });
-}
+});

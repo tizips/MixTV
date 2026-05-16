@@ -18,6 +18,10 @@ export type HistoryUpdateSummary = {
   users: number;
 };
 
+export type HistoryUpdateCountSummary = {
+  history: number;
+};
+
 export type HistoryUpdateEvent =
   | { total: number; type: "start" }
   | { id: string; reason: "older_than_30_days"; source: string; type: "skip" }
@@ -59,7 +63,7 @@ export class HistoryUpdateValidationError extends Error {
 const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
 const historyUpdateCacheSeconds = 2 * 60 * 60;
 const historyUpdateCacheKeyPrefix = "cache:update";
-const historyUpdateCacheTotalEpisodesField = "total_episodes";
+const historyUpdateCacheTotalEpisodesField = "original_episodes";
 const playbackProgressHashKeySuffix = ":pr";
 
 const readHistoryUpdateCacheScript = `
@@ -91,7 +95,7 @@ return keys
 
 function normalizeHistoryUpdateTotal(totalEpisodes: number) {
   if (!Number.isFinite(totalEpisodes) || totalEpisodes < 0) {
-    throw new HistoryUpdateValidationError("total_episodes must be non-negative.");
+    throw new HistoryUpdateValidationError("original_episodes must be non-negative.");
   }
 
   return Math.floor(totalEpisodes);
@@ -165,7 +169,7 @@ async function readCachedSourceTotal(cacheStore: HistoryUpdateCacheStore, cacheK
   }
 
   return {
-    total_episodes: Math.floor(totalEpisodes),
+    original_episodes: Math.floor(totalEpisodes),
   };
 }
 
@@ -215,10 +219,10 @@ function createHistoryUpdateEvent(
     cached,
     id: item.id,
     newTotalEpisodes,
-    oldTotalEpisodes: item.total_episodes,
+    oldTotalEpisodes: item.original_episodes,
     source: item.source,
     type,
-    updated: newTotalEpisodes > item.total_episodes,
+    updated: newTotalEpisodes > item.original_episodes,
   };
 }
 
@@ -237,15 +241,48 @@ async function listPlaybackHistoryUserIds(store: HistoryStore) {
   return [...new Set(keys.map(readPlaybackHistoryUserIdFromKey).filter((userId) => userId.length > 0))];
 }
 
-export async function* checkHistoryUpdates(userId: string, options: HistoryUpdateOptions = {}): AsyncGenerator<HistoryUpdateEvent> {
+async function resolveHistoryUpdateTotalEpisodes(
+  item: HistoryItem,
+  options: Pick<HistoryUpdateOptions, "cacheStore" | "detailFetcher" | "fetcher" | "timeoutMs" | "videoSourceStore">,
+) {
   const {
     cacheStore = createHistoryUpdateCacheStore(),
     detailFetcher = getVideoSourceDetail,
     fetcher,
-    historyStore,
-    now = Date.now,
     timeoutMs,
     videoSourceStore = createVideoSourceStore(),
+  } = options;
+  const cacheKey = createHistoryUpdateCacheKey(item.source, item.id);
+  const cached = await readCachedSourceTotal(cacheStore, cacheKey);
+  const isCached = typeof cached?.original_episodes === "number";
+  let resolvedTotalEpisodes = cached?.original_episodes;
+
+  if (typeof resolvedTotalEpisodes !== "number") {
+    const source = await findEnabledSource(item.source, videoSourceStore);
+
+    if (!source) {
+      throw new HistoryUpdateValidationError("source not found.");
+    }
+
+    const detail = await detailFetcher(source, item.id, {
+      ...(fetcher ? { fetcher } : {}),
+      ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    });
+
+    resolvedTotalEpisodes = detail.episodes.length;
+    await saveCachedSourceTotal(cacheStore, cacheKey, resolvedTotalEpisodes);
+  }
+
+  return {
+    cached: isCached,
+    totalEpisodes: normalizeHistoryUpdateTotal(resolvedTotalEpisodes),
+  };
+}
+
+export async function* checkHistoryUpdates(userId: string, options: HistoryUpdateOptions = {}): AsyncGenerator<HistoryUpdateEvent> {
+  const {
+    historyStore,
+    now = Date.now,
   } = options;
   const history = await listPlaybackHistory(userId, { store: historyStore });
   const currentTime = now();
@@ -266,36 +303,14 @@ export async function* checkHistoryUpdates(userId: string, options: HistoryUpdat
     checked += 1;
 
     try {
-      const cacheKey = createHistoryUpdateCacheKey(item.source, item.id);
-      const cached = await readCachedSourceTotal(cacheStore, cacheKey);
-      const sourceTotalEpisodes = cached?.total_episodes;
-      const isCached = typeof sourceTotalEpisodes === "number";
-      let resolvedTotalEpisodes = sourceTotalEpisodes;
+      const { cached, totalEpisodes: normalizedTotalEpisodes } = await resolveHistoryUpdateTotalEpisodes(item, options);
 
-      if (typeof resolvedTotalEpisodes !== "number") {
-        const source = await findEnabledSource(item.source, videoSourceStore);
-
-        if (!source) {
-          throw new HistoryUpdateValidationError("source not found.");
-        }
-
-        const detail = await detailFetcher(source, item.id, {
-          ...(fetcher ? { fetcher } : {}),
-          ...(timeoutMs === undefined ? {} : { timeoutMs }),
-        });
-
-        resolvedTotalEpisodes = detail.episodes.length;
-        await saveCachedSourceTotal(cacheStore, cacheKey, resolvedTotalEpisodes);
-      }
-
-      const normalizedTotalEpisodes = normalizeHistoryUpdateTotal(resolvedTotalEpisodes);
-
-      if (normalizedTotalEpisodes > item.total_episodes) {
+      if (normalizedTotalEpisodes > item.original_episodes) {
         await updatePlaybackHistoryTotalEpisodes(userId, item, normalizedTotalEpisodes, { store: historyStore });
         updated += 1;
-        yield createHistoryUpdateEvent(item, "update", isCached, normalizedTotalEpisodes);
+        yield createHistoryUpdateEvent(item, "update", cached, normalizedTotalEpisodes);
       } else {
-        yield createHistoryUpdateEvent(item, "unchanged", isCached, normalizedTotalEpisodes);
+        yield createHistoryUpdateEvent(item, "unchanged", cached, normalizedTotalEpisodes);
       }
     } catch (error) {
       errors += 1;
@@ -309,6 +324,14 @@ export async function* checkHistoryUpdates(userId: string, options: HistoryUpdat
   }
 
   yield { checked, errors, skipped, type: "done", updated };
+}
+
+export async function countHistoryUpdates(userId: string, options: HistoryUpdateOptions = {}): Promise<HistoryUpdateCountSummary> {
+  const { historyStore } = options;
+  const history = await listPlaybackHistory(userId, { store: historyStore });
+  const historyCount = history.filter((item) => item.original_episodes > item.play_episodes).length;
+
+  return { history: historyCount };
 }
 
 async function checkHistoryUpdatesForUser(userId: string, options: HistoryUpdateOptions) {

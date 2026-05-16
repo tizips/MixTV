@@ -91,57 +91,75 @@ function toHashRecord(value: unknown) {
   return record;
 }
 
-function parseStoredPlaybackProgress(rawProgress: string): StoredPlaybackProgressRecord | null {
+function parseStoredPlaybackProgress(rawProgress: string): {
+  needsMigration: boolean;
+  record: StoredPlaybackProgressRecord | null;
+} {
   try {
     const parsed = JSON.parse(rawProgress) as unknown;
 
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return null;
+      return { needsMigration: false, record: null };
     }
 
     const progress = parsed as Partial<StoredPlaybackProgressRecord>;
+    const legacyIndex = parsed as Partial<{ index: number }>;
+    const hasPlayEpisodes = typeof progress.play_episodes === "number";
+    const playEpisodes = hasPlayEpisodes ? progress.play_episodes : legacyIndex.index;
+    const needsMigration = !hasPlayEpisodes && typeof legacyIndex.index === "number";
 
     if (
       typeof progress.cover !== "string" ||
       typeof progress.douban_id !== "number" ||
-      typeof progress.index !== "number" ||
       typeof progress.original_episodes !== "number" ||
       typeof progress.play_time !== "number" ||
+      typeof playEpisodes !== "number" ||
       typeof progress.remarks !== "string" ||
       typeof progress.save_time !== "number" ||
       typeof progress.search_title !== "string" ||
       typeof progress.source_name !== "string" ||
       typeof progress.title !== "string" ||
-      typeof progress.total_episodes !== "number" ||
       typeof progress.total_time !== "number" ||
       typeof progress.year !== "string"
     ) {
-      return null;
+      return { needsMigration: false, record: null };
     }
 
-    return progress as StoredPlaybackProgressRecord;
+    return {
+      needsMigration,
+      record: {
+        ...progress,
+        play_episodes: playEpisodes,
+      } as StoredPlaybackProgressRecord,
+    };
   } catch {
-    return null;
+    return { needsMigration: false, record: null };
   }
 }
 
-function parseHistoryEntry(field: string, rawProgress: string): HistoryItem | null {
+function parseHistoryEntry(field: string, rawProgress: string): {
+  needsMigration: boolean;
+  item: HistoryItem | null;
+} {
   const delimiterIndex = field.indexOf(":");
 
   if (delimiterIndex <= 0 || delimiterIndex === field.length - 1) {
-    return null;
+    return { needsMigration: false, item: null };
   }
 
-  const record = parseStoredPlaybackProgress(rawProgress);
+  const parsed = parseStoredPlaybackProgress(rawProgress);
 
-  if (!record) {
-    return null;
+  if (!parsed.record) {
+    return { needsMigration: false, item: null };
   }
 
   return {
-    id: field.slice(delimiterIndex + 1),
-    source: field.slice(0, delimiterIndex),
-    ...record,
+    needsMigration: parsed.needsMigration,
+    item: {
+      id: field.slice(delimiterIndex + 1),
+      source: field.slice(0, delimiterIndex),
+      ...parsed.record,
+    },
   };
 }
 
@@ -159,11 +177,22 @@ async function readHistoryRecord(userId: string, store: HistoryStore) {
 }
 
 export async function listPlaybackHistory(userId: string, { store = createPlaybackProgressStore() }: HistoryServiceOptions = {}) {
-  return sortHistory(
-    Object.entries(await readHistoryRecord(userId, store))
-      .map(([field, value]) => parseHistoryEntry(field, value))
-      .filter((history): history is HistoryItem => history !== null),
+  const historyEntries = Object.entries(await readHistoryRecord(userId, store))
+    .map(([field, value]) => parseHistoryEntry(field, value))
+    .filter((entry): entry is { needsMigration: boolean; item: HistoryItem } => entry.item !== null);
+
+  await Promise.all(
+    historyEntries
+      .filter((entry) => entry.needsMigration)
+      .map((entry) =>
+        store.script(saveHistoryScript, {
+          args: [createPlaybackProgressField(entry.item.source, entry.item.id), JSON.stringify(entry.item)],
+          keys: [createUserPlaybackProgressHashKey(userId)],
+        }),
+      ),
   );
+
+  return sortHistory(historyEntries.map((entry) => entry.item));
 }
 
 export async function deleteHistoryPlaybackProgress(
@@ -191,7 +220,7 @@ export async function updatePlaybackHistoryTotalEpisodes(
   const field = createPlaybackProgressField(history.source, history.id);
   const updatedHistory: HistoryItem = {
     ...history,
-    total_episodes: Math.max(0, Math.floor(totalEpisodes)),
+    original_episodes: Math.max(0, Math.floor(totalEpisodes)),
   };
 
   await store.script(saveHistoryScript, {

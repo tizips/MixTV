@@ -3,7 +3,9 @@ export { HistoryPageShell } from "./ui/history-page-shell";
 export {
   checkAllHistoryUpdates,
   checkHistoryUpdates,
+  countHistoryUpdates,
   createHistoryUpdateCacheStore,
   type HistoryUpdateEvent,
+  type HistoryUpdateCountSummary,
   type HistoryUpdateSummary,
 } from "./server/history-update-service";

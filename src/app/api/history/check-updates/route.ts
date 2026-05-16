@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { checkHistoryUpdates } from "@/modules/history/server/history-update-service";
+import { recordApiRequest } from "@/modules/stats";
 
 function readUserId(session: unknown) {
   if (!session || typeof session !== "object") {
@@ -24,8 +25,13 @@ function encodeSseEvent(eventName: string, data: unknown) {
 
 export async function GET() {
   const userId = readUserId(await auth());
+  const startedAt = performance.now();
 
   if (!userId) {
+    void recordApiRequest({
+      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+      ok: false,
+    });
     return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
   }
 
@@ -36,6 +42,10 @@ export async function GET() {
         for await (const event of checkHistoryUpdates(userId)) {
           controller.enqueue(encoder.encode(encodeSseEvent(event.type, event)));
         }
+        void recordApiRequest({
+          durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+          ok: true,
+        });
       } catch (error) {
         controller.enqueue(
           encoder.encode(
@@ -45,6 +55,10 @@ export async function GET() {
             }),
           ),
         );
+        void recordApiRequest({
+          durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+          ok: false,
+        });
       } finally {
         controller.close();
       }

@@ -3,7 +3,8 @@
 import { Chip, ProgressBar } from "@heroui/react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { env } from "@/shared/env";
 import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import type { HistoryItem } from "../server/history-service";
 
@@ -29,16 +30,15 @@ function isHistoryItem(value: unknown): value is HistoryRecord {
     typeof history.cover === "string" &&
     typeof history.douban_id === "number" &&
     typeof history.id === "string" &&
-    typeof history.index === "number" &&
     typeof history.original_episodes === "number" &&
     typeof history.play_time === "number" &&
+    typeof history.play_episodes === "number" &&
     typeof history.remarks === "string" &&
     typeof history.save_time === "number" &&
     typeof history.search_title === "string" &&
     typeof history.source === "string" &&
     typeof history.source_name === "string" &&
     typeof history.title === "string" &&
-    typeof history.total_episodes === "number" &&
     typeof history.total_time === "number" &&
     typeof history.year === "string" &&
     (history.is_favorite === undefined || typeof history.is_favorite === "boolean")
@@ -82,23 +82,6 @@ function createPlayHref(history: HistoryItem) {
   });
 
   return `/play?${params.toString()}`;
-}
-
-function formatDuration(totalSeconds: number) {
-  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
-    return "0:00";
-  }
-
-  const rounded = Math.floor(totalSeconds);
-  const hours = Math.floor(rounded / 3600);
-  const minutes = Math.floor((rounded % 3600) / 60);
-  const seconds = rounded % 60;
-
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  }
-
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 function createHistoryResourceKey(history: HistoryItem) {
@@ -157,21 +140,21 @@ function HistoryPoster({
         </span>
         <div className="absolute left-2.5 top-2.5 z-20 inline-flex overflow-hidden rounded-full shadow-sm ring-1 ring-white/20 backdrop-blur-md">
           <span className="bg-danger px-2.5 py-1 text-[11px] font-semibold leading-none text-danger-foreground">
-            EP.{history.index}
+            EP.{history.play_episodes}
           </span>
           <span className="bg-white/14 px-2.5 py-1 text-[11px] font-semibold leading-none text-white">
-            /{history.total_episodes}
+            /{history.original_episodes}
           </span>
         </div>
         {
-          history.original_episodes > history.index &&
+          history.original_episodes > history.play_episodes &&
           <Chip
             className="absolute right-2 top-2 z-10 h-6 rounded-full px-2.5 text-[11px] font-semibold text-white ring-1 ring-white/20 backdrop-blur-md"
             size="sm"
             color="danger"
             variant="primary"
           >
-            {history.total_episodes - history.index}
+            {history.original_episodes - history.play_episodes}
           </Chip>
         }
       </Link>
@@ -180,19 +163,19 @@ function HistoryPoster({
           type="button"
           aria-label={isFavorite ? `取消收藏 ${history.title}` : `收藏 ${history.title}`}
           aria-pressed={isFavorite}
-          className={`grid h-7 w-7 place-items-center rounded-full bg-transparent text-sm text-white/95 transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger ${isFavorite ? "text-danger" : ""}`}
+          className={`grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed ${isFavorite ? "text-danger" : ""}`}
           disabled={isFavoriting}
           onClick={(event) => {
             event.stopPropagation();
             onFavoriteToggle(history);
           }}
         >
-          <i aria-hidden="true" className={isFavorite ? "bi bi-heart-fill" : "bi bi-heart"} />
+          <i aria-hidden="true" className={isFavorite ? "bi bi-heart-fill text-danger" : "bi bi-heart"} />
         </button>
         <button
           type="button"
           aria-label={`移除观看记录 ${history.title}`}
-          className="grid h-7 w-7 place-items-center rounded-full bg-transparent text-sm text-white/95 transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
+          className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed"
           disabled={isRemoving}
           onClick={(event) => {
             event.stopPropagation();
@@ -247,10 +230,10 @@ function HistoryCard({
           <h2 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground transition-colors group-hover:text-accent">
             {history.title}
           </h2>
-          <p className="flex min-w-0 items-center justify-between gap-3 text-xs text-muted">
+          <div className="flex min-w-0 items-center justify-between gap-2 text-xs text-muted">
             <span className="min-w-0 truncate">{history.year || "未知年份"}</span>
-            <span className="min-w-0 truncate text-right">{history.source_name}</span>
-          </p>
+            <span className="min-w-0 truncate text-right text-foreground/80">{history.source_name}</span>
+          </div>
         </Link>
       </div>
     </article>
@@ -288,11 +271,6 @@ export function HistoryPageShell() {
   const [errorMessage, setErrorMessage] = useState("");
   const [favoritingKeys, setFavoritingKeys] = useState<Set<string>>(() => new Set());
   const [removingKeys, setRemovingKeys] = useState<Set<string>>(() => new Set());
-
-  const totalPlayTime = useMemo(
-    () => history.reduce((total, item) => total + item.play_time, 0),
-    [history],
-  );
 
   useEffect(() => {
     let isMounted = true;
@@ -393,27 +371,17 @@ export function HistoryPageShell() {
   return (
     <section className="min-h-screen w-full px-4 py-8 text-foreground md:px-6 lg:px-8">
       <div className="mx-auto grid w-full max-w-6xl content-start gap-8">
-        <header className="grid gap-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+        <header className="grid gap-5">
           <div className="grid gap-3">
             <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase text-accent">
               <i aria-hidden="true" className="bi bi-clock-history" />
-              MixTV
+              {env.NEXT_PUBLIC_SITE_NAME}
             </p>
             <div className="grid gap-2">
               <h1 className="text-3xl font-semibold tracking-tight md:text-5xl">观看历史</h1>
               <p className="max-w-2xl text-sm leading-6 text-muted md:text-base">
                 最近播放过的影片会按时间倒序展示，方便你继续播放或移除记录。
               </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2 rounded-md bg-surface/72 p-2 text-sm shadow-[0_12px_36px_rgba(15,23,42,0.08)] ring-1 ring-black/5 dark:ring-white/10">
-            <div className="min-w-28 rounded bg-surface-secondary/70 px-4 py-3">
-              <p className="text-xs text-muted">记录</p>
-              <p className="mt-1 text-2xl font-semibold">{history.length}</p>
-            </div>
-            <div className="min-w-28 rounded bg-surface-secondary/70 px-4 py-3">
-              <p className="text-xs text-muted">已观看</p>
-              <p className="mt-1 text-2xl font-semibold">{formatDuration(totalPlayTime)}</p>
             </div>
           </div>
         </header>

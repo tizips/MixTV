@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import type { ComponentPropsWithoutRef } from "react";
-import { useState } from "react";
+import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { signOut } from "next-auth/react";
-import { AlertDialog, Button, Dropdown, Label, ListBox, Separator } from "@heroui/react";
+import { AlertDialog, Button, Chip, Dropdown, ListBox, Separator } from "@heroui/react";
 
 type UserMenuProps = {
   userName: string;
@@ -14,28 +15,41 @@ type UserMenuProps = {
 type MenuItem = {
   label: string;
   iconClassName: string;
+  trailing?: ReactNode;
   adminOnly?: boolean;
 } & ({ href: string; onClick?: never } | { href?: never; onClick: () => void });
 
-const menuItems: MenuItem[] = [
-  { label: "设置", href: "/settings", iconClassName: "bi-gear" },
-  { label: "更新提醒", href: "/updates", iconClassName: "bi-bell" },
-  { label: "继续观看", href: "/history", iconClassName: "bi-play-circle" },
-  { label: "我的收藏", href: "/favorites", iconClassName: "bi-heart" },
-  { label: "管理面板", href: "/admin", iconClassName: "bi-speedometer2", adminOnly: true },
-  { label: "播放统计", href: "/stats", iconClassName: "bi-bar-chart" },
-  { label: "上映日程", href: "/release-schedule", iconClassName: "bi-calendar-event" },
-];
+function createMenuItems(historyUpdateCount?: number): MenuItem[] {
+  return [
+    { label: "设置", href: "/settings", iconClassName: "bi-gear" },
+    {
+      label: "继续观看",
+      href: "/history",
+      iconClassName: "bi-play-circle",
+      trailing:
+        typeof historyUpdateCount === "number" && historyUpdateCount > 0 ? (
+          <Chip className="h-5 shrink-0 px-1.5 text-[11px]" color="danger" size="sm" variant="primary">
+            {historyUpdateCount}
+          </Chip>
+        ) : undefined,
+    },
+    { label: "我的收藏", href: "/favorites", iconClassName: "bi-heart" },
+    { label: "管理面板", href: "/admin", iconClassName: "bi-speedometer2", adminOnly: true },
+    { label: "播放统计", href: "/stats", iconClassName: "bi-bar-chart", adminOnly: true },
+    { label: "上映日程", href: "/release-schedule", iconClassName: "bi-calendar-event" },
+  ];
+}
 
 function renderLinkProps(props: unknown): ComponentPropsWithoutRef<"a"> {
   return props as ComponentPropsWithoutRef<"a">;
 }
 
-function renderItemContent(item: Pick<MenuItem, "iconClassName" | "label">, className = "") {
+function renderItemContent(item: Pick<MenuItem, "iconClassName" | "label" | "trailing">, className = "") {
   return (
-    <span className={`flex items-center gap-3 ${className}`.trim()}>
+    <span className={`flex w-full items-center gap-3 ${className}`.trim()}>
       <span className={`bi ${item.iconClassName} text-base`} aria-hidden="true" />
-      <Label>{item.label}</Label>
+      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+      {item.trailing}
     </span>
   );
 }
@@ -43,7 +57,43 @@ function renderItemContent(item: Pick<MenuItem, "iconClassName" | "label">, clas
 export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
+  const [historyUpdateCount, setHistoryUpdateCount] = useState<number | null>(null);
   const permissionLabel = isAdmin ? "站长" : "普通用户";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadHistoryUpdateCount() {
+      try {
+        const response = await fetch("/api/history/update-count", { cache: "no-store" });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as { history?: unknown };
+        const nextCount = typeof payload.history === "number" && Number.isFinite(payload.history)
+          ? Math.max(0, Math.floor(payload.history))
+          : 0;
+
+        if (!cancelled) {
+          setHistoryUpdateCount(nextCount);
+        }
+      } catch {
+        if (!cancelled) {
+          setHistoryUpdateCount(0);
+        }
+      }
+    }
+
+    void loadHistoryUpdateCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const menuItems = createMenuItems(historyUpdateCount ?? undefined);
   const logoutItem: MenuItem = {
     label: "登出",
     iconClassName: "bi-box-arrow-right",
@@ -111,21 +161,6 @@ export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
                 variant="danger"
               >
                 {renderItemContent(logoutItem, "text-danger")}
-              </ListBox.Item>
-            </ListBox.Section>
-            <Separator />
-            <ListBox.Section>
-              <ListBox.Item
-                href="/version"
-                id="version"
-                render={(props) => (
-                  <Link {...renderLinkProps(props)} href="/version">
-                    版本信息
-                  </Link>
-                )}
-                textValue="版本信息"
-              >
-                <Label>版本信息</Label>
               </ListBox.Item>
             </ListBox.Section>
           </ListBox>
