@@ -4,6 +4,7 @@ export type ContinueWatchingInfo = {
   currentEpisode: number;
   latestEpisode: number;
   sourceName: string;
+  source: string;
 };
 
 export type ContentItem = {

@@ -16,6 +16,19 @@ type ContentCardProps = {
   onDelete?: () => void;
 };
 
+function createPlayHref(item: ContentItem, variant: "default" | "continueWatching") {
+  if (variant !== "continueWatching" || !item.continueWatching?.source) {
+    return "/play";
+  }
+
+  const params = new URLSearchParams({
+    id: item.id,
+    source: item.continueWatching.source,
+  });
+
+  return `/play?${params.toString()}`;
+}
+
 export function ContentCard({ item, variant = "default", isFavorite = false, onClick, onFavorite, onDelete }: ContentCardProps) {
   const [imageError, setImageError] = useState(false);
   const progress = item.continueWatching;
@@ -35,7 +48,7 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
         <Link
           aria-label={`播放 ${item.title}`}
           className="relative block h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
-          href="/play"
+          href={createPlayHref(item, variant)}
           onClick={onClick}
         >
           <Image
@@ -89,7 +102,7 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
               type="button"
               aria-label={isFavorite ? "取消收藏" : "收藏"}
               aria-pressed={isFavorite}
-              className={`grid h-7 w-7 place-items-center rounded-full bg-transparent text-sm text-white/95 transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger ${isFavorite ? "text-danger" : ""}`}
+              className={`grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed ${isFavorite ? "text-danger" : ""}`}
               onClick={(event) => {
                 event.stopPropagation();
                 onFavorite?.();
@@ -97,13 +110,13 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
             >
               <i
                 aria-hidden="true"
-                className={`bi ${isFavorite ? "bi-heart-fill" : "bi-heart"}`}
+                className={`bi ${isFavorite ? "bi-heart-fill text-danger" : "bi-heart"}`}
               />
             </button>
             <button
               type="button"
               aria-label="删除"
-              className="grid h-7 w-7 place-items-center rounded-full bg-transparent text-sm text-white/95 transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
+              className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed"
               onClick={(event) => {
                 event.stopPropagation();
                 onDelete?.();
@@ -117,7 +130,7 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
       <Link
         aria-label={`播放 ${item.title}`}
         className="grid gap-1.5 p-3.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
-        href="/play"
+        href={createPlayHref(item, variant)}
         onClick={onClick}
       >
         {isContinueWatching ? (

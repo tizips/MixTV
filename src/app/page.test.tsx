@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import HomePage from "@/app/page";
+import { env } from "@/shared/env";
 
 vi.mock("@/modules/admin/server/homepage-modules-service", () => ({
   getHomepageConfig: vi.fn(async () => ({
@@ -22,7 +23,7 @@ vi.mock("@/modules/admin/server/homepage-modules-service", () => ({
 describe("HomePage", () => {
   it("renders the homepage content", async () => {
     const html = renderToStaticMarkup(await HomePage());
-    expect(html).toContain("MixTV");
+    expect(html).toContain(env.NEXT_PUBLIC_SITE_NAME);
   });
 
   it("renders only the homepage modules enabled by admin config", async () => {

@@ -37,6 +37,9 @@ describe("ContentCard", () => {
       />,
     );
 
+    expect(html).toContain("/play?id=");
+    expect(html).toContain("source=");
+    expect(html).toContain(`id=${item.id}`);
     expect(html).toContain(`EP.${item.continueWatching.currentEpisode}`);
     expect(html).toContain(`${item.continueWatching.latestEpisode}`);
     expect(html).toContain(`+${item.continueWatching.latestEpisode - item.continueWatching.currentEpisode}`);
@@ -61,6 +64,7 @@ describe("ContentCard", () => {
         currentEpisode: 12,
         latestEpisode: 12,
         sourceName: "Alpha",
+        source: "alpha",
       },
     };
 

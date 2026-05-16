@@ -15,13 +15,12 @@ type HomepageShellProps = {
 type HistoryApiItem = {
   cover: string;
   id: string;
-  index: number;
   is_favorite?: boolean;
   original_episodes: number;
+  play_episodes: number;
   source: string;
   source_name: string;
   title: string;
-  total_episodes: number;
   year: string;
 };
 
@@ -42,12 +41,11 @@ function isHistoryApiItem(value: unknown): value is HistoryApiItem {
   return (
     typeof history.cover === "string" &&
     typeof history.id === "string" &&
-    typeof history.index === "number" &&
     typeof history.original_episodes === "number" &&
+    typeof history.play_episodes === "number" &&
     typeof history.source === "string" &&
     typeof history.source_name === "string" &&
     typeof history.title === "string" &&
-    typeof history.total_episodes === "number" &&
     typeof history.year === "string" &&
     (history.is_favorite === undefined || typeof history.is_favorite === "boolean")
   );
@@ -67,13 +65,14 @@ export function createContinueWatchingItem(history: HistoryApiItem) {
   return {
     coverUrl: history.cover,
     continueWatching: {
-      currentEpisode: history.index,
-      latestEpisode: history.total_episodes,
+      currentEpisode: history.play_episodes,
+      latestEpisode: history.original_episodes,
       sourceName: history.source_name,
+      source: history.source,
     },
     id: history.id,
     title: history.title,
-    type: history.total_episodes > 1 ? ("tv" as const) : ("movie" as const),
+    type: history.original_episodes > 1 ? ("tv" as const) : ("movie" as const),
     year: Number.isFinite(year) ? year : undefined,
   };
 }

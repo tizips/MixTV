@@ -3,18 +3,18 @@ import { HomepageShell, createContinueWatchingItem, loadContinueWatching } from 
 import { getHomepageData } from "../application/homepage-service";
 import { defaultHomepageConfig } from "../domain/homepage-config";
 import { renderToStaticMarkup } from "react-dom/server";
+import { env } from "@/shared/env";
 
 function historyResponse(history = [
   {
     cover: "https://image.test/poster.jpg",
     id: "movie-1",
-    index: 4,
     is_favorite: true,
     original_episodes: 12,
+    play_episodes: 4,
     source: "alpha",
     source_name: "Alpha",
     title: "庆余年 第二季",
-    total_episodes: 12,
     year: "2026",
   },
 ]) {
@@ -41,7 +41,7 @@ describe("HomepageShell", () => {
     const data = await getHomepageData();
     const markup = renderToStaticMarkup(<HomepageShell data={data} />);
 
-    expect(markup).toContain("MixTV");
+    expect(markup).toContain(env.NEXT_PUBLIC_SITE_NAME);
     expect(markup).toContain("欢迎");
     expect(markup).toContain(data.heroBanner[0].title);
     expect(markup).toContain("min-h-screen p-4 text-foreground");
@@ -57,7 +57,7 @@ describe("HomepageShell", () => {
 
     const markup = renderToStaticMarkup(<HomepageShell data={data} />);
 
-    expect(markup).not.toContain("欢迎来到 MixTV");
+    expect(markup).not.toContain(`欢迎来到 ${env.NEXT_PUBLIC_SITE_NAME}`);
     expect(markup).not.toContain("探索精彩影视内容");
   });
 
@@ -79,13 +79,12 @@ describe("HomepageShell", () => {
     const card = createContinueWatchingItem({
       cover: "https://image.test/poster.jpg",
       id: "movie-1",
-      index: 4,
       is_favorite: true,
       original_episodes: 12,
+      play_episodes: 4,
       source: "alpha",
       source_name: "Alpha",
       title: "庆余年 第二季",
-      total_episodes: 12,
       year: "2026",
     });
 
@@ -95,6 +94,7 @@ describe("HomepageShell", () => {
         currentEpisode: 4,
         latestEpisode: 12,
         sourceName: "Alpha",
+        source: "alpha",
       },
       id: "movie-1",
       title: "庆余年 第二季",

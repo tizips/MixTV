@@ -90,6 +90,7 @@ export function getMockHomepageData(): MockHomepageData {
           currentEpisode: 12,
           latestEpisode: 16,
           sourceName: "腾讯视频",
+          source: "txvideo",
         },
       },
       {
@@ -103,6 +104,7 @@ export function getMockHomepageData(): MockHomepageData {
           currentEpisode: 16,
           latestEpisode: 23,
           sourceName: "Bilibili",
+          source: "bilibili",
         },
       },
       {
@@ -116,6 +118,7 @@ export function getMockHomepageData(): MockHomepageData {
           currentEpisode: 1,
           latestEpisode: 1,
           sourceName: "爱奇艺",
+          source: "iqiyi",
         },
       },
       {
@@ -129,6 +132,7 @@ export function getMockHomepageData(): MockHomepageData {
           currentEpisode: 8,
           latestEpisode: 12,
           sourceName: "芒果TV",
+          source: "mgtv",
         },
       },
       {
@@ -142,6 +146,7 @@ export function getMockHomepageData(): MockHomepageData {
           currentEpisode: 18,
           latestEpisode: 24,
           sourceName: "腾讯视频",
+          source: "txvideo",
         },
       },
     ],
