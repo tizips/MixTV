@@ -103,7 +103,7 @@ describe("user config service", () => {
     const store = createFakeStore();
     const created = await createUser(
       {
-        password: "Secret123",
+        password: "Secret@123",
         role: "user",
         status: "active",
         username: " dave ",
@@ -147,7 +147,7 @@ describe("user config service", () => {
     const store = createFakeStore();
     await createUser(
       {
-        password: "Oldsecret1",
+        password: "Oldsecret#1",
         role: "user",
         status: "active",
         username: "grace",
@@ -157,7 +157,7 @@ describe("user config service", () => {
 
     const updated = await updateUser(
       "grace",
-      [{ status: "banned" }, { role: "owner" }, { password: "Newsecret1" }],
+      [{ status: "banned" }, { role: "owner" }, { password: "Newsecret#1" }],
       store,
     );
     const user = updated.users.find((item) => item.username === "grace");
@@ -167,7 +167,7 @@ describe("user config service", () => {
       status: "banned",
       username: "grace",
     });
-    await expect(verifyUserPassword("grace", "Newsecret1", store)).resolves.toBe(true);
+    await expect(verifyUserPassword("grace", "Newsecret#1", store)).resolves.toBe(true);
     await expect(updateUser("grace", [{ unknown: true }], store)).rejects.toThrow("user patch key is invalid.");
   });
 
@@ -179,7 +179,7 @@ describe("user config service", () => {
       await expect(
         createUser(
           {
-            password: "Secret123",
+            password: "Secret@123",
             role: "user",
             status: "active",
             username: " admin ",
@@ -196,7 +196,7 @@ describe("user config service", () => {
     const store = createFakeStore();
     await createUser(
       {
-        password: "Oldsecret1",
+        password: "Oldsecret@1",
         role: "user",
         status: "active",
         username: "erin",
@@ -204,7 +204,7 @@ describe("user config service", () => {
       store,
     );
 
-    const updated = await updateUserPassword("erin", { password: "Newsecret1" }, store);
+    const updated = await updateUserPassword("erin", { password: "Newsecret@1" }, store);
 
     const updatedUser = updated.users.find((user) => user.username === "erin");
 
@@ -220,7 +220,7 @@ describe("user config service", () => {
       keys: ["users"],
     });
     expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: ["erin", expect.not.stringContaining("Newsecret1")],
+      args: ["erin", expect.not.stringContaining("Newsecret@1")],
       keys: ["users"],
     });
   });
@@ -229,7 +229,7 @@ describe("user config service", () => {
     const store = createFakeStore();
     await createUser(
       {
-        password: "Correct1",
+        password: "Correct.1",
         role: "user",
         status: "active",
         username: "frank",
@@ -237,7 +237,7 @@ describe("user config service", () => {
       store,
     );
 
-    await expect(verifyUserPassword("frank", "Correct1", store)).resolves.toBe(true);
+    await expect(verifyUserPassword("frank", "Correct.1", store)).resolves.toBe(true);
     await expect(verifyUserPassword("frank", "Wrong1", store)).resolves.toBe(false);
   });
 
@@ -247,7 +247,7 @@ describe("user config service", () => {
     await expect(
       createUser(
         {
-          password: "Secret123",
+          password: "Secret@123",
           role: "user",
           status: "active",
           username: "Grace",
@@ -266,6 +266,6 @@ describe("user config service", () => {
         },
         store,
       ),
-    ).rejects.toThrow("密码需为 6-20 位大小写字母或数字。");
+    ).rejects.toThrow("密码需为 6-20 位大小写字母、数字或特殊字符 @ # . %。");
   });
 });

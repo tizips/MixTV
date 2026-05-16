@@ -11,12 +11,12 @@ describe("authenticateLoginRequest", () => {
   it("returns a signed jwt when username and password match env config", async () => {
     const result = await authenticateLoginRequest(
       {
-        password: "secret-pass",
+        password: "secret@pass",
         username: "admin",
       },
       {
         AUTH_SECRET: "jwt-secret",
-        PASSWORD: "secret-pass",
+        PASSWORD: "secret@pass",
         USERNAME: "admin",
       },
     );
@@ -45,7 +45,7 @@ describe("authenticateLoginRequest", () => {
       },
       {
         AUTH_SECRET: "jwt-secret",
-        PASSWORD: "secret-pass",
+        PASSWORD: "secret@pass",
         USERNAME: "admin",
       },
     );
@@ -56,12 +56,12 @@ describe("authenticateLoginRequest", () => {
   it("returns null for usernames outside the env-backed branch", async () => {
     const result = await authenticateLoginRequest(
       {
-        password: "secret-pass",
+        password: "secret@pass",
         username: "editor",
       },
       {
         AUTH_SECRET: "jwt-secret",
-        PASSWORD: "secret-pass",
+        PASSWORD: "secret@pass",
         USERNAME: "admin",
       },
     );
@@ -73,12 +73,12 @@ describe("authenticateLoginRequest", () => {
     await expect(
       authenticateLoginRequest(
         {
-          password: "secret-pass",
+          password: "secret@pass",
           username: "admin",
         },
         {
           AUTH_SECRET: "",
-          PASSWORD: "secret-pass",
+          PASSWORD: "secret@pass",
           USERNAME: "admin",
         },
       ),
@@ -104,7 +104,7 @@ describe("getAccountByJwt", () => {
     const jwt = await issueLoginJwt("admin", "jwt-secret", now);
     const account = await getAccountByJwt(jwt, {
       AUTH_SECRET: "jwt-secret",
-      PASSWORD: "secret-pass",
+      PASSWORD: "secret@pass",
       USERNAME: "admin",
     });
 
@@ -118,7 +118,7 @@ describe("getAccountByJwt", () => {
   it("returns null for an invalid token", async () => {
     const account = await getAccountByJwt("invalid-token", {
       AUTH_SECRET: "jwt-secret",
-      PASSWORD: "secret-pass",
+      PASSWORD: "secret@pass",
       USERNAME: "admin",
     });
 

@@ -58,7 +58,7 @@ describe("user config API routes", () => {
     const invalidUsernameResponse = await createRoute.POST(
       new Request("http://localhost/api/admin/user", {
         body: JSON.stringify({
-          password: "Secret123",
+          password: "Secret@123",
           role: "user",
           status: "active",
           username: "Carol",
@@ -84,7 +84,7 @@ describe("user config API routes", () => {
     );
 
     await expect(invalidPasswordResponse.json()).resolves.toEqual({
-      message: "密码需为 6-20 位大小写字母或数字。",
+      message: "密码需为 6-20 位大小写字母、数字或特殊字符 @ # . %。",
     });
     expect(createUserMock).not.toHaveBeenCalled();
   });
@@ -111,7 +111,9 @@ describe("user config API routes", () => {
       { params: Promise.resolve({ username: "carol" }) },
     );
 
-    await expect(response.json()).resolves.toEqual({ message: "密码需为 6-20 位大小写字母或数字。" });
+    await expect(response.json()).resolves.toEqual({
+      message: "密码需为 6-20 位大小写字母、数字或特殊字符 @ # . %。",
+    });
     expect(response.status).toBe(400);
   });
 });

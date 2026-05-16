@@ -41,7 +41,7 @@ describe("login API route", () => {
     const invalidUsernameResponse = await loginRoute.POST(
       new Request("http://localhost/api/login", {
         body: JSON.stringify({
-          password: "Secret123",
+          password: "Secret@123",
           username: "Admin",
         }),
         method: "POST",
@@ -76,7 +76,7 @@ describe("login API route", () => {
     const response = await loginRoute.POST(
       new Request("http://localhost/api/login", {
         body: JSON.stringify({
-          password: "Secret123",
+          password: "Secret@123",
           username: " admin ",
         }),
         method: "POST",
@@ -86,7 +86,7 @@ describe("login API route", () => {
     await expect(response.json()).resolves.toEqual({ jwt: "signed.jwt" });
     expect(response.status).toBe(200);
     expect(authenticateLoginRequestMock).toHaveBeenCalledWith({
-      password: "Secret123",
+      password: "Secret@123",
       username: "admin",
     });
   });
