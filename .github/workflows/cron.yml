@@ -1,0 +1,79 @@
+name: Cron jobs
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+    - cron: "0 1 * * *"
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: cron-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.schedule || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  history:
+    name: Run history cron
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '*/30 * * * *' || github.event_name == 'workflow_dispatch' }}
+    env:
+      CRON_BASE_URL: ${{ vars.CRON_BASE_URL }}
+    steps:
+      - name: Validate base URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_BASE_URL:-}" ]; then
+            echo "CRON_BASE_URL is not set."
+            exit 1
+          fi
+
+      - name: Request history cron
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "${CRON_BASE_URL%/}/api/cron/history"
+
+  subscription:
+    name: Run subscription cron
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 1 * * *' || github.event_name == 'workflow_dispatch' }}
+    env:
+      CRON_BASE_URL: ${{ vars.CRON_BASE_URL }}
+    steps:
+      - name: Validate base URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_BASE_URL:-}" ]; then
+            echo "CRON_BASE_URL is not set."
+            exit 1
+          fi
+
+      - name: Request subscription cron
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "${CRON_BASE_URL%/}/api/cron/subscription"
+
+  source-check:
+    name: Run source-check cron
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 2 * * *' || github.event_name == 'workflow_dispatch' }}
+    env:
+      CRON_BASE_URL: ${{ vars.CRON_BASE_URL }}
+    steps:
+      - name: Validate base URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_BASE_URL:-}" ]; then
+            echo "CRON_BASE_URL is not set."
+            exit 1
+          fi
+
+      - name: Request source-check cron
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "${CRON_BASE_URL%/}/api/cron/source-check"
