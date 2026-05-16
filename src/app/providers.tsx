@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { ThemeProvider } from "next-themes";
 import { Toast } from "@heroui/react";
+import { PageActivityTracker } from "@/modules/stats/ui/page-activity-tracker";
 
 const themeStorageMigrationScript = `
 try {
@@ -92,6 +93,7 @@ export function Providers({ children }: { children: ReactNode }) {
         enableSystem
         storageKey="mixtv-theme-mode"
       >
+        <PageActivityTracker />
         {children}
       </ThemeProvider>
       <Toast.Provider placement="top end" />

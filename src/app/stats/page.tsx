@@ -1,10 +1,26 @@
-import { PlaceholderPage } from "@/components/placeholder-page";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { getTrafficOverview, StatsDashboard } from "@/modules/stats";
 
-export default function StatsPage() {
-  return (
-    <PlaceholderPage
-      title="播放统计"
-      description="这里将展示观看时长、播放记录和内容热度统计。"
-    />
-  );
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+export default async function StatsPage() {
+  const session = await auth();
+  const isAdmin = session?.user?.admin ?? false;
+
+  if (!session?.user) {
+    redirect("/login?next=/stats");
+  }
+
+  if (!isAdmin) {
+    redirect("/");
+  }
+
+  const overview = await getTrafficOverview({
+    dayCount: 7,
+    timelineMinutes: 120,
+  });
+
+  return <StatsDashboard overview={overview} />;
 }
