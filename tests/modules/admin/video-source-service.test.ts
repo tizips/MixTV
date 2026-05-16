@@ -263,6 +263,58 @@ describe("video source service", () => {
     });
   });
 
+  it("deletes invalid video sources when configured to remove failed checks", async () => {
+    const store = createFakeStore({
+      alpha: JSON.stringify({
+        adult: false,
+        apiUrl: "https://alpha.test/api",
+        key: "alpha",
+        name: "Alpha",
+        no: 1,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "warning",
+        weight: 10,
+      }),
+      beta: JSON.stringify({
+        adult: false,
+        apiUrl: "https://beta.test/api",
+        key: "beta",
+        name: "Beta",
+        no: 2,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "warning",
+        weight: 10,
+      }),
+    });
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ list: [{ vod_name: "Alpha Movie" }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ list: [] }), { status: 200 }));
+
+    const checked = await checkVideoSourceValidities(
+      { keyword: "movie" },
+      {
+        fetcher,
+        removeInvalidSources: true,
+        store,
+      },
+    );
+
+    expect(checked.sources.map((source) => source.key)).toEqual(["alpha"]);
+    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HDEL"), {
+      args: ["beta"],
+      keys: ["sources"],
+    });
+    expect(store.script).not.toHaveBeenCalledWith(expect.stringContaining("HSET"), {
+      args: ["beta", expect.anything()],
+      keys: ["sources"],
+    });
+  });
+
   it("syncs config api_site entries into video sources without changing existing source flags", async () => {
     const store = createFakeStore({
       alpha: JSON.stringify({

@@ -41,6 +41,7 @@ export interface VideoSourceValidityCheckOptions {
   fetcher?: typeof fetch;
   onResult?: (result: VideoSourceValidityCheckResult) => void;
   onStart?: (summary: { total: number }) => void;
+  removeInvalidSources?: boolean;
   store?: VideoSourceStore;
 }
 
@@ -384,6 +385,13 @@ async function saveVideoSourceRecord(source: VideoSourceItem, store: VideoSource
   });
 }
 
+async function deleteVideoSourceRecord(key: string, store: VideoSourceStore) {
+  await store.script(deleteVideoSourceScript, {
+    args: [key],
+    keys: [videoSourcesKey],
+  });
+}
+
 export async function createVideoSource(input: unknown, store: VideoSourceStore = createVideoSourceStore()) {
   const current = await readStoredVideoSourceItems(store);
   const source = normalizeVideoSource(input);
@@ -428,10 +436,7 @@ export async function deleteVideoSource(key: string, store: VideoSourceStore = c
     throw new AdminModuleValidationError("source not found.");
   }
 
-  await store.script(deleteVideoSourceScript, {
-    args: [key],
-    keys: [videoSourcesKey],
-  });
+  await deleteVideoSourceRecord(key, store);
 
   return toVideoSourceCollection(current.filter((source) => source.key !== key));
 }
@@ -471,6 +476,7 @@ export async function checkVideoSourceValidities(
     fetcher = fetch,
     onResult,
     onStart,
+    removeInvalidSources = false,
     store = createVideoSourceStore(),
   }: VideoSourceValidityCheckOptions = {},
 ) {
@@ -488,8 +494,14 @@ export async function checkVideoSourceValidities(
   for (const source of current) {
     const validity = await detectVideoSourceValidity(source, keyword, fetcher);
     const checkedSource = normalizeVideoSource({ ...source, validity }, source);
-    await saveVideoSourceRecord(checkedSource, store);
-    checkedSources.push(checkedSource);
+
+    if (removeInvalidSources && validity === "invalid") {
+      await deleteVideoSourceRecord(source.key, store);
+    } else {
+      await saveVideoSourceRecord(checkedSource, store);
+      checkedSources.push(checkedSource);
+    }
+
     onResult?.({
       apiUrl: checkedSource.apiUrl,
       key: checkedSource.key,

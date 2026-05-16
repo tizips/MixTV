@@ -343,7 +343,7 @@ function VideoSourceSelect<TValue extends string>({
   };
 
   return (
-    <Select fullWidth selectedKey={selectedKey} onSelectionChange={handleSelectionChange}>
+    <Select fullWidth variant="secondary" selectedKey={selectedKey} onSelectionChange={handleSelectionChange}>
       <Label>{label}</Label>
       <Select.Trigger>
         <Select.Value />
@@ -669,7 +669,7 @@ export function VideoSourcePanel() {
     validityCheckModal.close();
 
     try {
-      const response = await fetch(`/api/admin/video-source/validity-check?keyword=${encodeURIComponent(keyword)}`, {
+      const response = await fetch(`/api/admin/source-check?keyword=${encodeURIComponent(keyword)}`, {
         headers: { Accept: "text/event-stream" },
         method: "GET",
       });
@@ -974,6 +974,7 @@ export function VideoSourcePanel() {
                       <TextField fullWidth name="sourceName">
                         <Label>名称</Label>
                         <Input
+                          variant="secondary"
                           value={editingSource.name}
                           onChange={(event) =>
                             setEditingSource((current) =>
@@ -988,6 +989,7 @@ export function VideoSourcePanel() {
                         <Input
                           disabled={Boolean(editingSource.originalKey)}
                           name="sourceKey"
+                          variant="secondary"
                           value={editingSource.key}
                           onChange={(event) =>
                             setEditingSource((current) =>
@@ -1000,6 +1002,7 @@ export function VideoSourcePanel() {
                       <TextField fullWidth name="apiUrl" className="md:col-span-2">
                         <Label>API 地址</Label>
                         <Input
+                          variant="secondary"
                           value={editingSource.apiUrl}
                           onChange={(event) =>
                             setEditingSource((current) =>
@@ -1052,6 +1055,7 @@ export function VideoSourcePanel() {
                           max={99}
                           min={1}
                           type="number"
+                          variant="secondary"
                           value={String(editingSource.weight)}
                           onChange={(event) =>
                             setEditingSource((current) =>
@@ -1098,6 +1102,7 @@ export function VideoSourcePanel() {
                     <Input
                       aria-label="关键词"
                       name="validityKeyword"
+                      variant="secondary"
                       value={validityKeyword}
                       onChange={(event) => setValidityKeyword(event.target.value)}
                     />

@@ -382,7 +382,7 @@ describe("VideoSourcePanel", () => {
       await Promise.resolve();
     });
 
-    expect(fetchMock).toHaveBeenLastCalledWith("/api/admin/video-source/validity-check?keyword=movie", {
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/admin/source-check?keyword=movie", {
       headers: { Accept: "text/event-stream" },
       method: "GET",
     });
