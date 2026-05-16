@@ -32,7 +32,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error "${CRON_BASE_URL%/}/api/cron/history"
+          curl --fail --silent --show-error \
+            --http1.1 \
+            --connect-timeout 10 \
+            --max-time 120 \
+            --retry 5 \
+            --retry-all-errors \
+            --retry-delay 2 \
+            "${CRON_BASE_URL%/}/api/cron/history"
 
   subscription:
     name: Run subscription cron
@@ -54,7 +61,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error "${CRON_BASE_URL%/}/api/cron/subscription"
+          curl --fail --silent --show-error \
+            --http1.1 \
+            --connect-timeout 10 \
+            --max-time 120 \
+            --retry 5 \
+            --retry-all-errors \
+            --retry-delay 2 \
+            "${CRON_BASE_URL%/}/api/cron/subscription"
 
   source-check:
     name: Run source-check cron
@@ -76,4 +90,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error "${CRON_BASE_URL%/}/api/cron/source-check"
+          curl --fail --silent --show-error \
+            --http1.1 \
+            --connect-timeout 10 \
+            --max-time 120 \
+            --retry 5 \
+            --retry-all-errors \
+            --retry-delay 2 \
+            "${CRON_BASE_URL%/}/api/cron/source-check"
