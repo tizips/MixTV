@@ -136,7 +136,6 @@ export function PlayPageShell({
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState<number>(initialPlayerVolume);
   const [isWebFullscreen, setIsWebFullscreen] = useState(false);
-  const [isPlaybackReady, setIsPlaybackReady] = useState(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(Boolean(playbackData?.is_favorite));
   const [isFavoritePending, setIsFavoritePending] = useState(false);
@@ -170,7 +169,6 @@ export function PlayPageShell({
     playbackData?.sources[activeEpisode - 1]?.url ??
     playbackData?.sources[0]?.url ??
     "";
-  const shouldShowPlaybackOverlay = !isPlaying && (isPlaybackReady || playbackError);
   const progressEndpoint = useMemo(() => {
     const progressSource = playbackData?.progress_source;
     const progressId = playbackData?.progress_id;
@@ -188,6 +186,13 @@ export function PlayPageShell({
     skipPlayback: () => undefined,
     playNextEpisode: () => undefined,
   });
+  const setPlaybackPosterVisible = useCallback((art: Artplayer, visible: boolean) => {
+    const posterElement = artContainerRef.current?.querySelector(".art-poster") as HTMLDivElement | null;
+
+    if (posterElement) {
+      posterElement.style.display = visible ? "" : "none";
+    }
+  }, []);
   const uploadPlaybackProgress = useCallback(() => {
     const art = artPlayerRef.current;
 
@@ -200,7 +205,7 @@ export function PlayPageShell({
 
     void fetch(progressEndpoint, {
       body: JSON.stringify({
-        index: activeEpisodeRef.current,
+        play_episodes: activeEpisodeRef.current,
         play_time: playTime,
         total_time: totalTime,
       }),
@@ -221,7 +226,6 @@ export function PlayPageShell({
     setSelectedGroupKey(getEpisodeGroupKeyForEpisode(playbackData.episodes, episodeNumber));
     setActiveSource(playbackData.sources[episodeNumber - 1]?.id ?? playbackData.sources[0]?.id ?? "");
     currentPlaybackSecondsRef.current = 0;
-    setIsPlaybackReady(false);
     setPlaybackError(null);
     setIsPlaying(false);
 
@@ -229,8 +233,9 @@ export function PlayPageShell({
       art.pause();
       art.currentTime = 0;
       art.poster = playbackCoverDefaultUrl;
+      setPlaybackPosterVisible(art, true);
     }
-  }, [playbackData, playbackCoverDefaultUrl]);
+  }, [playbackData, playbackCoverDefaultUrl, setPlaybackPosterVisible]);
   const playNextEpisode = useCallback(() => {
     if (!playbackData) {
       return;
@@ -258,25 +263,6 @@ export function PlayPageShell({
     art.currentTime = nextTime;
     currentPlaybackSecondsRef.current = nextTime;
   }, []);
-  const togglePlayback = useCallback(async () => {
-    const art = artPlayerRef.current;
-
-    if (!art) {
-      setIsPlaying((value) => !value);
-      return;
-    }
-
-    if (!art.playing) {
-      try {
-        await art.play();
-      } catch {
-        setPlaybackError("浏览器阻止了播放，请再次点击播放。");
-      }
-      return;
-    }
-
-    art.pause();
-  }, []);
   useEffect(() => {
     playbackActionsRef.current = {
       skipPlayback,
@@ -303,10 +289,12 @@ export function PlayPageShell({
 
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       art.poster = canvas.toDataURL("image/jpeg", 0.82);
+      setPlaybackPosterVisible(art, !art.playing);
     } catch {
       art.poster = playbackCoverDefaultUrl;
+      setPlaybackPosterVisible(art, !art.playing);
     }
-  }, [playbackCoverDefaultUrl]);
+  }, [playbackCoverDefaultUrl, setPlaybackPosterVisible]);
 
   useEffect(() => {
     const container = artContainerRef.current;
@@ -375,7 +363,6 @@ export function PlayPageShell({
                       return;
                     }
 
-                    setIsPlaybackReady(false);
                     setPlaybackError("视频加载失败，请稍后重试或切换线路。");
                   }
                 });
@@ -436,7 +423,6 @@ export function PlayPageShell({
             art.currentTime = nextTime;
             currentPlaybackSecondsRef.current = nextTime;
           }
-          setIsPlaybackReady(true);
         });
         art.on("video:durationchange", () => {
           if (Number.isFinite(art.duration) && art.duration > 0) {
@@ -453,25 +439,22 @@ export function PlayPageShell({
         });
         art.on("video:play", () => {
           setPlaybackError(null);
-          setIsPlaybackReady(true);
           setIsPlaying(true);
+          setPlaybackPosterVisible(art, false);
         });
         art.on("video:pause", () => {
           setIsPlaying(false);
+          setPlaybackPosterVisible(art, true);
           uploadPlaybackProgress();
         });
         art.on("video:ended", () => {
           uploadPlaybackProgress();
           playNextEpisode();
         });
-        art.on("video:waiting", () => setIsPlaybackReady(false));
-        art.on("video:stalled", () => setIsPlaybackReady(false));
         art.on("video:canplay", () => {
-          setIsPlaybackReady(true);
           capturePlaybackCover(art);
         });
         art.on("video:canplaythrough", () => {
-          setIsPlaybackReady(true);
           capturePlaybackCover(art);
         });
         art.on("fullscreenWeb", (state) => setIsWebFullscreen(state));
@@ -481,7 +464,6 @@ export function PlayPageShell({
           setVolume(nextVolume);
         });
         art.on("error", () => {
-          setIsPlaybackReady(false);
           setPlaybackError("视频加载失败，请稍后重试或切换线路。");
         });
 
@@ -605,13 +587,12 @@ export function PlayPageShell({
     currentPlaybackSecondsRef.current = 0;
     if (art) {
       art.poster = playbackCoverDefaultUrl;
+      setPlaybackPosterVisible(art, true);
     }
-    setIsPlaybackReady(false);
     setPlaybackError(null);
     hasAppliedResumeTimeRef.current = true;
 
     void art.switchUrl(currentSource.url).catch(() => {
-      setIsPlaybackReady(false);
       setPlaybackError("切换线路失败，请稍后重试。");
     });
   }, [currentSource, playbackCoverDefaultUrl]);
@@ -658,20 +639,8 @@ export function PlayPageShell({
               className="absolute inset-0 z-20 h-full w-full bg-black [&_.art-video-player]:h-full [&_.art-video-player]:w-full"
             />
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,transparent_56%,rgba(0,0,0,0.32)_100%)]" />
-            <div className={`pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-5 px-6 text-center text-white transition-opacity ${shouldShowPlaybackOverlay ? "opacity-100" : "opacity-0"}`}>
-              {isPlaybackReady ? (
-                <button
-                  type="button"
-                  aria-label={isPlaying ? "暂停" : "播放"}
-                  className="pointer-events-auto inline-flex h-20 w-20 items-center justify-center rounded-full border border-white/30 bg-white/14 text-white shadow-2xl backdrop-blur transition-transform hover:cursor-pointer hover:scale-105"
-                  onClick={togglePlayback}
-                >
-                  <i aria-hidden="true" className={`bi ${isPlaying ? "bi-pause-fill" : "bi-play-fill"} translate-x-0.5 text-5xl leading-none`} />
-                </button>
-              ) : null}
-              {playbackError ? <p className="max-w-md text-sm text-danger-300">{playbackError}</p> : null}
-            </div>
           </div>
+          {playbackError ? <p className="px-1 text-sm text-danger-300">{playbackError}</p> : null}
 
           <div className="overflow-hidden rounded-xl border border-default-200/70 bg-surface shadow-sm backdrop-blur">
             <Tabs
