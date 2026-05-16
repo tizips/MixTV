@@ -34,13 +34,12 @@ export function LoginForm({ nextPath }: LoginFormProps) {
         username: payload.username,
       });
 
-      if (result?.error || !result?.url) {
+      if (result?.error || !result?.ok) {
         setError("Incorrect username or password.");
         return;
       }
 
-      router.replace(result.url);
-      router.refresh();
+      router.replace(nextPath);
     } catch {
       setError("Unable to sign in right now. Please try again.");
     } finally {

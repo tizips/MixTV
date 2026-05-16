@@ -1,11 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import type { ComponentPropsWithoutRef } from "react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { signOut } from "next-auth/react";
-import { AlertDialog, Button, Chip, Dropdown, ListBox, Separator } from "@heroui/react";
+import { AlertDialog, Button, Chip, Dropdown, Separator } from "@heroui/react";
 
 type UserMenuProps = {
   userName: string;
@@ -17,7 +15,7 @@ type MenuItem = {
   iconClassName: string;
   trailing?: ReactNode;
   adminOnly?: boolean;
-} & ({ href: string; onClick?: never } | { href?: never; onClick: () => void });
+} & ({ href: string; onAction?: never } | { href?: never; onAction: () => void });
 
 function createMenuItems(historyUpdateCount?: number): MenuItem[] {
   return [
@@ -38,10 +36,6 @@ function createMenuItems(historyUpdateCount?: number): MenuItem[] {
     { label: "播放统计", href: "/stats", iconClassName: "bi-bar-chart", adminOnly: true },
     { label: "上映日程", href: "/release-schedule", iconClassName: "bi-calendar-event" },
   ];
-}
-
-function renderLinkProps(props: unknown): ComponentPropsWithoutRef<"a"> {
-  return props as ComponentPropsWithoutRef<"a">;
 }
 
 function renderItemContent(item: Pick<MenuItem, "iconClassName" | "label" | "trailing">, className = "") {
@@ -97,7 +91,7 @@ export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
   const logoutItem: MenuItem = {
     label: "登出",
     iconClassName: "bi-box-arrow-right",
-    onClick: () => {
+    onAction: () => {
       setOpen(false);
       setIsLogoutDialogOpen(true);
     },
@@ -111,9 +105,11 @@ export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
   return (
     <>
       <Dropdown isOpen={open} onOpenChange={setOpen}>
-        <Button aria-label="打开个人中心" className="h-10 w-10 rounded-full p-0" isIconOnly variant="ghost">
-          <span className="bi bi-person text-2xl" aria-hidden="true" />
-        </Button>
+        <Dropdown.Trigger>
+          <Button aria-label="打开个人中心" className="h-10 w-10 rounded-full p-0" isIconOnly variant="ghost">
+            <span className="bi bi-person text-2xl" aria-hidden="true" />
+          </Button>
+        </Dropdown.Trigger>
         <Dropdown.Popover className="w-60" placement="bottom end">
           <div className="px-4 py-4">
             <div className="space-y-2">
@@ -126,44 +122,35 @@ export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
               </div>
             </div>
           </div>
-          <ListBox aria-label="个人中心菜单" selectionMode="none" onAction={() => setOpen(false)}>
+          <Dropdown.Menu aria-label="个人中心菜单" selectionMode="none" onAction={() => setOpen(false)}>
             <Separator />
-            <ListBox.Section>
+            <Dropdown.Section>
               {menuItems
                 .filter((item) => !item.adminOnly || isAdmin)
                 .map((item) => (
-                  <ListBox.Item
+                  <Dropdown.Item
                     href={item.href}
                     key={item.href ?? item.label}
                     id={item.href ?? item.label}
-                    onAction={item.onClick}
-                    render={
-                      item.href
-                        ? (props) => (
-                            <Link {...renderLinkProps(props)} href={item.href}>
-                              {renderItemContent(item)}
-                            </Link>
-                          )
-                        : undefined
-                    }
+                    onAction={item.onAction}
                     textValue={item.label}
                   >
                     {renderItemContent(item)}
-                  </ListBox.Item>
+                  </Dropdown.Item>
                 ))}
-            </ListBox.Section>
+            </Dropdown.Section>
             <Separator />
-            <ListBox.Section>
-              <ListBox.Item
+            <Dropdown.Section>
+              <Dropdown.Item
                 id="logout"
-                onAction={logoutItem.onClick}
+                onAction={logoutItem.onAction}
                 textValue="登出"
                 variant="danger"
               >
                 {renderItemContent(logoutItem, "text-danger")}
-              </ListBox.Item>
-            </ListBox.Section>
-          </ListBox>
+              </Dropdown.Item>
+            </Dropdown.Section>
+          </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>
       <AlertDialog.Backdrop

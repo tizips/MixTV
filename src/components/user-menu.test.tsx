@@ -10,11 +10,6 @@ type MockDropdownProps = {
   children: ReactNode;
 };
 
-type MockListBoxProps = {
-  "aria-label"?: string;
-  children: ReactNode;
-};
-
 type MockButtonProps = {
   "aria-label"?: string;
   children: ReactNode;
@@ -30,15 +25,6 @@ type MockChipProps = {
   className?: string;
   color?: string;
   size?: string;
-  variant?: string;
-};
-
-type MockListBoxItemProps = {
-  children: ReactNode;
-  className?: string;
-  id: string;
-  render?: (props: { href?: string }) => ReactNode;
-  textValue: string;
   variant?: string;
 };
 
@@ -59,11 +45,45 @@ vi.mock("@heroui/react", () => {
     return <div data-testid="dropdown">{children}</div>;
   }
 
+  function DropdownTrigger({ children }: MockDropdownProps) {
+    return <div data-testid="dropdown-trigger">{children}</div>;
+  }
+
   function DropdownPopover({ children }: MockDropdownProps) {
     return <div data-testid="dropdown-popover">{children}</div>;
   }
 
+  function DropdownMenu({ children }: MockDropdownProps) {
+    return <ul aria-label="个人中心菜单" role="menu">{children}</ul>;
+  }
+
+  function DropdownSection({ children }: MockDropdownProps) {
+    return <>{children}</>;
+  }
+
+  function DropdownItem({
+    children,
+    id,
+    onAction,
+    variant,
+  }: {
+    children: ReactNode;
+    id: string;
+    onAction?: () => void;
+    variant?: string;
+  }) {
+    return (
+      <li data-id={id} data-variant={variant} role="menuitem" onClick={() => onAction?.()}>
+        {children}
+      </li>
+    );
+  }
+
   Dropdown.Popover = DropdownPopover;
+  Dropdown.Trigger = DropdownTrigger;
+  Dropdown.Menu = DropdownMenu;
+  Dropdown.Section = DropdownSection;
+  Dropdown.Item = DropdownItem;
 
   function Button({ "aria-label": ariaLabel, children, className, isIconOnly, slot, variant }: MockButtonProps) {
     return (
@@ -87,36 +107,6 @@ vi.mock("@heroui/react", () => {
       </span>
     );
   }
-
-  function ListBox({ "aria-label": ariaLabel, children }: MockListBoxProps) {
-    return (
-      <ul aria-label={ariaLabel} role="listbox">
-        {children}
-      </ul>
-    );
-  }
-
-  function ListBoxItem({ children, className, id, render, textValue, variant }: MockListBoxItemProps) {
-    return (
-      <li
-        aria-selected="false"
-        className={className}
-        data-id={id}
-        data-variant={variant}
-        data-text-value={textValue}
-        role="option"
-      >
-        {render ? render({}) : children}
-      </li>
-    );
-  }
-
-  function ListBoxSection({ children }: MockDropdownProps) {
-    return <>{children}</>;
-  }
-
-  ListBox.Item = ListBoxItem;
-  ListBox.Section = ListBoxSection;
 
   function Separator() {
     return <li aria-hidden="true" className="border-y border-default-200" role="separator" />;
@@ -177,7 +167,6 @@ vi.mock("@heroui/react", () => {
     Chip,
     Dropdown,
     Label: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-    ListBox,
     Separator,
     useOverlayState: () => ({ close: vi.fn(), open: vi.fn() }),
   };

@@ -205,7 +205,7 @@ describe("LoginForm", () => {
     });
 
     expect(routerState.replace).toHaveBeenCalledWith("/search");
-    expect(routerState.refresh).toHaveBeenCalled();
+    expect(routerState.refresh).not.toHaveBeenCalled();
     expect(host.textContent).not.toContain("Incorrect username or password.");
 
     act(() => {

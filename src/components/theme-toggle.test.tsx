@@ -25,13 +25,19 @@ beforeEach(() => {
   });
 });
 
-function renderClient() {
+async function renderClient() {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
 
   act(() => {
     root.render(<ThemeToggle />);
+  });
+
+  await act(async () => {
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 0);
+    });
   });
 
   const button = host.querySelector("button");
@@ -56,46 +62,46 @@ describe("ThemeToggle", () => {
   });
 
   it("cycles automatic to light to dark to automatic", () => {
-    const { button, root } = renderClient();
+    return renderClient().then(({ button, root }) => {
+      act(() => {
+        button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+      expect(themeState.setTheme).toHaveBeenLastCalledWith("light");
 
-    act(() => {
-      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    expect(themeState.setTheme).toHaveBeenLastCalledWith("light");
+      act(() => {
+        root.render(<ThemeToggle />);
+      });
 
-    act(() => {
-      root.render(<ThemeToggle />);
-    });
+      act(() => {
+        button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+      expect(themeState.setTheme).toHaveBeenLastCalledWith("dark");
 
-    act(() => {
-      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    expect(themeState.setTheme).toHaveBeenLastCalledWith("dark");
+      act(() => {
+        root.render(<ThemeToggle />);
+      });
 
-    act(() => {
-      root.render(<ThemeToggle />);
-    });
+      act(() => {
+        button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+      expect(themeState.setTheme).toHaveBeenLastCalledWith("system");
 
-    act(() => {
-      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    expect(themeState.setTheme).toHaveBeenLastCalledWith("system");
-
-    act(() => {
-      root.unmount();
+      act(() => {
+        root.unmount();
+      });
     });
   });
 
   it("renders the current dark preference", () => {
     themeState.theme = "dark";
 
-    const { button, root } = renderClient();
+    return renderClient().then(({ button, root }) => {
+      expect(button.getAttribute("aria-label")).toContain("当前深色");
+      expect(button.innerHTML).toContain("bi-moon-stars-fill");
 
-    expect(button.getAttribute("aria-label")).toContain("当前深色");
-    expect(button.innerHTML).toContain("bi-moon-stars-fill");
-
-    act(() => {
-      root.unmount();
+      act(() => {
+        root.unmount();
+      });
     });
   });
 });
