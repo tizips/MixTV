@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,7 +17,17 @@ vi.mock("next/image", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ children, href }: { children: ReactNode; href: string }) => <a href={href}>{children}</a>,
+  default: ({
+    children,
+    href,
+    rel,
+    target,
+  }: {
+    children: ReactNode;
+    href: string;
+    rel?: string;
+    target?: string;
+  }) => <a href={href} rel={rel} target={target}>{children}</a>,
 }));
 
 vi.mock("@heroui/react", () => ({
@@ -61,11 +71,27 @@ function renderSearchPageShell() {
   return { host, root };
 }
 
+function renderSearchPageShellInStrictMode() {
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+
+  act(() => {
+    root.render(
+      <StrictMode>
+        <SearchPageShell />
+      </StrictMode>,
+    );
+  });
+
+  return { host, root };
+}
+
 function mediaSearchResponse() {
   return new Response(
     [
       'event: start\ndata: {"total":1}\n\n',
-      'event: result\ndata: [{"className":"国产剧","description":"Intro","episodeCount":2,"id":"title:qingyunian:year:2026","key":"alpha","posterUrl":"https://image.test/poster.jpg","resourceId":"movie-1","sourceName":"Alpha","title":"庆余年 第二季","year":"2026"}]\n\n',
+      'event: result\ndata: [{"total_episodes":2,"idx":"title:qingyunian:year:2026","id":"movie-1","key":"alpha","cover":"https://image.test/poster.jpg","source_name":"Alpha","title":"庆余年 第二季","year":"2026"}]\n\n',
       'event: complete\ndata: {"completed":1,"total":1}\n\n',
     ].join(""),
     { headers: { "Content-Type": "text/event-stream" } },
@@ -76,8 +102,8 @@ function aggregatedMediaSearchResponse() {
   return new Response(
     [
       'event: start\ndata: {"total":2}\n\n',
-      'event: result\ndata: [{"className":"电影","description":"Intro","episodeCount":1,"id":"title:samemovie:year:2026","key":"alpha","posterUrl":"https://image.test/a.jpg","resourceId":"a","sourceName":"Alpha","title":"Same Movie","year":"2026"}]\n\n',
-      'event: result\ndata: [{"className":"电影","description":"Intro","episodeCount":1,"id":"title:samemovie:year:2026","key":"alpha","posterUrl":"https://image.test/a.jpg","resourceId":"a","sourceName":"Alpha","title":"Same Movie","year":"2026"}]\n\n',
+      'event: result\ndata: [{"total_episodes":1,"idx":"title:samemovie:year:2026","id":"a","key":"alpha","cover":"https://image.test/a.jpg","source_name":"Alpha","title":"Same Movie","year":"2026"}]\n\n',
+      'event: result\ndata: [{"total_episodes":1,"idx":"title:samemovie:year:2026","id":"a","key":"alpha","cover":"https://image.test/a.jpg","source_name":"Alpha","title":"Same Movie","year":"2026"}]\n\n',
       'event: complete\ndata: {"completed":2,"total":2}\n\n',
     ].join(""),
     { headers: { "Content-Type": "text/event-stream" } },
@@ -134,6 +160,24 @@ afterEach(() => {
 });
 
 describe("SearchPageShell", () => {
+  it("loads search history only once when mounted in Strict Mode", async () => {
+    const { host, root } = renderSearchPageShellInStrictMode();
+
+    await act(async () => {
+      await flushPromises();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("/api/search/histories", {
+      headers: { Accept: "application/json" },
+    });
+    expect(host.textContent).toContain("庆余年");
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
   it("streams media results from the search API", async () => {
     const { host, root } = renderSearchPageShell();
 
@@ -265,6 +309,16 @@ describe("SearchPageShell", () => {
     expect(host.textContent).toContain("Same Movie");
     expect(host.textContent).toContain("1源");
     expect(host.textContent).toContain("已完成 2/2");
+
+    const playLink = Array.from(host.querySelectorAll("a")).find(
+      (element) => element.getAttribute("href") === "/play?source=alpha&id=a",
+    ) as HTMLAnchorElement | undefined;
+
+    if (!playLink) {
+      throw new Error("Play link was not rendered");
+    }
+
+    expect(playLink.getAttribute("target")).toBe("_blank");
 
     act(() => {
       root.unmount();

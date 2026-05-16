@@ -13,15 +13,15 @@ type SortMode = "relevance" | "year-desc" | "year-asc";
 type SearchStreamStatus = "idle" | "searching" | "complete";
 
 type AggregatedMediaResource = {
-  className?: string;
-  description: string;
-  episodeCount: number;
+  cover: string;
   id: string;
+  idx: string;
   key: string;
-  posterUrl: string;
-  resourceId: string;
-  sourceName: string;
+  quality?: string;
+  source_name: string;
+  source_total: number;
   title: string;
+  total_episodes: number;
   year: string;
 };
 
@@ -49,6 +49,8 @@ type SearchResult = {
   coverUrl: string;
   episodeCount: number;
   remarks: string;
+  quality?: string;
+  sourceTotal: number;
 };
 
 const searchTypes: Array<{ key: SearchType; label: string; icon: string }> = [
@@ -79,7 +81,7 @@ function getUrlSearchParams() {
 }
 
 function readMediaCategory(resource: AggregatedMediaResource) {
-  const label = resource.className ?? "";
+  const label = resource.title;
 
   if (/动漫|动画|番剧|番/.test(label)) {
     return "动漫";
@@ -97,27 +99,33 @@ function readMediaCategory(resource: AggregatedMediaResource) {
 function mapMediaResourceToSearchResult(resource: AggregatedMediaResource): SearchResult {
   const category = readMediaCategory(resource);
   const year = Number(resource.year);
-  const episodeCount = Math.max(resource.episodeCount, 1);
+  const episodeCount = Math.max(resource.total_episodes, 1);
 
   return {
-    favoriteKey: `${resource.key}:${resource.resourceId}`,
-    id: `media-${resource.id}`,
-    resourceId: resource.resourceId,
+    favoriteKey: `${resource.key}:${resource.id}`,
+    id: `media-${resource.idx}`,
+    resourceId: resource.id,
     resourceKey: resource.key,
     title: resource.title,
     year: Number.isFinite(year) ? year : 0,
     type: "media",
-    source: resource.sourceName,
-    sourceNames: [resource.sourceName],
+    source: resource.source_name,
+    sourceNames: [resource.source_name],
     category,
-    coverUrl: resource.posterUrl || createPlaceholderImageUrl({
+    coverUrl: resource.cover || createPlaceholderImageUrl({
       variant: "poster",
       fileStem: resource.title,
-      seed: resource.id,
+      seed: resource.idx,
     }),
     episodeCount,
+    quality: resource.quality,
+    sourceTotal: resource.source_total ?? 1,
     remarks: episodeCount > 1 ? `${episodeCount}集` : "可播放",
   };
+}
+
+function createPlayHref(result: SearchResult) {
+  return `/play?source=${encodeURIComponent(result.resourceKey)}&id=${encodeURIComponent(result.resourceId)}`;
 }
 
 function parseSseBlock(block: string): MediaSearchSseEvent | null {
@@ -175,6 +183,29 @@ function readSearchHistoryFromApi(data: SearchHistoryApiResponse) {
   }
 
   return data.history.filter((keyword): keyword is string => typeof keyword === "string");
+}
+
+let searchHistoryLoadPromise: Promise<string[]> | null = null;
+
+function loadSearchHistory() {
+  searchHistoryLoadPromise ??= fetch("/api/search/histories", {
+    headers: { Accept: "application/json" },
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        return [];
+      }
+
+      const data = await response.json() as SearchHistoryApiResponse;
+
+      return readSearchHistoryFromApi(data);
+    })
+    .catch(() => [])
+    .finally(() => {
+      searchHistoryLoadPromise = null;
+    });
+
+  return searchHistoryLoadPromise;
 }
 
 function FavoriteButton({
@@ -277,7 +308,13 @@ function SearchResultItem({
     return (
       <article className="group grid min-w-0 content-start overflow-hidden rounded-[1.15rem] bg-surface/78 text-left shadow-[0_14px_40px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:bg-surface hover:shadow-[0_22px_60px_rgba(15,23,42,0.16)]">
         <div className="relative aspect-[2/3] overflow-hidden bg-surface-secondary">
-          <Link aria-label={`播放 ${result.title}`} className="relative block h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent" href="/play">
+          <Link
+            aria-label={`播放 ${result.title}`}
+            className="relative block h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+            href={createPlayHref(result)}
+            rel="noreferrer"
+            target="_blank"
+          >
             <ResultCover result={result} />
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.26)_0%,transparent_34%,rgba(0,0,0,0.84)_100%)] opacity-85 transition-opacity group-hover:opacity-100" />
             <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/45 to-transparent" />
@@ -300,7 +337,7 @@ function SearchResultItem({
               size="sm"
               variant="soft"
             >
-              {result.sourceNames.length}源
+              {result.sourceTotal}源
             </Chip>
             <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/18 text-xl text-white opacity-0 shadow-[0_18px_50px_rgba(0,0,0,0.32)] ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover:scale-105 group-hover:opacity-100">
               <i aria-hidden="true" className="bi bi-play-fill translate-x-px" />
@@ -313,7 +350,13 @@ function SearchResultItem({
             onToggle={onToggleFavorite}
           />
         </div>
-        <Link aria-label={`播放 ${result.title}`} className="grid gap-2.5 p-3.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent" href="/play">
+        <Link
+          aria-label={`播放 ${result.title}`}
+          className="grid gap-2.5 p-3.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+          href={createPlayHref(result)}
+          rel="noreferrer"
+          target="_blank"
+        >
           <h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground transition-colors group-hover:text-accent">
             {result.title}
           </h3>
@@ -325,7 +368,13 @@ function SearchResultItem({
   return (
     <article className="group grid w-full grid-cols-[5.25rem_minmax(0,1fr)] items-start gap-3 rounded-[1rem] bg-surface/78 p-3 text-left shadow-[0_12px_36px_rgba(15,23,42,0.07)] transition duration-300 hover:-translate-y-0.5 hover:bg-surface hover:shadow-[0_20px_54px_rgba(15,23,42,0.13)] sm:grid-cols-[6rem_minmax(0,1fr)_3rem] sm:items-center">
       <div className="relative h-32 w-[5.25rem] overflow-hidden rounded-xl bg-surface-secondary ring-1 ring-default-200/80 sm:h-36 sm:w-24">
-        <Link aria-label={`播放 ${result.title}`} className="block h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent" href="/play">
+        <Link
+          aria-label={`播放 ${result.title}`}
+          className="block h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+          href={createPlayHref(result)}
+          rel="noreferrer"
+          target="_blank"
+        >
           <ResultCover result={result} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/30" />
           <Chip className="absolute left-1.5 top-1.5 z-10 h-5 rounded-full bg-white/14 px-2 text-[10px] font-semibold text-white ring-1 ring-white/20 backdrop-blur-md" size="sm" variant="soft">
@@ -337,7 +386,7 @@ function SearchResultItem({
             </Chip>
           ) : null}
           <Chip className="absolute bottom-1.5 left-1.5 z-10 h-5 rounded-full bg-white/14 px-2 text-[10px] font-semibold text-white ring-1 ring-white/20 backdrop-blur-md" size="sm" variant="soft">
-            {result.sourceNames.length}源
+            {result.sourceTotal}源
           </Chip>
         </Link>
         <FavoriteButton
@@ -347,7 +396,13 @@ function SearchResultItem({
           onToggle={onToggleFavorite}
         />
       </div>
-      <Link aria-label={`播放 ${result.title}`} className="grid min-w-0 gap-2 outline-none focus-visible:ring-2 focus-visible:ring-accent" href="/play">
+      <Link
+        aria-label={`播放 ${result.title}`}
+        className="grid min-w-0 gap-2 outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        href={createPlayHref(result)}
+        rel="noreferrer"
+        target="_blank"
+      >
         <span className="line-clamp-2 text-base font-semibold leading-6 text-foreground transition-colors group-hover:text-accent">{result.title}</span>
         <span className="flex flex-wrap gap-1.5">
           <Chip className="rounded-full bg-default-100 px-2.5 text-default-600 ring-1 ring-default-200" size="sm" variant="soft">
@@ -364,7 +419,9 @@ function SearchResultItem({
       <Link
         aria-label={`播放 ${result.title}`}
         className="hidden h-11 w-11 shrink-0 place-items-center rounded-full bg-accent text-lg text-accent-foreground shadow-md outline-none transition-transform group-hover:scale-105 focus-visible:ring-2 focus-visible:ring-accent sm:grid"
-        href="/play"
+        href={createPlayHref(result)}
+        rel="noreferrer"
+        target="_blank"
       >
         <i aria-hidden="true" className="bi bi-play-fill translate-x-px" />
       </Link>
@@ -565,27 +622,11 @@ export function SearchPageShell() {
   useEffect(() => {
     let isCurrent = true;
 
-    async function loadSearchHistory() {
-      try {
-        const response = await fetch("/api/search/histories", {
-          headers: { Accept: "application/json" },
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const data = await response.json() as SearchHistoryApiResponse;
-
-        if (isCurrent) {
-          setSearchHistory(readSearchHistoryFromApi(data));
-        }
-      } catch {
-        // The search page remains usable without persisted server history.
+    void loadSearchHistory().then((history) => {
+      if (isCurrent) {
+        setSearchHistory(history);
       }
-    }
-
-    void loadSearchHistory();
+    });
 
     return () => {
       isCurrent = false;
