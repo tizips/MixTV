@@ -1,10 +1,16 @@
-import * as nextServer from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const afterMock = vi.fn();
 const checkAllHistoryUpdatesMock = vi.fn();
 
-vi.spyOn(nextServer, "after").mockImplementation(afterMock as never);
+vi.mock("next/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/server")>();
+
+  return {
+    ...actual,
+    after: afterMock,
+  };
+});
 
 vi.mock("@/modules/history", () => ({
   checkAllHistoryUpdates: checkAllHistoryUpdatesMock,
