@@ -34,6 +34,10 @@ export interface MediaSearchSummary {
   total: number;
 }
 
+type AggregatedMediaSearchResult = MediaSearchResult & {
+  sourceKeys: Set<string>;
+};
+
 export interface MediaSearchOptions {
   fetcher?: VideoSourceAdapterOptions["fetcher"];
   maxPages?: number;
@@ -119,9 +123,9 @@ function createMediaSearchResult(id: string, resource: VideoSourceResource): Med
 }
 
 function mergeMediaSearchResult(
-  current: MediaSearchResult,
+  current: AggregatedMediaSearchResult,
   resource: VideoSourceResource,
-): MediaSearchResult {
+): AggregatedMediaSearchResult {
   return {
     ...current,
     total_episodes: Math.max(current.total_episodes, resource.episodes.length),
@@ -160,7 +164,7 @@ export async function searchMediaSources(
   onStart?.({ total: sources.length });
 
   let completed = 0;
-  const aggregatedByKey = new Map<string, MediaSearchResult & { sourceKeys: Set<string> }>();
+  const aggregatedByKey = new Map<string, AggregatedMediaSearchResult>();
 
   for (const source of sources) {
     const changedResults: MediaSearchResult[] = [];

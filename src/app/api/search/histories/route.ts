@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { listSearchHistory } from "@/modules/search/server/search-history-service";
+import { withApiTraffic } from "@/modules/stats";
 
 function toHistoryResponse(history: string[]) {
   return { history };
 }
 
-export async function GET() {
+export const GET = withApiTraffic(async function GET() {
   const session = await auth();
   const userId = typeof session?.user?.id === "string" ? session.user.id : "";
 
@@ -15,4 +16,4 @@ export async function GET() {
   }
 
   return NextResponse.json(toHistoryResponse(await listSearchHistory(userId)));
-}
+});

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { deleteSearchHistory } from "@/modules/search/server/search-history-service";
+import { withApiTraffic } from "@/modules/stats";
 
 type SearchHistoryKeywordRouteContext = {
   params: Promise<{
@@ -12,7 +13,7 @@ function toHistoryResponse(history: string[]) {
   return { history };
 }
 
-export async function DELETE(_request: Request, context: SearchHistoryKeywordRouteContext) {
+export const DELETE = withApiTraffic(async function DELETE(_request: Request, context: SearchHistoryKeywordRouteContext) {
   const session = await auth();
   const userId = typeof session?.user?.id === "string" ? session.user.id : "";
 
@@ -28,4 +29,4 @@ export async function DELETE(_request: Request, context: SearchHistoryKeywordRou
   }
 
   return NextResponse.json(toHistoryResponse(await deleteSearchHistory(userId, normalizedKeyword)));
-}
+});
