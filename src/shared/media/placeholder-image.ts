@@ -1,3 +1,5 @@
+import { env } from "@/shared/env";
+
 export type PlaceholderImageVariant = "backdrop" | "poster";
 const PLACEHOLDER_IMAGE_ROUTE_BASE = "/assets/placeholders";
 
@@ -26,13 +28,13 @@ const PLACEHOLDER_IMAGE_SPECS: Record<PlaceholderImageVariant, PlaceholderImageS
     width: 1920,
     height: 1080,
     fontSize: 96,
-    subtitle: "MixTV",
+    subtitle: env.NEXT_PUBLIC_SITE_NAME,
   },
   poster: {
     width: 300,
     height: 450,
     fontSize: 38,
-    subtitle: "MIXTV",
+    subtitle: env.NEXT_PUBLIC_SITE_NAME.toUpperCase(),
   },
 };
 
