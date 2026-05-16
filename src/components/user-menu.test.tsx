@@ -29,8 +29,8 @@ type MockChipProps = {
 };
 
 vi.mock("next/link", () => ({
-  default: ({ href, children, ...props }: { href: string; children: ReactNode }) => (
-    <a href={href} {...props}>
+  default: ({ href, children, prefetch, ...props }: { href: string; children: ReactNode; prefetch?: boolean }) => (
+    <a data-prefetch={String(prefetch ?? true)} href={href} {...props}>
       {children}
     </a>
   ),
@@ -215,6 +215,9 @@ describe("UserMenu", () => {
     expect(host.querySelector('a[href="/settings"]')).not.toBeNull();
     expect(host.querySelector('a[href="/history"]')).not.toBeNull();
     expect(host.querySelector('a[href="/favorites"]')).not.toBeNull();
+    expect(host.querySelector('a[data-prefetch="false"][href="/settings"]')).not.toBeNull();
+    expect(host.querySelector('a[data-prefetch="false"][href="/history"]')).not.toBeNull();
+    expect(host.querySelector('a[data-prefetch="false"][href="/favorites"]')).not.toBeNull();
 
     act(() => {
       root.unmount();

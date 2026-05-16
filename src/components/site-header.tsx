@@ -103,6 +103,7 @@ export function SiteHeader({
           <Link
             href="/"
             className="truncate text-lg font-semibold tracking-tight text-foreground transition hover:text-accent"
+            prefetch={false}
           >
             {env.NEXT_PUBLIC_SITE_NAME}
           </Link>
@@ -122,6 +123,7 @@ export function SiteHeader({
                     href={item.href}
                     className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition hover:bg-foreground/5 md:px-4"
                     aria-current={active ? "page" : undefined}
+                    prefetch={false}
                   >
                     <i aria-hidden="true" className={`bi ${item.icon} text-base ${active ? "text-accent" : item.iconClass}`} />
                     <span>{item.label}</span>

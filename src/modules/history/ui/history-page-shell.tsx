@@ -124,6 +124,7 @@ function HistoryPoster({
         aria-label={`继续播放 ${history.title}`}
         className="relative block aspect-[2/3] overflow-hidden bg-surface-secondary outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
         href={createPlayHref(history)}
+        prefetch={false}
       >
         <Image
           alt={history.title}
@@ -226,6 +227,7 @@ function HistoryCard({
           aria-label={`继续播放 ${history.title}`}
           className="grid gap-1.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
           href={createPlayHref(history)}
+          prefetch={false}
         >
           <h2 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground transition-colors group-hover:text-accent">
             {history.title}
@@ -256,6 +258,7 @@ function HistoryEmptyState() {
         <Link
           className="mx-auto inline-flex h-10 items-center gap-2 rounded-full bg-accent px-4 text-sm font-semibold text-accent-foreground transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           href="/search"
+          prefetch={false}
         >
           <i aria-hidden="true" className="bi bi-search" />
           去搜索

@@ -20,14 +20,16 @@ vi.mock("next/link", () => ({
   default: ({
     children,
     href,
+    prefetch,
     rel,
     target,
   }: {
     children: ReactNode;
     href: string;
+    prefetch?: boolean;
     rel?: string;
     target?: string;
-  }) => <a href={href} rel={rel} target={target}>{children}</a>,
+  }) => <a data-prefetch={String(prefetch ?? true)} href={href} rel={rel} target={target}>{children}</a>,
 }));
 
 vi.mock("@heroui/react", () => ({
@@ -230,6 +232,7 @@ describe("SearchPageShell", () => {
     expect(host.textContent).not.toContain("正在连接搜索源");
     expect(replaceStateSpy).not.toHaveBeenCalled();
     expect(window.location.pathname + window.location.search).toBe("/search");
+    expect(host.querySelector('a[data-prefetch="false"][href="/play?source=alpha&id=movie-1"]')).not.toBeNull();
 
     act(() => {
       root.unmount();

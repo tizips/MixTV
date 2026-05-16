@@ -17,8 +17,18 @@ vi.mock("next/image", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ children, className, href }: { children: ReactNode; className?: string; href: string }) => (
-    <a className={className} href={href}>
+  default: ({
+    children,
+    className,
+    href,
+    prefetch,
+  }: {
+    children: ReactNode;
+    className?: string;
+    href: string;
+    prefetch?: boolean;
+  }) => (
+    <a className={className} data-prefetch={String(prefetch ?? true)} href={href}>
       {children}
     </a>
   ),
@@ -146,6 +156,7 @@ describe("FavoritesPageShell", () => {
     expect(host.textContent).toContain("Alpha");
     expect(host.textContent).toContain("2026");
     expect(host.querySelector('a[href="/play?source=alpha&id=movie-1"]')).not.toBeNull();
+    expect(host.querySelector('a[data-prefetch="false"][href="/play?source=alpha&id=movie-1"]')).not.toBeNull();
     expect(host.querySelector('button[aria-label="取消收藏 庆余年 第二季"]')).not.toBeNull();
 
     act(() => {

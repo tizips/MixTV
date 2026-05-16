@@ -314,6 +314,7 @@ function SearchResultItem({
             href={createPlayHref(result)}
             rel="noreferrer"
             target="_blank"
+            prefetch={false}
           >
             <ResultCover result={result} />
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.26)_0%,transparent_34%,rgba(0,0,0,0.84)_100%)] opacity-85 transition-opacity group-hover:opacity-100" />
@@ -356,6 +357,7 @@ function SearchResultItem({
           href={createPlayHref(result)}
           rel="noreferrer"
           target="_blank"
+          prefetch={false}
         >
           <h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground transition-colors group-hover:text-accent">
             {result.title}
@@ -374,6 +376,7 @@ function SearchResultItem({
           href={createPlayHref(result)}
           rel="noreferrer"
           target="_blank"
+          prefetch={false}
         >
           <ResultCover result={result} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/30" />
@@ -402,8 +405,11 @@ function SearchResultItem({
         href={createPlayHref(result)}
         rel="noreferrer"
         target="_blank"
+        prefetch={false}
       >
-        <span className="line-clamp-2 text-base font-semibold leading-6 text-foreground transition-colors group-hover:text-accent">{result.title}</span>
+        <span className="line-clamp-2 text-base font-semibold leading-6 text-foreground transition-colors group-hover:text-accent">
+          {result.title}
+        </span>
         <span className="flex flex-wrap gap-1.5">
           <Chip className="rounded-full bg-default-100 px-2.5 text-default-600 ring-1 ring-default-200" size="sm" variant="soft">
             {result.year}
@@ -422,6 +428,7 @@ function SearchResultItem({
         href={createPlayHref(result)}
         rel="noreferrer"
         target="_blank"
+        prefetch={false}
       >
         <i aria-hidden="true" className="bi bi-play-fill translate-x-px" />
       </Link>

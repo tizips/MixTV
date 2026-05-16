@@ -98,6 +98,7 @@ function FavoritePoster({
         aria-label={`播放 ${favorite.title}`}
         className="relative block aspect-[2/3] overflow-hidden bg-surface-secondary outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
         href={createPlayHref(favorite)}
+        prefetch={false}
       >
         <Image
           alt={favorite.title}
@@ -148,6 +149,7 @@ function FavoriteCard({
           aria-label={`播放 ${favorite.title}`}
           className="grid gap-1.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
           href={createPlayHref(favorite)}
+          prefetch={false}
         >
           <h2 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground transition-colors group-hover:text-accent">
             {favorite.title}
@@ -182,6 +184,7 @@ function FavoritesEmptyState() {
         <Link
           className="mx-auto inline-flex h-10 items-center gap-2 rounded-full bg-accent px-4 text-sm font-semibold text-accent-foreground transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           href="/search"
+          prefetch={false}
         >
           <i aria-hidden="true" className="bi bi-search" />
           去搜索

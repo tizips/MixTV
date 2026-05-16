@@ -12,8 +12,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ href, children, ...props }: { href: string; children: ReactNode }) => (
-    <a href={href} {...props}>
+  default: ({ href, children, prefetch, ...props }: { href: string; children: ReactNode; prefetch?: boolean }) => (
+    <a data-prefetch={String(prefetch ?? true)} href={href} {...props}>
       {children}
     </a>
   ),
@@ -58,6 +58,7 @@ describe("SiteHeader", () => {
     expect(html).toContain("border-transparent");
     expect(html).toContain("rounded-full");
     expect(html).toContain("hover:bg-foreground/5");
+    expect(html).toContain('data-prefetch="false"');
     expect(html).not.toContain('data-slot="tabs-indicator"');
     expect(html).not.toContain('aria-selected="true"');
   });

@@ -38,6 +38,7 @@ export function ContentCarousel({
           <Link
             href={moreLink}
             className="inline-flex items-center gap-1 text-sm text-muted transition-colors hover:text-foreground"
+            prefetch={false}
           >
             <span>查看更多</span>
             <i

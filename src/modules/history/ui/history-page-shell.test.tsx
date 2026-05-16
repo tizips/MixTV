@@ -17,8 +17,18 @@ vi.mock("next/image", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ children, className, href }: { children: ReactNode; className?: string; href: string }) => (
-    <a className={className} href={href}>
+  default: ({
+    children,
+    className,
+    href,
+    prefetch,
+  }: {
+    children: ReactNode;
+    className?: string;
+    href: string;
+    prefetch?: boolean;
+  }) => (
+    <a className={className} data-prefetch={String(prefetch ?? true)} href={href}>
       {children}
     </a>
   ),
@@ -146,6 +156,7 @@ describe("HistoryPageShell", () => {
     expect(host.textContent).toContain("Alpha");
     expect(host.textContent).toContain("EP.2/12");
     expect(host.querySelector('a[href="/play?source=alpha&id=movie-1"]')).not.toBeNull();
+    expect(host.querySelector('a[data-prefetch="false"][href="/play?source=alpha&id=movie-1"]')).not.toBeNull();
 
     act(() => {
       root.unmount();

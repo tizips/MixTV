@@ -137,7 +137,12 @@ export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
                     textValue={item.label}
                   >
                     {item.href ? (
-                      <Link className="block w-full outline-none" href={item.href} onClick={() => setOpen(false)}>
+                      <Link
+                        className="block w-full outline-none"
+                        href={item.href}
+                        prefetch={false}
+                        onClick={() => setOpen(false)}
+                      >
                         {renderItemContent(item)}
                       </Link>
                     ) : (

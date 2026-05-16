@@ -49,6 +49,7 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
           aria-label={`播放 ${item.title}`}
           className="relative block h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
           href={createPlayHref(item, variant)}
+          prefetch={false}
           onClick={onClick}
         >
           <Image
@@ -131,6 +132,7 @@ export function ContentCard({ item, variant = "default", isFavorite = false, onC
         aria-label={`播放 ${item.title}`}
         className="grid gap-1.5 p-3.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
         href={createPlayHref(item, variant)}
+        prefetch={false}
         onClick={onClick}
       >
         {isContinueWatching ? (
