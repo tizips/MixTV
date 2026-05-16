@@ -33,7 +33,7 @@ async function readJson(request: Request) {
   }
 }
 
-function readNumber(payload: Record<string, unknown>, key: "index" | "play_time" | "total_time") {
+function readNumber(payload: Record<string, unknown>, key: "play_episodes" | "play_time" | "total_time") {
   return payload[key];
 }
 
@@ -58,7 +58,7 @@ export const POST = withApiTraffic(async function POST(request: Request, context
     const progress = await savePlaybackProgress(
       {
         id,
-        index: readNumber(payload, "index") as number,
+        play_episodes: readNumber(payload, "play_episodes") as number,
         play_time: readNumber(payload, "play_time") as number,
         source,
         total_time: readNumber(payload, "total_time") as number,

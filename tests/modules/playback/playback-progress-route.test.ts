@@ -45,7 +45,7 @@ describe("playback progress API route", () => {
 
     const response = await progressRoute.POST(
       new Request("http://localhost/api/playback/progress/alpha/100", {
-        body: JSON.stringify({ index: 2, play_time: 1061, total_time: 1247 }),
+        body: JSON.stringify({ play_episodes: 2, play_time: 1061, total_time: 1247 }),
         headers: { "content-type": "application/json" },
         method: "POST",
       }),
@@ -57,7 +57,7 @@ describe("playback progress API route", () => {
       progress: expect.objectContaining({ id: "100", play_episodes: 2, play_time: 1061, source: "alpha" }),
     });
     expect(savePlaybackProgressMock).toHaveBeenCalledWith(
-      { id: "100", index: 2, play_time: 1061, source: "alpha", total_time: 1247 },
+      { id: "100", play_episodes: 2, play_time: 1061, source: "alpha", total_time: 1247 },
       { userId: "user-1" },
     );
   });
@@ -67,7 +67,7 @@ describe("playback progress API route", () => {
 
     const response = await progressRoute.POST(
       new Request("http://localhost/api/playback/progress/alpha/100", {
-        body: JSON.stringify({ index: 2, play_time: 1061, total_time: 1247 }),
+        body: JSON.stringify({ play_episodes: 2, play_time: 1061, total_time: 1247 }),
         method: "POST",
       }),
       { params: Promise.resolve({ id: "100", source: "alpha" }) },
@@ -98,7 +98,7 @@ describe("playback progress API route", () => {
 
     const response = await progressRoute.POST(
       new Request("http://localhost/api/playback/progress/alpha/100", {
-        body: JSON.stringify({ index: 2, play_time: -1, total_time: 1247 }),
+        body: JSON.stringify({ play_episodes: 2, play_time: -1, total_time: 1247 }),
         method: "POST",
       }),
       { params: Promise.resolve({ id: "100", source: "alpha" }) },

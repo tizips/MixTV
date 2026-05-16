@@ -97,7 +97,7 @@ describe("playback progress service", () => {
     const detailFetcher = vi.fn(async () => createDetail());
 
     const progress = await savePlaybackProgress(
-      { id: "100", index: 2, play_time: 1061, source: "alpha", total_time: 1247 },
+      { id: "100", play_episodes: 2, play_time: 1061, source: "alpha", total_time: 1247 },
       {
         detailFetcher,
         now: () => 1768535315661,
@@ -180,7 +180,7 @@ describe("playback progress service", () => {
   it("rejects invalid progress input", async () => {
     await expect(
       savePlaybackProgress(
-        { id: "100", index: 1, play_time: -1, source: "alpha", total_time: 1247 },
+        { id: "100", play_episodes: 1, play_time: -1, source: "alpha", total_time: 1247 },
         { store: createPlaybackProgressStore(), userId: "user-1", videoSourceStore: createVideoSourceStore() },
       ),
     ).rejects.toThrow(PlaybackProgressValidationError);

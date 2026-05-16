@@ -29,7 +29,7 @@ export type PlaybackProgressRecord = StoredPlaybackProgressRecord & {
 
 export interface SavePlaybackProgressInput {
   id: string;
-  index: number;
+  play_episodes: number;
   play_time: number;
   source: string;
   total_time: number;
@@ -127,7 +127,7 @@ function readPositiveInteger(value: unknown, name: string) {
 function normalizeSaveInput(input: SavePlaybackProgressInput) {
   return {
     id: readRequiredString(input.id, "id"),
-    index: readPositiveInteger(input.index, "index"),
+    play_episodes: readPositiveInteger(input.play_episodes, "play_episodes"),
     play_time: readFiniteNonNegativeNumber(input.play_time, "play_time"),
     source: readRequiredString(input.source, "source"),
     total_time: readFiniteNonNegativeNumber(input.total_time, "total_time"),
@@ -140,19 +140,19 @@ function createRemarks(detail: Awaited<ReturnType<typeof getVideoSourceDetail>>,
 
 function createStoredPlaybackProgressRecord({
   detail,
-  index,
+  playEpisodes,
   now,
   playTime,
   totalTime,
 }: {
   detail: Awaited<ReturnType<typeof getVideoSourceDetail>>;
-  index: number;
+  playEpisodes: number;
   now: number;
   playTime: number;
   totalTime: number;
 }): StoredPlaybackProgressRecord {
   const episodeCount = detail.episodes.length;
-  const clampedIndex = episodeCount > 0 ? Math.min(Math.max(index, 1), episodeCount) : index;
+  const clampedIndex = episodeCount > 0 ? Math.min(Math.max(playEpisodes, 1), episodeCount) : playEpisodes;
 
   return {
     cover: detail.posterUrl,
@@ -287,7 +287,7 @@ export async function savePlaybackProgress(input: SavePlaybackProgressInput, opt
   const field = createPlaybackProgressField(normalizedInput.source, normalizedInput.id);
   const record = createStoredPlaybackProgressRecord({
     detail,
-    index: normalizedInput.index,
+    playEpisodes: normalizedInput.play_episodes,
     now: options.now?.() ?? Date.now(),
     playTime: normalizedInput.play_time,
     totalTime: normalizedInput.total_time,
@@ -322,7 +322,7 @@ export async function getOrCreateInitialPlaybackProgress(
 
   const record = createStoredPlaybackProgressRecord({
     detail: input.detail,
-    index: 1,
+    playEpisodes: 1,
     now: options.now?.() ?? Date.now(),
     playTime: 0,
     totalTime: 0,
