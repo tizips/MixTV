@@ -32,6 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Edge hosts can reset the connection after the JSON response is already sent.
           curl --fail --silent --show-error \
             --http1.1 \
             --connect-timeout 10 \
@@ -61,6 +62,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Edge hosts can reset the connection after the JSON response is already sent.
           curl --fail --silent --show-error \
             --http1.1 \
             --connect-timeout 10 \
@@ -90,6 +92,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Edge hosts can reset the connection after the JSON response is already sent.
           curl --fail --silent --show-error \
             --http1.1 \
             --connect-timeout 10 \
