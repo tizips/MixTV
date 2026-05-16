@@ -190,6 +190,10 @@ describe("video source service", () => {
       keys: ["sources"],
     });
 
+    await expect(updateVideoSource(created.key, { key: "renamed-source" }, store)).rejects.toThrow(
+      "source key cannot be changed.",
+    );
+
     const deleted = await deleteVideoSource(created.key, store);
     expect(deleted.sources.some((source) => source.key === created.key)).toBe(false);
     expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HDEL"), {
