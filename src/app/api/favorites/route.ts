@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { listFavorites } from "@/modules/favorites/server/favorite-service";
+import { withApiTraffic } from "@/modules/stats";
 
-export async function GET() {
+export const GET = withApiTraffic(async function GET() {
   const session = await auth();
   const userId = typeof session?.user?.id === "string" ? session.user.id : "";
 
@@ -11,4 +12,4 @@ export async function GET() {
   }
 
   return NextResponse.json({ favorites: await listFavorites(userId) });
-}
+});

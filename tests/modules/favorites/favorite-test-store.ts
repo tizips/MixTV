@@ -7,6 +7,39 @@ export type ScriptFavoriteStore = DbPort<unknown, string> & {
 
 export function createScriptFavoriteStore(): ScriptFavoriteStore {
   const hashes = new Map<string, Record<string, string>>();
+  const script: ScriptFavoriteStore["script"] = async <TResult = unknown>(
+    scriptSource: string,
+    options?: DbScriptOptions<string>,
+  ) => {
+    const key = options?.keys?.[0] ?? "";
+    const field = String(options?.args?.[0] ?? "");
+    const value = String(options?.args?.[1] ?? "");
+    const hash = hashes.get(key) ?? {};
+
+    if (scriptSource.includes("HDEL")) {
+      delete hash[field];
+      hashes.set(key, hash);
+
+      return hash as TResult;
+    }
+
+    if (scriptSource.includes("HSET")) {
+      hash[field] = value;
+      hashes.set(key, hash);
+
+      return value as TResult;
+    }
+
+    if (scriptSource.includes("HGETALL")) {
+      return hash as TResult;
+    }
+
+    if (scriptSource.includes("HGET")) {
+      return (hash[field] ?? null) as TResult;
+    }
+
+    return hash as TResult;
+  };
 
   return {
     del: vi.fn(async (key) => {
@@ -16,36 +49,7 @@ export function createScriptFavoriteStore(): ScriptFavoriteStore {
       return { ...(hashes.get(key) ?? {}) };
     },
     get: vi.fn(async () => null),
-    script: vi.fn(async <TResult = unknown>(script: string, options?: DbScriptOptions<string>) => {
-      const key = options?.keys?.[0] ?? "";
-      const field = String(options?.args?.[0] ?? "");
-      const value = String(options?.args?.[1] ?? "");
-      const hash = hashes.get(key) ?? {};
-
-      if (script.includes("HDEL")) {
-        delete hash[field];
-        hashes.set(key, hash);
-
-        return hash as TResult;
-      }
-
-      if (script.includes("HSET")) {
-        hash[field] = value;
-        hashes.set(key, hash);
-
-        return value as TResult;
-      }
-
-      if (script.includes("HGETALL")) {
-        return hash as TResult;
-      }
-
-      if (script.includes("HGET")) {
-        return (hash[field] ?? null) as TResult;
-      }
-
-      return hash as TResult;
-    }),
+    script,
     set: vi.fn(async () => undefined),
   };
 }

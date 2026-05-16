@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createFavorite, deleteFavorite, FavoriteValidationError } from "@/modules/favorites/server/favorite-service";
+import { withApiTraffic } from "@/modules/stats";
 
 type FavoriteItemRouteContext = {
   params: Promise<{ id: string; source: string }>;
@@ -21,7 +22,7 @@ function readUserId(session: unknown) {
   return typeof id === "string" ? id : "";
 }
 
-export async function POST(_request: Request, context: FavoriteItemRouteContext) {
+export const POST = withApiTraffic(async function POST(_request: Request, context: FavoriteItemRouteContext) {
   const userId = readUserId(await auth());
 
   if (!userId) {
@@ -40,9 +41,9 @@ export async function POST(_request: Request, context: FavoriteItemRouteContext)
 
     return NextResponse.json({ message: "Failed to create favorite." }, { status: 500 });
   }
-}
+});
 
-export async function DELETE(_request: Request, context: FavoriteItemRouteContext) {
+export const DELETE = withApiTraffic(async function DELETE(_request: Request, context: FavoriteItemRouteContext) {
   const userId = readUserId(await auth());
 
   if (!userId) {
@@ -61,4 +62,4 @@ export async function DELETE(_request: Request, context: FavoriteItemRouteContex
 
     return NextResponse.json({ message: "Failed to delete favorite." }, { status: 500 });
   }
-}
+});

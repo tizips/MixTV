@@ -78,7 +78,6 @@ describe("favorite service", () => {
       source: "alpha",
       source_name: "Alpha Source",
       title: "Alpha Movie",
-      total_episodes: 3,
       year: "2026",
     });
     expect(favorite).not.toHaveProperty("favoriteKey");
@@ -94,13 +93,12 @@ describe("favorite service", () => {
       search_title: "",
       source_name: "Alpha Source",
       title: "Alpha Movie",
-      total_episodes: 3,
       year: "2026",
     });
     expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("favoriteKey");
     expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("index");
     expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("play_time");
-    expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("total_time");
+    expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("total_episodes");
     await expect(listFavorites("user-1", { store })).resolves.toEqual([favorite]);
     await expect(listFavorites("user-2", { store })).resolves.toEqual([]);
   });
@@ -127,6 +125,7 @@ describe("favorite service", () => {
 
   it("checks one favorite by key without listing the whole favorite hash", async () => {
     const store = createScriptFavoriteStore();
+    const scriptSpy = vi.spyOn(store, "script");
     const options = {
       detailFetcher: vi.fn(async () => createDetail()),
       now: () => 1768435200000,
@@ -139,7 +138,7 @@ describe("favorite service", () => {
 
     await expect(hasFavorite("user-1", { id: "100", source: "alpha" }, { store })).resolves.toBe(true);
     await expect(hasFavorite("user-1", { id: "missing", source: "alpha" }, { store })).resolves.toBe(false);
-    expect(store.script).toHaveBeenLastCalledWith(expect.stringContaining("HGET"), {
+    expect(scriptSpy).toHaveBeenLastCalledWith(expect.stringContaining("HGET"), {
       args: ["alpha:missing"],
       keys: ["user-1:fav"],
       readOnly: true,

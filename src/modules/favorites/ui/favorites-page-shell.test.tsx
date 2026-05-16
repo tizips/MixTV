@@ -87,7 +87,6 @@ function favoritesResponse(favorites = [
     source: "alpha",
     source_name: "Alpha",
     title: "庆余年 第二季",
-    total_episodes: 12,
     year: "2026",
   },
 ]) {
@@ -145,8 +144,9 @@ describe("FavoritesPageShell", () => {
     expect(host.textContent).toContain("我的收藏");
     expect(host.textContent).toContain("庆余年 第二季");
     expect(host.textContent).toContain("Alpha");
-    expect(host.textContent).toContain("12 集");
+    expect(host.textContent).toContain("2026");
     expect(host.querySelector('a[href="/play?source=alpha&id=movie-1"]')).not.toBeNull();
+    expect(host.querySelector('button[aria-label="取消收藏 庆余年 第二季"]')).not.toBeNull();
 
     act(() => {
       root.unmount();

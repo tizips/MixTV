@@ -16,7 +16,6 @@ export interface StoredFavoriteRecord {
   search_title: string;
   source_name: string;
   title: string;
-  total_episodes: number;
   year: string;
 }
 
@@ -150,7 +149,6 @@ function parseStoredFavorite(rawFavorite: string): StoredFavoriteRecord | null {
       typeof favorite.search_title !== "string" ||
       typeof favorite.source_name !== "string" ||
       typeof favorite.title !== "string" ||
-      typeof favorite.total_episodes !== "number" ||
       typeof favorite.year !== "string"
     ) {
       return null;
@@ -239,7 +237,6 @@ export async function createFavorite(input: unknown, options: FavoriteServiceOpt
     search_title: "",
     source_name: detail.sourceName,
     title: detail.title,
-    total_episodes: episodeCount,
     year: detail.year,
   };
 

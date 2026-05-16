@@ -1,9 +1,9 @@
 "use client";
 
-import { Button, Chip } from "@heroui/react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { env } from "@/shared/env";
 import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import type { FavoriteItem } from "../server/favorite-service";
 
@@ -32,7 +32,6 @@ function isFavoriteItem(value: unknown): value is FavoriteItem {
     typeof favorite.source === "string" &&
     typeof favorite.source_name === "string" &&
     typeof favorite.title === "string" &&
-    typeof favorite.total_episodes === "number" &&
     typeof favorite.year === "string"
   );
 }
@@ -76,7 +75,15 @@ function createPlayHref(favorite: FavoriteItem) {
   return `/play?${params.toString()}`;
 }
 
-function FavoritePoster({ favorite }: { favorite: FavoriteItem }) {
+function FavoritePoster({
+  favorite,
+  isRemoving,
+  onRemove,
+}: {
+  favorite: FavoriteItem;
+  isRemoving: boolean;
+  onRemove: (favorite: FavoriteItem) => void;
+}) {
   const [imageError, setImageError] = useState(false);
   const favoriteKey = createFavoriteResourceKey(favorite);
   const fallbackPosterUrl = createPlaceholderImageUrl({
@@ -86,26 +93,40 @@ function FavoritePoster({ favorite }: { favorite: FavoriteItem }) {
   });
 
   return (
-    <div className="relative aspect-[2/3] overflow-hidden rounded-md bg-surface-secondary">
-      <Image
-        alt={favorite.title}
-        className="object-cover transition duration-700 group-hover:scale-[1.04] group-hover:saturate-110"
-        fill
-        sizes="(max-width: 640px) 42vw, (max-width: 1024px) 26vw, 190px"
-        src={imageError ? fallbackPosterUrl : favorite.cover}
-        onError={() => setImageError(true)}
-      />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.05)_0%,transparent_45%,rgba(0,0,0,0.78)_100%)] opacity-90 transition-opacity group-hover:opacity-100" />
-      <span className="pointer-events-none absolute left-1/2 top-1/2 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/18 text-xl text-white opacity-0 shadow-[0_16px_48px_rgba(0,0,0,0.28)] ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover:scale-105 group-hover:opacity-100">
-        <i aria-hidden="true" className="bi bi-play-fill translate-x-px" />
-      </span>
-      <Chip
-        className="absolute right-2.5 top-2.5 h-6 rounded-full bg-black/40 px-2.5 text-[11px] font-semibold text-white ring-1 ring-white/20 backdrop-blur-md"
-        size="sm"
-        variant="soft"
+    <div className="relative grid w-full">
+      <Link
+        aria-label={`播放 ${favorite.title}`}
+        className="relative block aspect-[2/3] overflow-hidden bg-surface-secondary outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+        href={createPlayHref(favorite)}
       >
-        {favorite.total_episodes} 集
-      </Chip>
+        <Image
+          alt={favorite.title}
+          className="object-cover transition duration-700 group-hover:scale-[1.045] group-hover:saturate-110"
+          fill
+          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 192px"
+          src={imageError ? fallbackPosterUrl : favorite.cover}
+          onError={() => setImageError(true)}
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.22)_0%,transparent_34%,rgba(0,0,0,0.84)_100%)] opacity-85 transition-opacity group-hover:opacity-100" />
+        <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/45 to-transparent" />
+        <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/18 text-xl text-white opacity-0 shadow-[0_18px_50px_rgba(0,0,0,0.32)] ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover:scale-105 group-hover:opacity-100">
+          <i aria-hidden="true" className="bi bi-play-fill translate-x-px" />
+        </span>
+      </Link>
+      <div className="absolute bottom-2.5 right-2.5 z-20 flex gap-1 opacity-0 transition duration-200 group-hover:opacity-100 focus-within:opacity-100">
+        <button
+          type="button"
+          aria-label={`取消收藏 ${favorite.title}`}
+          className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed"
+          disabled={isRemoving}
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemove(favorite);
+          }}
+        >
+          <i aria-hidden="true" className={isRemoving ? "bi bi-arrow-repeat animate-spin" : "bi bi-heart-fill text-danger"} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -120,42 +141,22 @@ function FavoriteCard({
   onRemove: (favorite: FavoriteItem) => void;
 }) {
   return (
-    <article className="group grid min-w-0 content-start rounded-md bg-surface/82 p-2 shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-black/5 transition duration-300 hover:-translate-y-1 hover:bg-surface hover:shadow-[0_16px_44px_rgba(15,23,42,0.13)] dark:ring-white/10">
-      <Link
-        aria-label={`播放 ${favorite.title}`}
-        className="outline-none focus-visible:ring-2 focus-visible:ring-accent"
-        href={createPlayHref(favorite)}
-      >
-        <FavoritePoster favorite={favorite} />
-      </Link>
-      <div className="grid gap-3 px-1 py-3">
+    <article className="group grid w-full flex-shrink-0 content-start overflow-hidden rounded-[1.15rem] bg-surface/78 text-left transition duration-300 hover:-translate-y-1 hover:bg-surface hover:shadow-[0_6px_12px_rgba(15,23,42,0.14)]">
+      <FavoritePoster favorite={favorite} isRemoving={isRemoving} onRemove={onRemove} />
+      <div className="grid gap-1.5 p-3.5">
         <Link
           aria-label={`播放 ${favorite.title}`}
-          className="grid gap-1 outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="grid gap-1.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
           href={createPlayHref(favorite)}
         >
-          <h2 className="line-clamp-2 min-h-11 text-[15px] font-semibold leading-5 text-foreground transition-colors group-hover:text-accent">
+          <h2 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground transition-colors group-hover:text-accent">
             {favorite.title}
           </h2>
-          <p className="flex min-w-0 items-center gap-2 text-xs text-muted">
-            <span>{favorite.source_name}</span>
-            {favorite.year && <span>{favorite.year}</span>}
-          </p>
+          <div className="flex min-w-0 items-center justify-between gap-2 text-xs text-muted">
+            <span className="min-w-0 truncate">{favorite.year || "未知年份"}</span>
+            <span className="min-w-0 truncate text-right text-foreground/80">{favorite.source_name}</span>
+          </div>
         </Link>
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-xs text-muted">更新于 {new Date(favorite.save_time).toLocaleDateString("zh-CN")}</span>
-          <Button
-            aria-label={`取消收藏 ${favorite.title}`}
-            className="h-8 min-w-8 rounded-full px-0 text-danger"
-            isDisabled={isRemoving}
-            size="sm"
-            type="button"
-            variant="ghost"
-            onPress={() => onRemove(favorite)}
-          >
-            <i aria-hidden="true" className={isRemoving ? "bi bi-arrow-repeat" : "bi bi-heart-fill"} />
-          </Button>
-        </div>
       </div>
     </article>
   );
@@ -196,16 +197,8 @@ export function FavoritesPageShell() {
   const [errorMessage, setErrorMessage] = useState("");
   const [removingKeys, setRemovingKeys] = useState<Set<string>>(() => new Set());
 
-  const totalEpisodes = useMemo(
-    () => favorites.reduce((total, favorite) => total + favorite.total_episodes, 0),
-    [favorites],
-  );
-
   useEffect(() => {
     let isMounted = true;
-
-    setLoadState("loading");
-    setErrorMessage("");
 
     void loadFavorites()
       .then((loadedFavorites) => {
@@ -262,27 +255,17 @@ export function FavoritesPageShell() {
   return (
     <section className="min-h-screen w-full px-4 py-8 text-foreground md:px-6 lg:px-8">
       <div className="mx-auto grid w-full max-w-6xl content-start gap-8">
-        <header className="grid gap-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+        <header className="grid gap-5">
           <div className="grid gap-3">
             <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase text-accent">
               <i aria-hidden="true" className="bi bi-bookmark-heart" />
-              MixTV
+              {env.NEXT_PUBLIC_SITE_NAME}
             </p>
             <div className="grid gap-2">
               <h1 className="text-3xl font-semibold tracking-tight md:text-5xl">我的收藏</h1>
               <p className="max-w-2xl text-sm leading-6 text-muted md:text-base">
                 保存常看的剧集和电影，按最近更新顺序快速回到播放入口。
               </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2 rounded-md bg-surface/72 p-2 text-sm shadow-[0_12px_36px_rgba(15,23,42,0.08)] ring-1 ring-black/5 dark:ring-white/10">
-            <div className="min-w-28 rounded bg-surface-secondary/70 px-4 py-3">
-              <p className="text-xs text-muted">收藏</p>
-              <p className="mt-1 text-2xl font-semibold">{favorites.length}</p>
-            </div>
-            <div className="min-w-28 rounded bg-surface-secondary/70 px-4 py-3">
-              <p className="text-xs text-muted">剧集</p>
-              <p className="mt-1 text-2xl font-semibold">{totalEpisodes}</p>
             </div>
           </div>
         </header>

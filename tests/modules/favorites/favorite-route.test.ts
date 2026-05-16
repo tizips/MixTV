@@ -51,7 +51,6 @@ describe("favorite API routes", () => {
       source: "alpha",
       source_name: "Alpha Source",
       title: "Alpha Movie",
-      total_episodes: 3,
       year: "2026",
     });
 
