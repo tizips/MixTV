@@ -113,31 +113,29 @@ describe("playback progress service", () => {
       cover: "https://image.test/poster.jpg",
       douban_id: 0,
       id: "100",
-      index: 2,
       original_episodes: 3,
       play_time: 1061,
+      play_episodes: 2,
       remarks: "更新至3集",
       save_time: 1768535315661,
       search_title: "",
       source: "alpha",
       source_name: "Alpha Source",
       title: "Alpha Movie",
-      total_episodes: 3,
       total_time: 1247,
       year: "2026",
     });
     expect(JSON.parse(store.dumpHash("user-1:pr")["alpha:100"] ?? "{}")).toEqual({
       cover: "https://image.test/poster.jpg",
       douban_id: 0,
-      index: 2,
       original_episodes: 3,
       play_time: 1061,
+      play_episodes: 2,
       remarks: "更新至3集",
       save_time: 1768535315661,
       search_title: "",
       source_name: "Alpha Source",
       title: "Alpha Movie",
-      total_episodes: 3,
       total_time: 1247,
       year: "2026",
     });
@@ -151,11 +149,11 @@ describe("playback progress service", () => {
       { now: () => 1768535315661, store, userId: "user-1" },
     );
 
-    expect(progress.index).toBe(1);
+    expect(progress.play_episodes).toBe(1);
     expect(progress.play_time).toBe(0);
     expect(progress.total_time).toBe(0);
     expect(JSON.parse(store.dumpHash("user-1:pr")["alpha:100"] ?? "{}")).toMatchObject({
-      index: 1,
+      play_episodes: 1,
       play_time: 0,
       total_time: 0,
     });
@@ -183,5 +181,42 @@ describe("playback progress service", () => {
         { store: createPlaybackProgressStore(), userId: "user-1", videoSourceStore: createVideoSourceStore() },
       ),
     ).rejects.toThrow(PlaybackProgressValidationError);
+  });
+
+  it("reads legacy stored progress records that still contain index", async () => {
+    const store = createPlaybackProgressStore();
+    await store.script(
+      "return redis.call(\"HSET\", KEYS[1], ARGV[1], ARGV[2])",
+      {
+        args: [
+          "alpha:100",
+          JSON.stringify({
+            cover: "https://image.test/poster.jpg",
+            douban_id: 0,
+            index: 2,
+            original_episodes: 3,
+            play_time: 1061,
+            remarks: "更新至3集",
+            save_time: 1768535315661,
+            search_title: "",
+            source_name: "Alpha Source",
+            title: "Alpha Movie",
+            total_time: 1247,
+            year: "2026",
+          }),
+        ],
+        keys: ["user-1:pr"],
+      },
+    );
+
+    const progress = await getOrCreateInitialPlaybackProgress(
+      { detail: createDetail(), id: "100", source: "alpha" },
+      { store, userId: "user-1" },
+    );
+
+    expect(progress.play_episodes).toBe(2);
+    expect(JSON.parse(store.dumpHash("user-1:pr")["alpha:100"] ?? "{}")).toMatchObject({
+      play_episodes: 2,
+    });
   });
 });

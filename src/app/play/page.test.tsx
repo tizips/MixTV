@@ -14,7 +14,7 @@ function createInitialData(): PlayPageData {
     return {
       area: "电影天堂资源",
       category: "剧集",
-      current_episode: 1,
+      play_episodes: 1,
       description: "播放详情简介",
       episodes: [{ duration: "未知", number: 1, title: "第1集" }],
       original_title: "剧集",
@@ -79,7 +79,7 @@ describe("PlayPage", () => {
     const data: PlayPageData = {
       area: "电影天堂资源",
       category: "剧集",
-      current_episode: 2,
+      play_episodes: 2,
       description: "播放详情简介",
       episodes: [{ duration: "未知", number: 2, title: "第2集" }],
       original_title: "剧集",
@@ -88,7 +88,7 @@ describe("PlayPage", () => {
       progress_id: "80474",
       progress_source: "dyttzyapi.com",
       rating: "暂无",
-      resume_time_seconds: 125,
+      play_time: 125,
       source_name: "电影天堂资源",
       sources: [
         {

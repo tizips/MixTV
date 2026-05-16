@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { getPlaybackPageData, PlayPageShell } from "@/modules/playback";
+import { env } from "@/shared/env";
 
 export const metadata: Metadata = {
-  title: `播放 - ${process.env.NEXT_PUBLIC_SITE_NAME}`,
+  title: `播放 - ${env.NEXT_PUBLIC_SITE_NAME}`,
 };
 
 export const runtime = "nodejs";

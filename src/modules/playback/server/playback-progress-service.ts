@@ -10,15 +10,14 @@ import type { DbPort } from "@/shared/db/db-port";
 export interface StoredPlaybackProgressRecord {
   cover: string;
   douban_id: number;
-  index: number;
   original_episodes: number;
   play_time: number;
+  play_episodes: number;
   remarks: string;
   save_time: number;
   search_title: string;
   source_name: string;
   title: string;
-  total_episodes: number;
   total_time: number;
   year: string;
 }
@@ -158,55 +157,65 @@ function createStoredPlaybackProgressRecord({
   return {
     cover: detail.posterUrl,
     douban_id: 0,
-    index: clampedIndex,
     original_episodes: episodeCount,
     play_time: playTime,
+    play_episodes: clampedIndex,
     remarks: createRemarks(detail, episodeCount),
     save_time: now,
     search_title: "",
     source_name: detail.sourceName,
     title: detail.title,
-    total_episodes: episodeCount,
     total_time: totalTime,
     year: detail.year,
   };
 }
 
-function parseStoredPlaybackProgress(rawProgress: unknown): StoredPlaybackProgressRecord | null {
+function parseStoredPlaybackProgress(
+  rawProgress: unknown,
+): { needsMigration: boolean; record: StoredPlaybackProgressRecord | null } {
   if (typeof rawProgress !== "string") {
-    return null;
+    return { needsMigration: false, record: null };
   }
 
   try {
     const parsed = JSON.parse(rawProgress) as unknown;
 
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return null;
+      return { needsMigration: false, record: null };
     }
 
     const progress = parsed as Partial<StoredPlaybackProgressRecord>;
+    const legacyIndex = parsed as Partial<{ index: number }>;
+    const hasPlayEpisodes = typeof progress.play_episodes === "number";
+    const playEpisodes = hasPlayEpisodes ? progress.play_episodes : legacyIndex.index;
+    const needsMigration = !hasPlayEpisodes && typeof legacyIndex.index === "number";
 
     if (
       typeof progress.cover !== "string" ||
       typeof progress.douban_id !== "number" ||
-      typeof progress.index !== "number" ||
       typeof progress.original_episodes !== "number" ||
       typeof progress.play_time !== "number" ||
+      typeof playEpisodes !== "number" ||
       typeof progress.remarks !== "string" ||
       typeof progress.save_time !== "number" ||
       typeof progress.search_title !== "string" ||
       typeof progress.source_name !== "string" ||
       typeof progress.title !== "string" ||
-      typeof progress.total_episodes !== "number" ||
       typeof progress.total_time !== "number" ||
       typeof progress.year !== "string"
     ) {
-      return null;
+      return { needsMigration: false, record: null };
     }
 
-    return progress as StoredPlaybackProgressRecord;
+    return {
+      needsMigration,
+      record: {
+        ...progress,
+        play_episodes: playEpisodes,
+      } as StoredPlaybackProgressRecord,
+    };
   } catch {
-    return null;
+    return { needsMigration: false, record: null };
   }
 }
 
@@ -234,13 +243,19 @@ async function readStoredProgress({
   store: PlaybackProgressStore;
   userId: string;
 }) {
-  return parseStoredPlaybackProgress(
+  const parsed = parseStoredPlaybackProgress(
     await store.script(readProgressScript, {
       args: [field],
       keys: [createUserPlaybackProgressHashKey(userId)],
       readOnly: true,
     }),
   );
+
+  if (parsed.record && parsed.needsMigration) {
+    await saveStoredProgress({ field, record: parsed.record, store, userId });
+  }
+
+  return parsed.record;
 }
 
 async function saveStoredProgress({

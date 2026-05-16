@@ -6,6 +6,7 @@ import type Artplayer from "artplayer";
 import type { Danmu, Option as DanmakuOption, Result as DanmakuPluginResult } from "artplayer-plugin-danmuku";
 import Image from "next/image";
 import { Badge, Button, Chip, Separator, Tabs } from "@heroui/react";
+import { env } from "@/shared/env";
 import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import type { Episode, PlayPageData } from "../domain/playback-page-data";
 
@@ -91,7 +92,7 @@ export function PlayPageShell({
     if (!playbackData) {
       return createPlaceholderImageUrl({
         variant: "poster",
-        fileStem: "MixTV",
+        fileStem: env.NEXT_PUBLIC_SITE_NAME,
         seed: "playback-placeholder",
       });
     }
@@ -104,7 +105,7 @@ export function PlayPageShell({
 
     return createPlaceholderImageUrl({
       variant: "poster",
-      fileStem: playbackData.title || "MixTV",
+      fileStem: playbackData.title || env.NEXT_PUBLIC_SITE_NAME,
       seed: `${playbackData.progress_source}-${playbackData.progress_id}`,
     });
   }, [playbackData]);
@@ -112,7 +113,7 @@ export function PlayPageShell({
     if (!playbackData) {
       return createPlaceholderImageUrl({
         variant: "poster",
-        fileStem: "MixTV",
+        fileStem: env.NEXT_PUBLIC_SITE_NAME,
         seed: "playback-placeholder",
       });
     }
@@ -123,11 +124,11 @@ export function PlayPageShell({
   const artContainerRef = useRef<HTMLDivElement>(null);
   const artPlayerRef = useRef<Artplayer | null>(null);
   const hasAppliedResumeTimeRef = useRef(false);
-  const initialResumeTimeSeconds = normalizeResumeTime(playbackData?.resume_time_seconds);
-  const [activeEpisode, setActiveEpisode] = useState(playbackData?.current_episode ?? 1);
+  const initialResumeTimeSeconds = normalizeResumeTime(playbackData?.play_time);
+  const [activeEpisode, setActiveEpisode] = useState(playbackData?.play_episodes ?? 1);
   const [activeSource, setActiveSource] = useState(playbackData?.sources[0]?.id ?? "");
   const [selectedGroupKey, setSelectedGroupKey] = useState(() =>
-    playbackData ? getEpisodeGroupKeyForEpisode(playbackData.episodes, playbackData.current_episode) : "",
+    playbackData ? getEpisodeGroupKeyForEpisode(playbackData.episodes, playbackData.play_episodes) : "",
   );
   const [selectedTabKey, setSelectedTabKey] = useState("episodes");
   const [tabGlowClassName, setTabGlowClassName] = useState<TabGlowClassName>(tabGlowClassNames[0]);
@@ -145,7 +146,7 @@ export function PlayPageShell({
   const currentPlaybackSecondsRef = useRef(initialResumeTimeSeconds);
   const currentPlaybackDurationRef = useRef(playbackDurationSeconds);
   const initialDanmakuOptionRef = useRef<DanmakuOption>({
-    danmuku: getEpisodeDanmuku(playbackData?.current_episode ?? 1),
+    danmuku: getEpisodeDanmuku(playbackData?.play_episodes ?? 1),
     speed: 5,
     margin: [10, 10],
     opacity: 0.85,

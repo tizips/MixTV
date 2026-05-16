@@ -4,6 +4,7 @@ import {
   savePlaybackProgress,
   PlaybackProgressValidationError,
 } from "@/modules/playback/server/playback-progress-service";
+import { withApiTraffic } from "@/modules/stats";
 
 type PlaybackProgressRouteContext = {
   params: Promise<{ id: string; source: string }>;
@@ -44,7 +45,7 @@ function asObject(input: unknown) {
   return input as Record<string, unknown>;
 }
 
-export async function POST(request: Request, context: PlaybackProgressRouteContext) {
+export const POST = withApiTraffic(async function POST(request: Request, context: PlaybackProgressRouteContext) {
   const userId = readUserId(await auth());
 
   if (!userId) {
@@ -73,4 +74,4 @@ export async function POST(request: Request, context: PlaybackProgressRouteConte
 
     return NextResponse.json({ message: "Failed to update playback progress." }, { status: 500 });
   }
-}
+});

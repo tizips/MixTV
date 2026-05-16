@@ -169,13 +169,13 @@ describe("getPlaybackPageData", () => {
     );
     expect(result.status).toBe("ready");
     expect(result.status === "ready" ? result.data : null).toMatchObject({
-      current_episode: 1,
+      play_episodes: 1,
       description: "播放详情简介",
       episodes: [
         { duration: "未知", number: 1, title: "第1集" },
         { duration: "未知", number: 2, title: "第2集" },
       ],
-      cover_default: "https://image.test/poster.jpg",
+      cover_default: expect.stringContaining("/assets/placeholders/poster/"),
       cover: "https://image.test/poster.jpg",
       source_name: "电影天堂资源",
       progress_id: "80474",
@@ -267,7 +267,7 @@ describe("getPlaybackPageData", () => {
     expect(detailFetcher).not.toHaveBeenCalled();
     expect(result.status === "ready" ? result.data : null).toMatchObject({
       description: "缓存简介",
-      cover_default: "https://image.test/cached.jpg",
+      cover_default: expect.stringContaining("/assets/placeholders/poster/"),
       cover: "https://image.test/cached.jpg",
       source_name: "缓存资源站",
       title: "Cached Title",
@@ -307,7 +307,7 @@ describe("getPlaybackPageData", () => {
 
     expect(result.status).toBe("ready");
     expect(JSON.parse(progressStore.dumpHash("user-1:pr")["dyttzyapi.com:80474"] ?? "{}")).toMatchObject({
-      index: 1,
+      play_episodes: 1,
       play_time: 0,
       total_time: 0,
     });
@@ -318,9 +318,9 @@ describe("getPlaybackPageData", () => {
       "dyttzyapi.com:80474": {
         cover: "https://image.test/poster.jpg",
         douban_id: 0,
-        index: 2,
         original_episodes: 2,
         play_time: 125,
+        play_episodes: 2,
         remarks: "更新至2集",
         save_time: 1768535315661,
         search_title: "",
@@ -344,8 +344,8 @@ describe("getPlaybackPageData", () => {
       },
     );
 
-    expect(result.status === "ready" ? result.data.current_episode : null).toBe(2);
-    expect(result.status === "ready" ? result.data.resume_time_seconds : null).toBe(125);
+    expect(result.status === "ready" ? result.data.play_episodes : null).toBe(2);
+    expect(result.status === "ready" ? result.data.play_time : null).toBe(125);
     expect(JSON.parse(progressStore.dumpHash("user-1:pr")["dyttzyapi.com:80474"] ?? "{}").save_time).toBe(1768535315661);
   });
 

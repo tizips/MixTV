@@ -59,7 +59,7 @@ Value JSON:
   "source_name": "暴风资源",
   "year": "2025",
   "cover": "https://img.picbf.com/upload/vod/20250808-1/ed0a6fa49ac90744f08f74514a9ac4b2.jpg",
-  "index": 25,
+  "play_episodes": 25,
   "total_episodes": 25,
   "original_episodes": 25,
   "play_time": 1061,
@@ -73,7 +73,7 @@ Value JSON:
 
 Rules:
 
-- `index` is the currently watched episode number. It is clamped to `1..total_episodes` when total episodes are known.
+- `play_episodes` is the currently watched episode number. It is clamped to `1..total_episodes` when total episodes are known.
 - `play_time` is the current playback time in seconds. It must be a finite non-negative number.
 - `total_time` is the current episode duration in seconds. It must be a finite non-negative number.
 - `save_time` is generated server-side as a Unix timestamp in milliseconds.
@@ -137,6 +137,8 @@ Request body:
 }
 ```
 
+The request body currently uses `index` as the input field for the episode number, but the stored record and all public progress responses normalize that value to `play_episodes`.
+
 Behavior:
 
 - Authenticate with `auth()`.
@@ -157,7 +159,7 @@ Response:
     "source_name": "暴风资源",
     "year": "2025",
     "cover": "https://img.picbf.com/upload/vod/20250808-1/ed0a6fa49ac90744f08f74514a9ac4b2.jpg",
-    "index": 25,
+    "play_episodes": 25,
     "total_episodes": 25,
     "original_episodes": 25,
     "play_time": 1061,
@@ -241,13 +243,13 @@ When `/play?source=...&id=...` is opened:
 2. Load enabled source and third-party detail as it does today.
 3. Read `user:{userId}:pr` field `{source}:{id}`.
 4. If the field is missing, write a zero-progress record immediately:
-   - `index = 1`
+   - `play_episodes = 1`
    - `play_time = 0`
    - `total_time = 0`
    - `save_time = now`
 5. Use the existing record, or the newly created zero record, to set:
-   - `currentEpisode`
-   - `resumeTimeSeconds`
+   - `currentEpisode` from `play_episodes`
+   - `resumeTimeSeconds` from `play_time`
 
 If playback detail loading fails, no progress record is created because the server cannot safely derive required metadata.
 
@@ -280,7 +282,7 @@ Use TDD for implementation.
 Playback tests:
 
 - Progress service creates a zero record for a user-scoped media field.
-- Progress service updates `index/play_time/total_time` and generates `save_time`.
+- Progress service updates `play_episodes/play_time/total_time` and generates `save_time`.
 - Progress service rejects invalid body values.
 - API route requires auth and validates route params/body.
 - `/play` initializes a missing progress record and resumes from an existing record.

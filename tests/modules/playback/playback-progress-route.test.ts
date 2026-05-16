@@ -36,8 +36,8 @@ describe("playback progress API route", () => {
     mockSession();
     savePlaybackProgressMock.mockResolvedValue({
       id: "100",
-      index: 2,
       play_time: 1061,
+      play_episodes: 2,
       source: "alpha",
       title: "Alpha Movie",
       total_time: 1247,
@@ -54,7 +54,7 @@ describe("playback progress API route", () => {
 
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual({
-      progress: expect.objectContaining({ id: "100", index: 2, play_time: 1061, source: "alpha" }),
+      progress: expect.objectContaining({ id: "100", play_episodes: 2, play_time: 1061, source: "alpha" }),
     });
     expect(savePlaybackProgressMock).toHaveBeenCalledWith(
       { id: "100", index: 2, play_time: 1061, source: "alpha", total_time: 1247 },

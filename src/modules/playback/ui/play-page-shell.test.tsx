@@ -155,7 +155,7 @@ function createInitialData(): PlayPageData {
     return {
       area: "电影天堂资源",
       category: "剧集",
-      current_episode: 1,
+      play_episodes: 1,
       description: "播放详情简介",
       episodes: [{ duration: "未知", number: 1, title: "第1集" }],
       original_title: "剧集",
@@ -255,7 +255,7 @@ describe("PlayPageShell client playback cover", () => {
     document.body.append(host);
     const root = createRoot(host);
     const initialData = createInitialData();
-    initialData.current_episode = 60;
+    initialData.play_episodes = 60;
     initialData.episodes = Array.from({ length: 60 }, (_, index) => ({
       duration: "未知",
       number: index + 1,
