@@ -59,6 +59,18 @@ describe("proxy", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
+  it("checks both secure and non-secure Auth.js session cookie names", async () => {
+    getTokenMock.mockResolvedValueOnce(null);
+    getTokenMock.mockResolvedValueOnce({ id: "user-1" });
+
+    const response = await runProxy("/", null);
+
+    expect(response.status).toBe(200);
+    expect(getTokenMock).toHaveBeenCalledTimes(2);
+    expect(getTokenMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ secureCookie: true }));
+    expect(getTokenMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ secureCookie: false }));
+  });
+
   it("passes protected api requests through to route-level auth", async () => {
     const response = await runProxy("/api/history", null);
 

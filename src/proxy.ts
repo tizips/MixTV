@@ -18,10 +18,21 @@ async function hasAuthenticatedSession(request: ProxyRequest) {
     return true;
   }
 
+  const secret = readAuthSecret();
+  const secureToken = await getToken({
+    req: request,
+    secret,
+    secureCookie: true,
+  });
+
+  if (secureToken) {
+    return true;
+  }
+
   const token = await getToken({
     req: request,
-    secret: readAuthSecret(),
-    secureCookie: process.env.NODE_ENV === "production",
+    secret,
+    secureCookie: false,
   });
 
   return Boolean(token);
