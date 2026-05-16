@@ -6,6 +6,7 @@ export default auth((request) => {
   const pathname = request.nextUrl.pathname;
   const isApiRoute = pathname.startsWith("/api");
   const isPublicApiRoute =
+    pathname === "/api/account" ||
     pathname === "/api/login" ||
     pathname.startsWith("/api/cron/") ||
     pathname.startsWith("/api/auth/");

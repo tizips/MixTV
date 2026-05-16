@@ -53,6 +53,13 @@ describe("middleware", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
+  it("allows account lookups without a session so credentials sign-in can validate bearer tokens", async () => {
+    const response = await middleware(createRequest("/api/account", null) as never);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+  });
+
   it("redirects authenticated visitors away from /login using the next query", async () => {
     const response = await middleware(
       createRequest("/login?next=/stats", { user: { id: "user-1" } }) as never,
