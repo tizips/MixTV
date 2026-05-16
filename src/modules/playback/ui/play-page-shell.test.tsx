@@ -277,6 +277,57 @@ describe("PlayPageShell client playback cover", () => {
     });
   });
 
+  it("starts playback on the saved episode when progress has been restored", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const initialData = createInitialData();
+    initialData.play_episodes = 2;
+    initialData.sources = [
+      {
+        id: "episode-1",
+        latency: "在线播放",
+        name: "第1集",
+        quality: "HLS",
+        status: "流畅",
+        url: "https://media.test/1.m3u8",
+      },
+      {
+        id: "episode-2",
+        latency: "在线播放",
+        name: "第2集",
+        quality: "HLS",
+        status: "流畅",
+        url: "https://media.test/2.m3u8",
+      },
+    ];
+    initialData.episodes = [
+      { duration: "未知", number: 1, title: "第1集" },
+      { duration: "未知", number: 2, title: "第2集" },
+    ];
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={initialData} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const art = artplayerState.instances[0];
+
+    if (!art) {
+      throw new Error("Artplayer was not initialized");
+    }
+
+    expect(art.url).toBe("https://media.test/2.m3u8");
+    expect(host.textContent).toContain("第 2 集");
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
   it("registers Artplayer controls and leaves the built-in playback speed setting available", async () => {
     const host = document.createElement("div");
     document.body.append(host);

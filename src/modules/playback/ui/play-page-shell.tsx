@@ -126,7 +126,9 @@ export function PlayPageShell({
   const hasAppliedResumeTimeRef = useRef(false);
   const initialResumeTimeSeconds = normalizeResumeTime(playbackData?.play_time);
   const [activeEpisode, setActiveEpisode] = useState(playbackData?.play_episodes ?? 1);
-  const [activeSource, setActiveSource] = useState(playbackData?.sources[0]?.id ?? "");
+  const [activeSource, setActiveSource] = useState(
+    playbackData?.sources[(playbackData?.play_episodes ?? 1) - 1]?.id ?? playbackData?.sources[0]?.id ?? "",
+  );
   const [selectedGroupKey, setSelectedGroupKey] = useState(() =>
     playbackData ? getEpisodeGroupKeyForEpisode(playbackData.episodes, playbackData.play_episodes) : "",
   );
@@ -722,7 +724,7 @@ export function PlayPageShell({
 
               <Tabs.Panel id="sources">
                 <div className="grid max-h-[490px] gap-3 overflow-y-auto p-4 pr-3 md:p-5 md:pr-4">
-                  {playbackData.sources.map((source) => (
+                  {playbackData.sources.map((source, index) => (
                     <button
                       key={source.id}
                       type="button"
@@ -730,7 +732,7 @@ export function PlayPageShell({
                         ? "border-accent bg-white/2"
                         : "border-[color-mix(in_srgb,var(--accent)_24%,transparent)] bg-white/12 hover:border-[color-mix(in_srgb,var(--accent)_38%,transparent)] hover:bg-white/16"
                         }`}
-                      onClick={() => setActiveSource(source.id)}
+                      onClick={() => resetPlaybackForEpisode(index + 1)}
                     >
                       {source.id === activeSource ? (
                         <Badge
