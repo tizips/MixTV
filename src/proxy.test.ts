@@ -3,6 +3,7 @@ import proxy, { config } from "./proxy";
 
 const authMock = vi.hoisted(() => vi.fn((handler: unknown) => handler));
 const getTokenMock = vi.hoisted(() => vi.fn());
+const fetchMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/auth", () => ({
   auth: authMock,
@@ -29,9 +30,13 @@ async function runProxy(pathname: string, authState: unknown = null) {
 
 describe("proxy", () => {
   beforeEach(() => {
+    vi.unstubAllEnvs();
     authMock.mockClear();
     getTokenMock.mockReset();
     getTokenMock.mockResolvedValue(null);
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(new Response(null, { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
   });
 
   it("redirects unauthenticated home requests to /login", async () => {
@@ -51,6 +56,7 @@ describe("proxy", () => {
   });
 
   it("allows page requests when the Auth.js session token is valid", async () => {
+    vi.stubEnv("AUTH_SECRET", "test-secret");
     getTokenMock.mockResolvedValue({ id: "user-1" });
 
     const response = await runProxy("/", null);
@@ -60,6 +66,7 @@ describe("proxy", () => {
   });
 
   it("checks both secure and non-secure Auth.js session cookie names", async () => {
+    vi.stubEnv("AUTH_SECRET", "test-secret");
     getTokenMock.mockResolvedValueOnce(null);
     getTokenMock.mockResolvedValueOnce({ id: "user-1" });
 
@@ -69,9 +76,36 @@ describe("proxy", () => {
     expect(getTokenMock).toHaveBeenCalledTimes(2);
     expect(getTokenMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ secureCookie: true }));
     expect(getTokenMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ secureCookie: false }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  });
+
+  it("falls back to the API session checker when auth env is unavailable", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    const response = await proxy({
+      ...createRequest("/?__proxy_debug=1", null),
+      headers: new Headers({
+        cookie: "__Secure-authjs.session-token=redacted",
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL("/api/auth/proxy-session", "http://localhost").toString(),
+      {
+        cache: "no-store",
+        headers: {
+          cookie: "__Secure-authjs.session-token=redacted",
+        },
+      },
+    );
+    expect(getTokenMock).not.toHaveBeenCalled();
+    expect(response.headers.get("x-mixtv-proxy-auth-api")).toBe("1");
   });
 
   it("adds proxy auth diagnostics when requested", async () => {
+    vi.stubEnv("AUTH_SECRET", "test-secret");
     getTokenMock.mockResolvedValueOnce(null);
     getTokenMock.mockResolvedValueOnce({ id: "user-1" });
 
@@ -86,7 +120,8 @@ describe("proxy", () => {
     expect(response.headers.get("x-mixtv-proxy-auth-request")).toBe("0");
     expect(response.headers.get("x-mixtv-proxy-auth-secure-token")).toBe("0");
     expect(response.headers.get("x-mixtv-proxy-auth-plain-token")).toBe("1");
-    expect(response.headers.get("x-mixtv-proxy-auth-secret")).toBe("unset");
+    expect(response.headers.get("x-mixtv-proxy-auth-api")).toBe("0");
+    expect(response.headers.get("x-mixtv-proxy-auth-secret")).toBe("set");
     expect(response.headers.get("x-mixtv-proxy-auth-cookies")).toBe("__Secure-authjs.session-token");
   });
 

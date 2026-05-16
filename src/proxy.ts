@@ -12,6 +12,7 @@ type ProxyRequest = Request & {
 };
 
 type AuthCheck = {
+  hasApiSession: boolean;
   authenticated: boolean;
   hasPlainToken: boolean;
   hasRequestAuth: boolean;
@@ -20,7 +21,7 @@ type AuthCheck = {
 };
 
 function readAuthSecret() {
-  return process.env.AUTH_SECRET || "mixtv-development-auth-secret";
+  return process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "";
 }
 
 function listAuthCookieNames(request: ProxyRequest) {
@@ -89,6 +90,7 @@ function addDebugHeaders(response: NextResponse, request: ProxyRequest, authChec
   response.headers.set("x-mixtv-proxy-auth-request", authCheck.hasRequestAuth ? "1" : "0");
   response.headers.set("x-mixtv-proxy-auth-secure-token", authCheck.hasSecureToken ? "1" : "0");
   response.headers.set("x-mixtv-proxy-auth-plain-token", authCheck.hasPlainToken ? "1" : "0");
+  response.headers.set("x-mixtv-proxy-auth-api", authCheck.hasApiSession ? "1" : "0");
   response.headers.set("x-mixtv-proxy-auth-secret", authCheck.hasSecret ? "set" : "unset");
   response.headers.set("x-mixtv-proxy-auth-cookies", listAuthCookieNames(request));
 
@@ -98,15 +100,35 @@ function addDebugHeaders(response: NextResponse, request: ProxyRequest, authChec
 async function checkAuthenticatedSession(request: ProxyRequest): Promise<AuthCheck> {
   if (request.auth?.user) {
     return {
+      hasApiSession: false,
       authenticated: true,
       hasPlainToken: false,
       hasRequestAuth: true,
-      hasSecret: Boolean(process.env.AUTH_SECRET),
+      hasSecret: Boolean(readAuthSecret()),
       hasSecureToken: false,
     };
   }
 
   const secret = readAuthSecret();
+
+  if (!secret) {
+    const sessionResponse = await fetch(new URL("/api/auth/proxy-session", request.url).toString(), {
+      cache: "no-store",
+      headers: {
+        cookie: request.headers.get("cookie") ?? "",
+      },
+    });
+
+    return {
+      hasApiSession: sessionResponse.ok,
+      authenticated: sessionResponse.ok,
+      hasPlainToken: false,
+      hasRequestAuth: false,
+      hasSecret: false,
+      hasSecureToken: false,
+    };
+  }
+
   const secureToken = await getToken({
     req: request,
     secret,
@@ -115,10 +137,11 @@ async function checkAuthenticatedSession(request: ProxyRequest): Promise<AuthChe
 
   if (secureToken) {
     return {
+      hasApiSession: false,
       authenticated: true,
       hasPlainToken: false,
       hasRequestAuth: false,
-      hasSecret: Boolean(process.env.AUTH_SECRET),
+      hasSecret: true,
       hasSecureToken: true,
     };
   }
@@ -130,10 +153,11 @@ async function checkAuthenticatedSession(request: ProxyRequest): Promise<AuthChe
   });
 
   return {
+    hasApiSession: false,
     authenticated: Boolean(token),
     hasPlainToken: Boolean(token),
     hasRequestAuth: false,
-    hasSecret: Boolean(process.env.AUTH_SECRET),
+    hasSecret: true,
     hasSecureToken: false,
   };
 }
