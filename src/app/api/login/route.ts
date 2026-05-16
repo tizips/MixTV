@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticateLoginRequest } from "@/modules/auth/server/login-api-service";
+import { withApiTraffic } from "@/modules/stats";
 import { usernamePattern, userPasswordPattern } from "@/shared/user-credentials";
 
 export const runtime = "nodejs";
@@ -16,7 +17,7 @@ function badRequest(message: string) {
   return NextResponse.json({ message }, { status: 400 });
 }
 
-export async function POST(request: Request) {
+export const POST = withApiTraffic(async function POST(request: Request) {
   let payload: unknown;
 
   try {
@@ -54,4 +55,4 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ message: "Login service is not configured." }, { status: 500 });
   }
-}
+});

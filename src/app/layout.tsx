@@ -4,6 +4,7 @@ import "./globals.css";
 import { auth } from "@/auth";
 import { Providers } from "@/app/providers";
 import { SiteHeader } from "@/components/site-header";
+import { env } from "@/shared/env";
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const session = await auth();
@@ -15,7 +16,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <SiteHeader
             accessToken={session?.user?.accessToken}
             isAdmin={session?.user?.admin ?? false}
-            userName={session?.user?.name ?? "MixTV 用户"}
+            userName={session?.user?.name ?? `${env.NEXT_PUBLIC_SITE_NAME} 用户`}
           />
           <main className="min-h-[calc(100dvh+4rem)] pt-16">{children}</main>
         </Providers>

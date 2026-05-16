@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
 import { SiteHeader } from "./site-header";
+import { env } from "@/shared/env";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/movies",
@@ -26,7 +27,7 @@ describe("SiteHeader", () => {
   it("renders the shared navigation with the theme toggle before the user menu", () => {
     const html = renderToStaticMarkup(<SiteHeader isAdmin userName="橘子" />);
 
-    expect(html).toContain("MixTV");
+    expect(html).toContain(env.NEXT_PUBLIC_SITE_NAME);
     expect(html).toContain("首页");
     expect(html).toContain("搜索");
     expect(html).toContain("源浏览器");

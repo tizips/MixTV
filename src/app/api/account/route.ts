@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAccountByJwt } from "@/modules/auth/server/login-api-service";
+import { withApiTraffic } from "@/modules/stats";
 
 export const runtime = "nodejs";
 
@@ -13,7 +14,7 @@ function readBearerToken(request: Request): string {
   return authorization.slice("Bearer ".length).trim();
 }
 
-export async function GET(request: Request) {
+export const GET = withApiTraffic(async function GET(request: Request) {
   const jwt = readBearerToken(request);
 
   if (!jwt) {
@@ -31,4 +32,4 @@ export async function GET(request: Request) {
   } catch {
     return NextResponse.json({ message: "Account service is not configured." }, { status: 500 });
   }
-}
+});

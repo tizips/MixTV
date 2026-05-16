@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
+import { env } from "@/shared/env";
 
 const navItems = [
   { label: "首页", href: "/", icon: "bi-house-door-fill", iconClass: "text-muted" },
@@ -30,7 +31,7 @@ type HydratedAccount = {
 
 export function SiteHeader({
   accessToken,
-  userName = "MixTV 用户",
+  userName = `${env.NEXT_PUBLIC_SITE_NAME} 用户`,
   isAdmin = false,
 }: SiteHeaderProps) {
   const pathname = usePathname();
@@ -103,7 +104,7 @@ export function SiteHeader({
             href="/"
             className="truncate text-lg font-semibold tracking-tight text-foreground transition hover:text-accent"
           >
-            MixTV
+            {env.NEXT_PUBLIC_SITE_NAME}
           </Link>
         </div>
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button, Card, Form, Input, Label, TextField, Spinner } from "@heroui/react";
+import { env } from "@/shared/env";
 
 type LoginFormProps = {
   nextPath: string;
@@ -66,7 +67,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
               <h1 className="mt-5 text-5xl leading-[1.1] text-slate-950 dark:text-slate-50">
                 Welcome
                 <br />
-                back to {process.env.NEXT_PUBLIC_SITE_NAME}
+                back to {env.NEXT_PUBLIC_SITE_NAME}
               </h1>
               <p className="mt-4 max-w-sm text-sm leading-7 text-slate-600 dark:text-slate-300">
                 Keep your watchlist in sync, continue where you left off, and
@@ -87,7 +88,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
               <Card.Header className="px-0 pt-10">
                 <Card.Title className="text-center text-4xl text-slate-950 dark:text-slate-100 mb-2">Sign in</Card.Title>
                 <Card.Description className="mt-2 text-center text-sm text-slate-500 dark:text-slate-400">
-                  Sign in with your account to continue browsing {process.env.NEXT_PUBLIC_SITE_NAME}.
+                  Sign in with your account to continue browsing {env.NEXT_PUBLIC_SITE_NAME}.
                 </Card.Description>
               </Card.Header>
 
