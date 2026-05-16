@@ -5,18 +5,9 @@ import { resolveSafeNextPath } from "@/modules/auth/server/redirect";
 export default auth((request) => {
   const pathname = request.nextUrl.pathname;
   const isApiRoute = pathname.startsWith("/api");
-  const isPublicApiRoute =
-    pathname === "/api/account" ||
-    pathname === "/api/login" ||
-    pathname.startsWith("/api/cron/") ||
-    pathname.startsWith("/api/auth/");
 
   if (isApiRoute) {
-    if (isPublicApiRoute || request.auth?.user) {
-      return NextResponse.next();
-    }
-
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return NextResponse.next();
   }
 
   const nextPath = resolveSafeNextPath(

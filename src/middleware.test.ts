@@ -39,11 +39,11 @@ describe("middleware", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
-  it("returns unauthorized for protected api requests without a session", async () => {
+  it("passes protected api requests through to route-level auth", async () => {
     const response = await middleware(createRequest("/api/history", null) as never);
 
-    expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ message: "Unauthorized" });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
   it("allows public api routes without a session", async () => {
