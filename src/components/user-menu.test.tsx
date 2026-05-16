@@ -46,7 +46,11 @@ vi.mock("@heroui/react", () => {
   }
 
   function DropdownTrigger({ children }: MockDropdownProps) {
-    return <div data-testid="dropdown-trigger">{children}</div>;
+    return (
+      <button data-testid="dropdown-trigger" type="button">
+        {children}
+      </button>
+    );
   }
 
   function DropdownPopover({ children }: MockDropdownProps) {
@@ -207,6 +211,10 @@ describe("UserMenu", () => {
     expect(host.innerHTML).not.toContain("更新提醒");
     expect(host.innerHTML).toContain("我的收藏");
     expect(host.innerHTML).not.toContain("版本信息");
+    expect(host.querySelectorAll("button button")).toHaveLength(0);
+    expect(host.querySelector('a[href="/settings"]')).not.toBeNull();
+    expect(host.querySelector('a[href="/history"]')).not.toBeNull();
+    expect(host.querySelector('a[href="/favorites"]')).not.toBeNull();
 
     act(() => {
       root.unmount();

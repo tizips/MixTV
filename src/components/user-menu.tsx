@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { signOut } from "next-auth/react";
+import Link from "next/link";
 import { AlertDialog, Button, Chip, Dropdown, Separator } from "@heroui/react";
 
 type UserMenuProps = {
@@ -105,10 +106,11 @@ export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
   return (
     <>
       <Dropdown isOpen={open} onOpenChange={setOpen}>
-        <Dropdown.Trigger>
-          <Button aria-label="打开个人中心" className="h-10 w-10 rounded-full p-0" isIconOnly variant="ghost">
-            <span className="bi bi-person text-2xl" aria-hidden="true" />
-          </Button>
+        <Dropdown.Trigger
+          aria-label="打开个人中心"
+          className="h-10 w-10 rounded-full p-0"
+        >
+          <span className="bi bi-person text-2xl" aria-hidden="true" />
         </Dropdown.Trigger>
         <Dropdown.Popover className="w-60" placement="bottom end">
           <div className="px-4 py-4">
@@ -129,13 +131,18 @@ export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
                 .filter((item) => !item.adminOnly || isAdmin)
                 .map((item) => (
                   <Dropdown.Item
-                    href={item.href}
                     key={item.href ?? item.label}
                     id={item.href ?? item.label}
                     onAction={item.onAction}
                     textValue={item.label}
                   >
-                    {renderItemContent(item)}
+                    {item.href ? (
+                      <Link className="block w-full outline-none" href={item.href} onClick={() => setOpen(false)}>
+                        {renderItemContent(item)}
+                      </Link>
+                    ) : (
+                      renderItemContent(item)
+                    )}
                   </Dropdown.Item>
                 ))}
             </Dropdown.Section>

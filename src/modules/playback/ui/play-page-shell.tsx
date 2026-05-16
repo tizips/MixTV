@@ -638,9 +638,9 @@ export function PlayPageShell({
     <div className="min-h-screen px-4 py-5 text-foreground md:px-6 lg:px-8">
       <div className="mx-auto grid w-full max-w-[100rem] gap-5">
         <nav aria-label="播放导航" className="flex min-w-0 items-center gap-2 text-sm text-default-500">
-          <a className="truncate font-medium text-default-600 transition-colors hover:text-accent" href="#">
+          <span className="truncate font-medium text-default-600 transition-colors hover:text-accent">
             {playbackData.title}
-          </a>
+          </span>
           <i aria-hidden="true" className="bi bi-chevron-right text-xs" />
           <span className="truncate text-foreground">第 {activeEpisode} 集</span>
         </nav>
