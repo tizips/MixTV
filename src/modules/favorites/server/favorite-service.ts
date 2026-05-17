@@ -6,11 +6,13 @@ import {
   type VideoSourceStore,
 } from "@/modules/admin/server/video-source-service";
 import type { DbPort } from "@/shared/db/db-port";
+import { createMediaSearchIndex } from "@/shared/media/search-index";
 
 export interface StoredFavoriteRecord {
   cover: string;
   douban_id: number;
   original_episodes: number;
+  index?: string;
   remarks: string;
   save_time: number;
   search_title: string;
@@ -144,6 +146,7 @@ function parseStoredFavorite(rawFavorite: string): StoredFavoriteRecord | null {
       typeof favorite.cover !== "string" ||
       typeof favorite.douban_id !== "number" ||
       typeof favorite.original_episodes !== "number" ||
+      (typeof favorite.index !== "undefined" && typeof favorite.index !== "string") ||
       typeof favorite.remarks !== "string" ||
       typeof favorite.save_time !== "number" ||
       typeof favorite.search_title !== "string" ||
@@ -217,6 +220,15 @@ async function findSource(sourceKey: string, videoSourceStore: VideoSourceStore)
   };
 }
 
+function createFavoriteIndex(detail: {
+  className?: string;
+  title: string;
+  typeName?: string;
+  year: string;
+}) {
+  return createMediaSearchIndex(detail);
+}
+
 export async function createFavorite(input: unknown, options: FavoriteServiceOptions) {
   const { id, source: sourceKey } = readFavoriteInput(input);
   const store = options.store ?? createFavoriteStore();
@@ -228,9 +240,16 @@ export async function createFavorite(input: unknown, options: FavoriteServiceOpt
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
   });
   const episodeCount = detail.episodes.length;
+  const index = createFavoriteIndex({
+    className: detail.className,
+    title: detail.title,
+    typeName: detail.typeName,
+    year: detail.year,
+  });
   const record: StoredFavoriteRecord = {
     cover: detail.posterUrl,
     douban_id: 0,
+    index,
     original_episodes: episodeCount,
     remarks: detail.remarks || (episodeCount > 0 ? `更新至${episodeCount}集` : ""),
     save_time: options.now?.() ?? defaultNowMs(),

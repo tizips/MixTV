@@ -104,6 +104,7 @@ function parseStoredPlaybackProgress(rawProgress: string): {
 
     const progress = parsed as Partial<StoredPlaybackProgressRecord>;
     const legacyIndex = parsed as Partial<{ index: number }>;
+    const storedIndex = parsed as Partial<{ index: string }>;
     const hasPlayEpisodes = typeof progress.play_episodes === "number";
     const playEpisodes = hasPlayEpisodes ? progress.play_episodes : legacyIndex.index;
     const needsMigration = !hasPlayEpisodes && typeof legacyIndex.index === "number";
@@ -111,6 +112,7 @@ function parseStoredPlaybackProgress(rawProgress: string): {
     if (
       typeof progress.cover !== "string" ||
       typeof progress.douban_id !== "number" ||
+      (progress.index !== undefined && typeof progress.index !== "string" && typeof progress.index !== "number") ||
       typeof progress.original_episodes !== "number" ||
       typeof progress.play_time !== "number" ||
       typeof playEpisodes !== "number" ||
@@ -129,6 +131,7 @@ function parseStoredPlaybackProgress(rawProgress: string): {
       needsMigration,
       record: {
         ...progress,
+        index: typeof storedIndex.index === "string" ? storedIndex.index : undefined,
         play_episodes: playEpisodes,
       } as StoredPlaybackProgressRecord,
     };
