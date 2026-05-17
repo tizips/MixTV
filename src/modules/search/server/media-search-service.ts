@@ -7,7 +7,6 @@ import {
   type VideoSourceItem,
   type VideoSourceStore,
 } from "@/modules/admin/server/video-source-service";
-import { saveMediaSearchCacheEntries, type MediaSearchCacheStore } from "./media-search-cache-service";
 
 export interface MediaSearchInput {
   query: string;
@@ -43,7 +42,6 @@ type AggregatedMediaSearchResult = MediaSearchResult & {
 export interface MediaSearchOptions {
   fetcher?: VideoSourceAdapterOptions["fetcher"];
   maxPages?: number;
-  cacheStore?: MediaSearchCacheStore;
   onResult?: (result: MediaSearchSourceResult) => void;
   onStart?: (summary: { total: number }) => void;
   searcher?: (
@@ -122,7 +120,6 @@ export async function searchMediaSources(
   input: MediaSearchInput,
   {
     fetcher,
-    cacheStore,
     maxPages,
     onResult,
     onStart,
@@ -171,21 +168,6 @@ export async function searchMediaSources(
         aggregated.source_total = aggregated.sourceKeys.size;
 
         aggregatedByKey.set(key, aggregated);
-
-        try {
-          await saveMediaSearchCacheEntries(
-            key,
-            [{
-              id: result.id,
-              quality: result.quality ?? "",
-              resourceKey: result.sourceKey,
-              name: result.sourceName,
-            }],
-            { store: cacheStore },
-          );
-        } catch {
-          // Cache writes should never break search aggregation.
-        }
 
         const { sourceKeys, ...publicResult } = aggregated;
         void sourceKeys;

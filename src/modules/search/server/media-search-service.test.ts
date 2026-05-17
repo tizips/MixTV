@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import { searchMediaSources, type MediaSearchOptions } from "./media-search-service";
-import type { MediaSearchCacheStore } from "./media-search-cache-service";
 import type { SiteConfigStore } from "@/modules/admin/server/site-config-service";
 import type { VideoSourceStore } from "@/modules/admin/server/video-source-service";
 
@@ -40,10 +39,9 @@ function createVideoSourceStore(): Pick<VideoSourceStore, "script"> {
 }
 
 describe("media search service", () => {
-  it("aggregates results with a year:type:title index and writes cache entries", async () => {
+  it("aggregates results with a year:type:title index", async () => {
     const siteConfigStore = createSiteConfigStore();
     const videoSourceStore = createVideoSourceStore();
-    const cacheStore = { script: vi.fn(async () => undefined) } satisfies Pick<MediaSearchCacheStore, "script">;
     const searcher: NonNullable<MediaSearchOptions["searcher"]> = vi.fn(async () => [
       {
         className: "电视剧",
@@ -65,7 +63,6 @@ describe("media search service", () => {
     const summary = await searchMediaSources(
       { query: "庆余年" },
       {
-        cacheStore,
         onResult,
         searcher,
         siteConfigStore,
@@ -81,20 +78,5 @@ describe("media search service", () => {
       key: "alpha",
       source_name: "电影天堂资源",
     });
-    expect(cacheStore.script).toHaveBeenCalledWith(
-      expect.any(String),
-      {
-        args: [
-          "alpha",
-          JSON.stringify({
-            id: "movie-1",
-            quality: "1080p",
-            name: "电影天堂资源",
-          }),
-          604800,
-        ],
-        keys: ["2024:tv:庆余年第二季"],
-      },
-    );
   });
 });

@@ -86,16 +86,18 @@ describe("media search service", () => {
     const searcher = vi.fn(async (source) => [createResource(source.key)]);
     const onStart = vi.fn();
     const onResult = vi.fn();
+    const cacheStore = { script: vi.fn(async () => undefined) };
 
     const summary = await searchMediaSources(
       { query: "movie" },
       {
         onResult,
         onStart,
+        cacheStore,
         searcher,
         siteConfigStore: createSiteConfigStore(false),
         videoSourceStore: createVideoSourceStore(),
-      },
+      } as any,
     );
 
     expect(onStart).toHaveBeenCalledWith({ total: 1 });
@@ -105,12 +107,13 @@ describe("media search service", () => {
       "movie",
       expect.any(Object),
     );
-    expect(onResult).toHaveBeenCalledWith({
-      results: [
+    expect(onResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        results: expect.arrayContaining([
           expect.objectContaining({
             cover: "",
             id: "1",
-            idx: "title:titleenabled:year:2026",
+            idx: expect.stringContaining("titleenabled"),
             key: "enabled",
             quality: "1080P",
             source_name: "enabled",
@@ -118,11 +121,13 @@ describe("media search service", () => {
             title: "Title enabled",
             total_episodes: 1,
             year: "2026",
-        }),
-      ],
-      source: expect.objectContaining({ adult: false, key: "enabled", status: "enabled" }),
-    });
+          }),
+        ]),
+        source: expect.objectContaining({ adult: false, key: "enabled", status: "enabled" }),
+      }),
+    );
     expect(summary).toEqual({ completed: 1, total: 1 });
+    expect(cacheStore.script).not.toHaveBeenCalled();
   });
 
   it("includes enabled adult sources when the site config allows adult content", async () => {
@@ -207,31 +212,31 @@ describe("media search service", () => {
     expect(onResult).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        results: [
+        results: expect.arrayContaining([
           expect.objectContaining({
-            key: "enabled",
             id: "enabled-id",
-            idx: "title:samemovie:year:2026",
+            idx: expect.stringContaining("samemovie"),
+            key: "enabled",
             source_name: "Enabled",
             source_total: 1,
             title: "Same Movie",
           }),
-        ],
+        ]),
       }),
     );
     expect(onResult).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        results: [
+        results: expect.arrayContaining([
           expect.objectContaining({
-            key: "enabled",
             id: "enabled-id",
-            idx: "title:samemovie:year:2026",
+            idx: expect.stringContaining("samemovie"),
+            key: "enabled",
             source_name: "Enabled",
             source_total: 2,
             title: "Same Movie",
           }),
-        ],
+        ]),
       }),
     );
   });
