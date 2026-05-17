@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { searchMediaSources } from "./media-search-service";
+import { searchMediaSources, type MediaSearchOptions } from "./media-search-service";
+import type { MediaSearchCacheStore } from "./media-search-cache-service";
+import type { SiteConfigStore } from "@/modules/admin/server/site-config-service";
+import type { VideoSourceStore } from "@/modules/admin/server/video-source-service";
 
-function createSiteConfigStore() {
+function createSiteConfigStore(): Pick<SiteConfigStore, "script"> {
   return {
     script: vi.fn(async () => ({
       siteName: "MixTV",
@@ -18,7 +21,7 @@ function createSiteConfigStore() {
   };
 }
 
-function createVideoSourceStore() {
+function createVideoSourceStore(): Pick<VideoSourceStore, "script"> {
   return {
     script: vi.fn(async () => ({
       alpha: JSON.stringify({
@@ -40,8 +43,8 @@ describe("media search service", () => {
   it("aggregates results with a year:type:title index and writes cache entries", async () => {
     const siteConfigStore = createSiteConfigStore();
     const videoSourceStore = createVideoSourceStore();
-    const cacheStore = { script: vi.fn(async () => undefined) };
-    const searcher = vi.fn(async () => [
+    const cacheStore = { script: vi.fn(async () => undefined) } satisfies Pick<MediaSearchCacheStore, "script">;
+    const searcher: NonNullable<MediaSearchOptions["searcher"]> = vi.fn(async () => [
       {
         className: "电视剧",
         description: "desc",
@@ -62,12 +65,12 @@ describe("media search service", () => {
     const summary = await searchMediaSources(
       { query: "庆余年" },
       {
-        cacheStore: cacheStore as any,
+        cacheStore,
         onResult,
-        searcher: searcher as any,
-        siteConfigStore: siteConfigStore as any,
-        videoSourceStore: videoSourceStore as any,
-      },
+        searcher,
+        siteConfigStore,
+        videoSourceStore,
+      } satisfies MediaSearchOptions,
     );
 
     expect(summary).toEqual({ completed: 1, total: 1 });

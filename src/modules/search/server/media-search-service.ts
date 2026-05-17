@@ -188,6 +188,7 @@ export async function searchMediaSources(
         }
 
         const { sourceKeys, ...publicResult } = aggregated;
+        void sourceKeys;
         changedResults.push(publicResult);
       }
     } catch {
