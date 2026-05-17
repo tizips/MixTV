@@ -3,10 +3,30 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ContentCard } from "./content-card";
 import { getHomepageData } from "../application/homepage-service";
 
+const continueWatchingItem = {
+  id: "cw-1",
+  title: "繁城之下",
+  coverUrl: "https://image.test/poster.jpg",
+  rating: 8.1,
+  year: 2024,
+  type: "tv" as const,
+  continueWatching: {
+    currentEpisode: 12,
+    latestEpisode: 16,
+    sourceName: "腾讯视频",
+    source: "txvideo",
+  },
+};
+
 describe("ContentCard", () => {
   it("renders a tokenized card surface", async () => {
     const data = await getHomepageData();
-    const item = data.sections[0].items[0];
+    const item = data.sections.find((section) => section.items.length > 0)?.items[0];
+
+    if (!item) {
+      throw new Error("homepage sections are missing items");
+    }
+
     const html = renderToStaticMarkup(<ContentCard item={item} />);
 
     expect(html).toContain(item.title);
@@ -17,21 +37,9 @@ describe("ContentCard", () => {
   });
 
   it("renders continue-watching progress and actions", async () => {
-    const data = await getHomepageData();
-    const section = data.sections.find((currentSection) => currentSection.key === "continueWatching");
-
-    if (!section) {
-      throw new Error("continueWatching section is missing");
-    }
-
-    const item = section.items[0];
-    if (!item.continueWatching) {
-      throw new Error("continueWatching metadata is missing");
-    }
-
     const html = renderToStaticMarkup(
       <ContentCard
-        item={item}
+        item={continueWatchingItem}
         variant="continueWatching"
         isFavorite
       />,
@@ -39,27 +47,19 @@ describe("ContentCard", () => {
 
     expect(html).toContain("/play?id=");
     expect(html).toContain("source=");
-    expect(html).toContain(`id=${item.id}`);
-    expect(html).toContain(`EP.${item.continueWatching.currentEpisode}`);
-    expect(html).toContain(`${item.continueWatching.latestEpisode}`);
-    expect(html).toContain(`+${item.continueWatching.latestEpisode - item.continueWatching.currentEpisode}`);
-    expect(html).toContain(item.continueWatching.sourceName);
+    expect(html).toContain(`id=${continueWatchingItem.id}`);
+    expect(html).toContain(`EP.${continueWatchingItem.continueWatching.currentEpisode}`);
+    expect(html).toContain(`${continueWatchingItem.continueWatching.latestEpisode}`);
+    expect(html).toContain(`+${continueWatchingItem.continueWatching.latestEpisode - continueWatchingItem.continueWatching.currentEpisode}`);
+    expect(html).toContain(continueWatchingItem.continueWatching.sourceName);
     expect(html).toContain("justify-between");
     expect(html).toContain("收藏");
     expect(html).toContain("删除");
   });
 
   it("hides the extra episodes badge when there are no new episodes", async () => {
-    const data = await getHomepageData();
-    const section = data.sections.find((currentSection) => currentSection.key === "continueWatching");
-
-    if (!section) {
-      throw new Error("continueWatching section is missing");
-    }
-
-    const baseItem = section.items[0];
     const item = {
-      ...baseItem,
+      ...continueWatchingItem,
       continueWatching: {
         currentEpisode: 12,
         latestEpisode: 12,

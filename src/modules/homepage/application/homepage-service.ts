@@ -90,15 +90,17 @@ export async function getHomepageData(
 ): Promise<HomepageData> {
   const mockData = dataProvider ? dataProvider() : getMockHomepageData();
 
-  // Filter sections based on config and non-empty items
+  // Keep continue-watching available so the client can hydrate it from history.
   const sections = sectionConfigs
     .filter((sectionConfig) => {
-      // Check if section is enabled in config
       if (!config[sectionConfig.configKey]) {
         return false;
       }
 
-      // Check if section has items
+      if (sectionConfig.key === "continueWatching") {
+        return true;
+      }
+
       const items = mockData[sectionConfig.key] as ContentItem[];
       return items && items.length > 0;
     })

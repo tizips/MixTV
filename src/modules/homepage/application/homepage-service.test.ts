@@ -26,30 +26,29 @@ describe("getHomepageData", () => {
     expect(data.sections.map((section) => section.key)).not.toContain("newAnime");
   });
 
-  it("excludes sections with empty items", async () => {
-    // Create mock data with some empty sections
+  it("keeps continue watching available without placeholder items", async () => {
     const mockDataWithEmptySections = {
       heroBanner: [],
-      continueWatching: [{ id: "1", title: "Test", coverUrl: "", rating: 8, year: 2024, type: "movie" as const }],
-      upcomingReleases: [], // Empty
+      continueWatching: [],
+      upcomingReleases: [],
       hotMovies: [{ id: "2", title: "Test Movie", coverUrl: "", rating: 7, year: 2024, type: "movie" as const }],
-      hotTvShows: [], // Empty
+      hotTvShows: [],
       newAnime: [{ id: "3", title: "Test Anime", coverUrl: "", rating: 9, year: 2024, type: "anime" as const }],
-      hotVariety: [], // Empty
+      hotVariety: [],
       hotShortDramas: [{ id: "4", title: "Test Drama", coverUrl: "", rating: 8, year: 2024, type: "shortdrama" as const }],
     };
 
     const data = await getHomepageData(defaultHomepageConfig, () => mockDataWithEmptySections);
-    
     const sectionKeys = data.sections.map((section) => section.key);
-    
-    // Should include sections with items
+
     expect(sectionKeys).toContain("continueWatching");
     expect(sectionKeys).toContain("hotMovies");
     expect(sectionKeys).toContain("newAnime");
     expect(sectionKeys).toContain("hotShortDramas");
-    
-    // Should NOT include empty sections
+
+    const continueWatchingSection = data.sections.find((section) => section.key === "continueWatching");
+
+    expect(continueWatchingSection?.items).toEqual([]);
     expect(sectionKeys).not.toContain("upcomingReleases");
     expect(sectionKeys).not.toContain("hotTvShows");
     expect(sectionKeys).not.toContain("hotVariety");
@@ -66,8 +65,7 @@ describe("getHomepageData", () => {
 
   it("returns sections in correct order", async () => {
     const data = await getHomepageData(defaultHomepageConfig);
-    
-    // Expected order based on sectionConfigs in homepage-service.ts
+
     const expectedOrder = [
       "continueWatching",
       "upcomingReleases",
@@ -79,25 +77,21 @@ describe("getHomepageData", () => {
     ];
     
     const actualOrder = data.sections.map((section) => section.key);
-    
-    // Filter expected order to only include sections that should be present
+
     const filteredExpectedOrder = expectedOrder.filter((key) =>
       actualOrder.includes(key as (typeof actualOrder)[number]),
     );
-    
+
     expect(actualOrder).toEqual(filteredExpectedOrder);
   });
 
   it("sectionConfigs order matches homepageSectionOrder from domain", () => {
-    // Extract keys from sectionConfigs
     const configKeys = sectionConfigs.map((config) => config.key);
-    
-    // Filter homepageSectionOrder to exclude heroBanner (not in sectionConfigs)
+
     const domainOrderWithoutHero = homepageSectionOrder.filter(
-      (key) => key !== "heroBanner"
+      (key) => key !== "heroBanner",
     );
-    
-    // Verify the order matches
+
     expect(configKeys).toEqual(domainOrderWithoutHero);
   });
 });

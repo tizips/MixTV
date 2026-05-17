@@ -183,18 +183,20 @@ export function HomepageShell({ data, userName }: HomepageShellProps) {
 
       <div className="space-y-8">
         {sections.map((section) => (
-          <ContentCarousel
-            key={section.key}
-            title={section.title}
-            icon={section.icon}
-            iconClass={section.iconClass}
-            items={section.items}
-            moreLink={section.moreLink}
-            variant={section.key === "continueWatching" ? "continueWatching" : "default"}
-            favoriteIds={favoriteIds}
-            onFavorite={section.key === "continueWatching" ? toggleFavorite : undefined}
-            onDelete={section.key === "continueWatching" ? deleteContinueWatchingItem : undefined}
-          />
+          section.items.length > 0 ? (
+            <ContentCarousel
+              key={section.key}
+              title={section.title}
+              icon={section.icon}
+              iconClass={section.iconClass}
+              items={section.items}
+              moreLink={section.moreLink}
+              variant={section.key === "continueWatching" ? "continueWatching" : "default"}
+              favoriteIds={favoriteIds}
+              onFavorite={section.key === "continueWatching" ? toggleFavorite : undefined}
+              onDelete={section.key === "continueWatching" ? deleteContinueWatchingItem : undefined}
+            />
+          ) : null
         ))}
       </div>
     </div>

@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { deleteHistoryPlaybackProgress } from "@/modules/history/server/history-service";
 import { PlaybackSourcesValidationError, getPlaybackSources } from "@/modules/playback/server/playback-source-service";
 import {
   PlaybackSourceSwitchValidationError,
   switchPlaybackSource,
 } from "@/modules/playback/server/playback-source-switch-service";
+import { createPlaybackProgressStore } from "@/modules/playback/server/playback-progress-service";
 import { recordApiRequest } from "@/modules/stats";
 
 const encoder = new TextEncoder();
@@ -175,6 +177,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const progressStore = process.env.STORAGE_TYPE ? createPlaybackProgressStore() : undefined;
     const result = await switchPlaybackSource(
       {
         current,
@@ -183,8 +186,23 @@ export async function POST(request: Request) {
         target,
         total_time,
       },
-      { userId },
+      {
+        ...(progressStore ? { progressStore } : {}),
+        userId,
+      },
     );
+
+    if (progressStore) {
+      try {
+        await deleteHistoryPlaybackProgress(
+          userId,
+          { id: current.id, source: current.source },
+          { store: progressStore },
+        );
+      } catch {
+        // Keep the switch result even if cleanup fails.
+      }
+    }
 
     void recordApiRequest({
       durationMs: Math.max(0, Math.round(performance.now() - startedAt)),

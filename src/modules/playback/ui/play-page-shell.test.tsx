@@ -851,7 +851,22 @@ describe("PlayPageShell client playback cover", () => {
       await Promise.resolve();
     });
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/play/sources", expect.objectContaining({ method: "POST" }));
+    const switchCall = fetchMock.mock.calls.find(([input, init]) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      return url === "/api/play/sources" && init?.method === "POST";
+    });
+
+    if (!switchCall) {
+      throw new Error("Playback source switch request was not sent");
+    }
+
+    const [, switchInit] = switchCall;
+    const switchBody = JSON.parse(String(switchInit?.body)) as Record<string, unknown>;
+
+    expect(switchBody).toMatchObject({
+      currentId: "80474",
+      currentSource: "dyttzyapi.com",
+    });
     expect(window.location.search).toContain("source=alpha");
     expect(window.location.search).toContain("id=80474");
 
