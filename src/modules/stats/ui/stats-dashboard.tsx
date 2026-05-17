@@ -53,6 +53,106 @@ function formatDayLabel(dayKey: string) {
   });
 }
 
+function createEmptyTimelineMetric(): TrafficMinuteMetric {
+  return {
+    averageDurationMs: 0,
+    count: 0,
+    failCount: 0,
+    successCount: 0,
+    totalDurationMs: 0,
+  };
+}
+
+function addMetric(target: TrafficMinuteMetric, source: TrafficMinuteMetric) {
+  target.count += source.count;
+  target.totalDurationMs += source.totalDurationMs;
+  target.successCount += source.successCount;
+  target.failCount += source.failCount;
+  target.averageDurationMs = target.count > 0 ? Math.round(target.totalDurationMs / target.count) : 0;
+}
+
+function formatHourLabel(dayKey: string, minuteKey: string) {
+  const date = new Date(`${dayKey}T${minuteKey}:00.000Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    return minuteKey;
+  }
+
+  return date.toLocaleString("zh-CN", {
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+    month: "short",
+    timeZone: "UTC",
+  });
+}
+
+function aggregateHourlyTimeline(points: TrafficTimelinePoint[]) {
+  const buckets = new Map<
+    string,
+    {
+      api: TrafficMinuteMetric;
+      dayKey: string;
+      label: string;
+      minuteKey: string;
+      page: TrafficMinuteMetric;
+      thirdParty: TrafficMinuteMetric;
+    }
+  >();
+
+  for (const point of points) {
+    const hourKey = `${point.dayKey} ${point.minuteKey.slice(0, 2)}`;
+    const existing = buckets.get(hourKey);
+
+    if (existing) {
+      addMetric(existing.page, point.page);
+      addMetric(existing.api, point.api);
+      addMetric(existing.thirdParty, point.thirdParty);
+      continue;
+    }
+
+    buckets.set(hourKey, {
+      api: {
+        ...createEmptyTimelineMetric(),
+        averageDurationMs: point.api.averageDurationMs,
+        count: point.api.count,
+        failCount: point.api.failCount,
+        successCount: point.api.successCount,
+        totalDurationMs: point.api.totalDurationMs,
+      },
+      dayKey: point.dayKey,
+      label: formatHourLabel(point.dayKey, point.minuteKey),
+      minuteKey: `${point.minuteKey.slice(0, 2)}:00`,
+      page: {
+        ...createEmptyTimelineMetric(),
+        averageDurationMs: point.page.averageDurationMs,
+        count: point.page.count,
+        failCount: point.page.failCount,
+        successCount: point.page.successCount,
+        totalDurationMs: point.page.totalDurationMs,
+      },
+      thirdParty: {
+        ...createEmptyTimelineMetric(),
+        averageDurationMs: point.thirdParty.averageDurationMs,
+        count: point.thirdParty.count,
+        failCount: point.thirdParty.failCount,
+        successCount: point.thirdParty.successCount,
+        totalDurationMs: point.thirdParty.totalDurationMs,
+      },
+    });
+  }
+
+  return Array.from(buckets.values()).map((point) => {
+    point.page.averageDurationMs = point.page.count > 0 ? Math.round(point.page.totalDurationMs / point.page.count) : 0;
+    point.api.averageDurationMs = point.api.count > 0 ? Math.round(point.api.totalDurationMs / point.api.count) : 0;
+    point.thirdParty.averageDurationMs =
+      point.thirdParty.count > 0 ? Math.round(point.thirdParty.totalDurationMs / point.thirdParty.count) : 0;
+
+    return point;
+  });
+}
+
 type TrafficTotals = {
   all: TrafficMinuteMetric;
   api: TrafficMinuteMetric;
@@ -175,8 +275,8 @@ function TimelineChart({ points }: { points: TrafficTimelinePoint[] }) {
 
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[920px]">
-        <div className="flex items-end gap-1.5">
+      <div className="min-w-[720px]">
+        <div className="flex items-end gap-2">
           {points.map((point, index) => {
             const pageCount = point.page.count;
             const apiCount = point.api.count;
@@ -186,10 +286,10 @@ function TimelineChart({ points }: { points: TrafficTimelinePoint[] }) {
             const pageHeight = totalCount > 0 ? Math.max(2, Math.round((pageCount / totalCount) * barHeight)) : 0;
             const apiHeight = totalCount > 0 ? Math.max(2, Math.round((apiCount / totalCount) * barHeight)) : 0;
             const thirdPartyHeight = Math.max(0, barHeight - pageHeight - apiHeight);
-            const showLabel = index % 10 === 0 || index === points.length - 1;
+            const showLabel = points.length <= 12 || index % 2 === 0 || index === points.length - 1;
 
             return (
-              <div key={`${point.dayKey}-${point.minuteKey}`} className="flex w-[7px] flex-col items-center gap-2">
+              <div key={`${point.dayKey}-${point.minuteKey}`} className="flex w-[38px] flex-col items-center gap-2">
                 <div className="flex h-36 w-full flex-col justify-end overflow-hidden rounded-full bg-default-100/80">
                   {thirdPartyHeight > 0 ? (
                     <div
@@ -207,7 +307,7 @@ function TimelineChart({ points }: { points: TrafficTimelinePoint[] }) {
                     />
                   ) : null}
                 </div>
-                <p className="h-4 text-[10px] leading-4 text-default-400">{showLabel ? point.label : ""}</p>
+                <p className="h-8 text-[10px] leading-4 text-default-400">{showLabel ? point.label : ""}</p>
               </div>
             );
           })}
@@ -222,7 +322,9 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
   const [isRefreshing, startTransition] = useTransition();
 
   const totals = totalMetric(overview.dailySummaries);
+  const dailySummaries = [...overview.dailySummaries].reverse();
   const currentMinute = overview.currentMinute;
+  const hourlyTimeline = aggregateHourlyTimeline(overview.timeline);
   const apiShare = totals.all.count > 0 ? (totals.all.successCount / Math.max(1, totals.all.successCount + totals.all.failCount)) * 100 : 0;
 
   const refresh = () => {
@@ -251,12 +353,12 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
                   <div className="flex items-center gap-3">
                     <i aria-hidden="true" className="bi bi-bar-chart-fill text-2xl text-accent" />
                     <div>
-                      <p className="text-sm font-medium uppercase tracking-[0.28em] text-default-500">Admin / Stats</p>
-                      <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-5xl">播放统计</h1>
+                      <p className="text-sm font-medium uppercase tracking-[0.28em] text-default-500">最近 7 天总览</p>
+                      <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-5xl">运营口径</h1>
                     </div>
                   </div>
                   <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
-                    统计页面访问、API 流量和第三方资源站请求，保留 7 天，按分钟聚合。页面与接口耗时会一起呈现，方便快速判断流量高峰和失败波动。
+                    统计页面访问、API 流量和第三方资源站请求，保留最近 7 天，按分钟聚合。页面与接口耗时会一起呈现，方便快速判断流量高峰和失败波动。
                   </p>
                 </div>
 
@@ -303,8 +405,8 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
               <Card.Header className="px-5 pb-2 pt-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-default-500">最近 7 天总览</p>
-                    <p className="text-base font-semibold text-foreground">聚合流量与耗时</p>
+                    <p className="text-sm font-medium text-default-500">最近 7 天</p>
+                    <p className="text-base font-semibold text-foreground">总请求次数</p>
                   </div>
                   <Chip color="accent" variant="soft">
                     {formatCount(totals.all.count)} 次
@@ -312,33 +414,22 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
                 </div>
               </Card.Header>
               <Separator />
-              <Card.Content className="grid gap-3 px-5 py-4">
-                <div className="rounded-2xl bg-accent/10 px-4 py-3">
-                  <p className="text-xs font-medium uppercase tracking-[0.24em] text-default-500">总请求</p>
-                  <p className="mt-1 text-2xl font-semibold text-foreground">{formatCount(totals.all.count)} 次</p>
+              <Card.Content className="grid gap-3 px-5 py-5 text-center">
+                <div className="relative min-h-[8rem] w-full overflow-hidden rounded-2xl bg-accent/10 px-6 py-4">
+                  <p className="absolute left-6 top-4 text-xs font-medium uppercase tracking-[0.24em] text-default-500">总请求</p>
+                  <div className="flex min-h-[8rem] w-full items-center justify-center">
+                    <p className="text-4xl font-semibold tracking-tight text-foreground">
+                      {formatCount(totals.all.count)} 次
+                    </p>
+                  </div>
                 </div>
-                <div className="grid gap-2 text-sm text-default-600">
-                  <p>平均耗时 {totals.all.averageDurationMs > 0 ? `${Math.round(totals.all.averageDurationMs)}ms` : "0ms"}</p>
-                  <p>成功率 {formatPercent(apiShare)}</p>
-                  <p>统计窗口 最近 7 天 · 分钟级</p>
-                </div>
+                <p className="text-sm text-default-600">
+                  平均 {totals.all.averageDurationMs > 0 ? `${Math.round(totals.all.averageDurationMs)}ms` : "0ms"} · 成功率 {formatPercent(apiShare)}
+                </p>
+                <p className="text-xs text-default-500">近 7 天 · 分钟级</p>
               </Card.Content>
             </Card>
 
-            <Card className="overflow-hidden border border-default-200/80 bg-background/75 backdrop-blur-xl">
-              <Card.Header className="px-5 pb-2 pt-5">
-                <div>
-                  <p className="text-sm font-medium text-default-500">运行口径</p>
-                  <p className="text-base font-semibold text-foreground">记录和展示规则</p>
-                </div>
-              </Card.Header>
-              <Separator />
-              <Card.Content className="grid gap-3 px-5 py-4 text-sm leading-6 text-default-600">
-                <p>页面访问使用前端埋点，记录进入和停留时长。</p>
-                <p>API 流量和第三方请求均按请求耗时统计，失败请求单独计数。</p>
-                <p>数据按 UTC 分钟桶聚合，Redis 仅保留最近 7 天。</p>
-              </Card.Content>
-            </Card>
           </div>
         </header>
 
@@ -366,25 +457,25 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
           />
         </section>
 
-        <section className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.6fr)]">
+        <section className="mt-8 grid gap-6">
           <Card className="overflow-hidden border border-default-200/80 bg-background/75 backdrop-blur-xl">
             <Card.Header className="flex flex-col gap-3 px-5 pb-2 pt-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium text-default-500">最近 120 分钟</p>
-                  <p className="text-base font-semibold text-foreground">分钟级访问波形</p>
+                  <p className="text-sm font-medium text-default-500">每小时</p>
+                  <p className="text-base font-semibold text-foreground">最近 12 小时访问波形</p>
                 </div>
                 <Chip color="accent" variant="soft">
-                  120 分钟窗口
+                  12 小时窗口
                 </Chip>
               </div>
               <p className="text-sm leading-6 text-default-500">
-                这里展示每分钟的总请求量，颜色区分页面、API 和第三方请求。
+                这里展示每小时的总请求量，颜色区分页面、API 和第三方请求。
               </p>
             </Card.Header>
             <Separator />
             <Card.Content className="grid gap-4 px-5 py-5">
-              <TimelineChart points={overview.timeline} />
+              <TimelineChart points={hourlyTimeline} />
               <div className="flex flex-wrap items-center gap-3 text-xs text-default-500">
                 <span className="inline-flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-accent" />
@@ -399,48 +490,6 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
                   第三方
                 </span>
               </div>
-            </Card.Content>
-          </Card>
-
-          <Card className="overflow-hidden border border-default-200/80 bg-background/75 backdrop-blur-xl">
-            <Card.Header className="px-5 pb-2 pt-5">
-              <div>
-                <p className="text-sm font-medium text-default-500">日级总览</p>
-                <p className="text-base font-semibold text-foreground">最近 7 天汇总</p>
-              </div>
-            </Card.Header>
-            <Separator />
-            <Card.Content className="grid gap-3 px-5 py-4">
-              {overview.dailySummaries.map((day) => {
-                const dayTotal = day.page.count + day.api.count + day.thirdParty.count;
-                const daySuccess = day.page.successCount + day.api.successCount + day.thirdParty.successCount;
-                const dayFail = day.page.failCount + day.api.failCount + day.thirdParty.failCount;
-                const successRate = dayTotal > 0 ? (daySuccess / Math.max(1, daySuccess + dayFail)) * 100 : 0;
-
-                return (
-                  <div
-                    key={day.dayKey}
-                    className="grid gap-2 rounded-2xl border border-default-200/70 bg-default-50/60 px-4 py-3"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-medium text-foreground">{formatDayLabel(day.dayKey)}</p>
-                      <Chip size="sm" variant="soft">
-                        {formatCount(dayTotal)} 次
-                      </Chip>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs text-default-500">
-                      <span>页面 {formatCount(day.page.count)}</span>
-                      <span>API {formatCount(day.api.count)}</span>
-                      <span>第三方 {formatCount(day.thirdParty.count)}</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-default-500">
-                      <span>成功率 {formatPercent(successRate)}</span>
-                      <span className="text-default-300">·</span>
-                      <span>平均耗时 {dayTotal > 0 ? `${Math.round((day.page.totalDurationMs + day.api.totalDurationMs + day.thirdParty.totalDurationMs) / dayTotal)}ms` : "0ms"}</span>
-                    </div>
-                  </div>
-                );
-              })}
             </Card.Content>
           </Card>
         </section>
@@ -471,7 +520,7 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
                 </tr>
               </thead>
               <tbody>
-                {overview.dailySummaries.map((day) => {
+                {dailySummaries.map((day) => {
                   const dayTotal = day.page.count + day.api.count + day.thirdParty.count;
                   const daySuccess = day.page.successCount + day.api.successCount + day.thirdParty.successCount;
                   const dayFail = day.page.failCount + day.api.failCount + day.thirdParty.failCount;
@@ -481,7 +530,7 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
                     : 0;
 
                   return (
-                    <tr key={day.dayKey} className="align-top">
+                    <tr key={day.dayKey} className="align-top" data-day-key={day.dayKey}>
                       <td className="border-b border-default-100 px-3 py-3 font-medium text-foreground">{formatDayLabel(day.dayKey)}</td>
                       <td className="border-b border-default-100 px-3 py-3 text-default-600">{formatCount(day.page.count)} 次</td>
                       <td className="border-b border-default-100 px-3 py-3 text-default-600">{formatCount(day.api.count)} 次</td>
