@@ -26,7 +26,13 @@ That pattern means the request usually reached the endpoint and the server retur
 
 ## Current mitigation
 
-The workflow now calls `curl` with:
+All three cron workflows now use the same pattern:
+
+- write the response body to a temporary file
+- check for HTTP `200`
+- verify the expected JSON message is present
+
+Each workflow still calls `curl` with:
 
 - `--http1.1`
 - `--connect-timeout 10`
@@ -35,10 +41,10 @@ The workflow now calls `curl` with:
 - `--retry-all-errors`
 - `--retry-delay 2`
 
-This keeps the cron job strict about real HTTP failures, but makes it resilient to transient edge-network resets.
+This keeps the cron jobs strict about real HTTP failures, but makes them resilient to transient edge-network resets after the JSON response has already been produced.
 
 ## What to check if it comes back
 
 - Confirm `CRON_BASE_URL` still points to the live site root, not a redirected URL.
 - Check whether the platform changed its edge behavior or HTTP/2 handling.
-- Re-run the endpoint manually with `curl --http1.1 --fail --silent --show-error` against the deployed `/api/cron/*` route.
+- Re-run the endpoint manually with `curl --http1.1 --silent --show-error --output /tmp/cron.txt --write-out '%{http_code}'` against the deployed `/api/cron/*` route.

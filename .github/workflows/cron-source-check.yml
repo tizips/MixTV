@@ -30,11 +30,24 @@ jobs:
         run: |
           set -euo pipefail
           # Edge hosts can reset the connection after the JSON response is already sent.
-          curl --fail --silent --show-error \
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          http_code="$(
+            curl --silent --show-error \
             --http1.1 \
             --connect-timeout 10 \
             --max-time 120 \
             --retry 5 \
             --retry-all-errors \
             --retry-delay 2 \
-            "${CRON_BASE_URL%/}/api/cron/source-check"
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            "${CRON_BASE_URL%/}/api/cron/source-check" || true
+          )"
+
+          if [ "$http_code" = "200" ] && grep -Fq "Video source validity check scheduled." "$response_file"; then
+            exit 0
+          fi
+
+          cat "$response_file"
+          exit 1
