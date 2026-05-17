@@ -18,6 +18,7 @@ import { createMediaSearchIndex } from "@/shared/media/search-index";
 import type { PlayPageData, VideoSource } from "../domain/playback-page-data";
 import {
   getOrCreateInitialPlaybackProgress,
+  findPlaybackProgressByIndex,
   type PlaybackProgressStore,
 } from "./playback-progress-service";
 
@@ -305,6 +306,51 @@ async function readPlaybackFavoriteState({
   }
 }
 
+async function loadPlaybackResource(
+  sourceKey: string,
+  id: string,
+  {
+    cacheStore,
+    detailFetcher,
+    fetcher,
+    timeoutMs,
+    videoSourceStore,
+  }: {
+    cacheStore: PlaybackCacheStore;
+    detailFetcher: typeof getVideoSourceDetail;
+    fetcher?: VideoSourceAdapterOptions["fetcher"];
+    timeoutMs?: number;
+    videoSourceStore: VideoSourceStore;
+  },
+) {
+  const source = await findEnabledSource(sourceKey, videoSourceStore);
+
+  if (!source) {
+    return { status: "missing_source" as const };
+  }
+
+  const cacheKey = createPlaybackCacheKey(sourceKey, id);
+  const cachedResource = await readCachedResource(cacheStore, cacheKey);
+  const resource = cachedResource ?? await detailFetcher(toEndpoint(source), id, {
+    ...(fetcher ? { fetcher } : {}),
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+  });
+
+  if (!cachedResource) {
+    await saveCachedResource(cacheStore, cacheKey, resource);
+  }
+
+  if (resource.episodes.length === 0) {
+    return { status: "empty" as const };
+  }
+
+  return {
+    status: "ready" as const,
+    resource,
+    source,
+  };
+}
+
 export async function getPlaybackPageData(
   query: PlaybackPageQuery,
   options: PlaybackPageOptions = {},
@@ -327,81 +373,120 @@ export async function getPlaybackPageData(
     userId,
     videoSourceStore = createVideoSourceStore(),
   } = options;
-  const source = await findEnabledSource(sourceKey, videoSourceStore);
-
-  if (!source) {
-    return { status: "error", error: "未找到可用片源，无法加载播放信息。" };
-  }
-
   try {
-    const cacheKey = createPlaybackCacheKey(sourceKey, id);
-    const cachedResource = await readCachedResource(cacheStore, cacheKey);
-    const resource = cachedResource ?? await detailFetcher(toEndpoint(source), id, {
-      ...(fetcher ? { fetcher } : {}),
-      ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    const requested = await loadPlaybackResource(sourceKey, id, {
+      cacheStore,
+      detailFetcher,
+      fetcher,
+      timeoutMs,
+      videoSourceStore,
     });
 
-    if (!cachedResource) {
-      await saveCachedResource(cacheStore, cacheKey, resource);
+    if (requested.status === "missing_source") {
+      return { status: "error", error: "未找到可用片源，无法加载播放信息。" };
     }
 
-    if (resource.episodes.length === 0) {
+    if (requested.status === "empty") {
       return { status: "error", error: "当前资源没有可播放地址。" };
     }
 
-    const playbackProgress = userId
-      ? await getOrCreateInitialPlaybackProgress(
+    let activeSourceKey = sourceKey;
+    let activeId = id;
+    let activeResource = requested.resource;
+    let playbackProgress = null;
+
+    if (userId && progressStore) {
+      const matchedProgress = await findPlaybackProgressByIndex(
+        userId,
+        createMediaSearchIndex({
+          className: requested.resource.className,
+          title: requested.resource.title,
+          typeName: requested.resource.typeName,
+          year: requested.resource.year,
+        }),
+        { store: progressStore },
+      );
+
+      if (matchedProgress) {
+        playbackProgress = matchedProgress;
+
+        if (matchedProgress.source !== sourceKey || matchedProgress.id !== id) {
+          const switched = await loadPlaybackResource(matchedProgress.source, matchedProgress.id, {
+            cacheStore,
+            detailFetcher,
+            fetcher,
+            timeoutMs,
+            videoSourceStore,
+          });
+
+          if (switched.status === "ready") {
+            activeSourceKey = matchedProgress.source;
+            activeId = matchedProgress.id;
+            activeResource = switched.resource;
+          } else {
+            playbackProgress = null;
+            activeSourceKey = sourceKey;
+            activeId = id;
+            activeResource = requested.resource;
+          }
+        }
+      }
+    }
+
+    if (!playbackProgress && userId) {
+      playbackProgress = await getOrCreateInitialPlaybackProgress(
         {
-          detail: resource,
-          id,
-          source: sourceKey,
+          detail: activeResource,
+          id: activeId,
+          source: activeSourceKey,
         },
         {
           ...(now ? { now } : {}),
           ...(progressStore ? { store: progressStore } : {}),
           userId,
         },
-      )
-      : null;
+      );
+    }
+
     const isFavorite = await readPlaybackFavoriteState({
       favoriteStore,
-      id,
-      sourceKey,
+      id: activeId,
+      sourceKey: activeSourceKey,
       userId,
     });
-    const sources = createPlaybackSources(resource.episodes, resource.episodeTitles ?? []);
-    const title = resource.title || "未知影片";
+    const sources = createPlaybackSources(activeResource.episodes, activeResource.episodeTitles ?? []);
+    const title = activeResource.title || "未知影片";
     const coverDefault = createPlaceholderImageUrl({
       variant: "poster",
       fileStem: title,
-      seed: `${resource.sourceKey}-${resource.id}`,
+      seed: `${activeResource.sourceKey}-${activeResource.id}`,
     });
 
     return {
       status: "ready",
       data: {
         title,
-        original_title: resource.typeName ?? resource.className ?? resource.sourceName,
+        original_title: activeResource.typeName ?? activeResource.className ?? activeResource.sourceName,
         play_episodes: playbackProgress?.play_episodes ?? 1,
         cover_default: coverDefault,
-        cover: resource.posterUrl || coverDefault,
+        cover: activeResource.posterUrl || coverDefault,
         index: createMediaSearchIndex({
-          className: resource.className,
-          title: resource.title,
-          typeName: resource.typeName,
-          year: resource.year,
+          className: activeResource.className,
+          title: activeResource.title,
+          typeName: activeResource.typeName,
+          year: activeResource.year,
         }),
-        progress_id: id,
-        progress_source: sourceKey,
+        progress_id: activeId,
+        progress_source: activeSourceKey,
         play_time: playbackProgress?.play_time,
         is_favorite: isFavorite,
-        year: resource.year,
-        area: resource.sourceName,
-        category: resource.className ?? resource.typeName ?? "未知",
+        year: activeResource.year,
+        area: activeResource.sourceName,
+        category: activeResource.className ?? activeResource.typeName ?? "未知",
         rating: "暂无",
-        source_name: resource.sourceName,
-        description: resource.description || "暂无简介。",
-        tags: createTags(resource),
+        source_name: activeResource.sourceName,
+        description: activeResource.description || "暂无简介。",
+        tags: createTags(activeResource),
         episodes: sources.map((sourceItem, index) => ({
           number: index + 1,
           title: sourceItem.name,

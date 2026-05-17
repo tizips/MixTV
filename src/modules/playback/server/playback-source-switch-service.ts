@@ -1,4 +1,4 @@
-import { getVideoSourceDetail, type VideoSourceAdapterOptions, type VideoSourceEndpoint, type VideoSourceResource } from "@/integrations/video-sources";
+import { getVideoSourceDetail, type VideoSourceAdapterOptions, type VideoSourceEndpoint } from "@/integrations/video-sources";
 import {
   createVideoSourceStore,
   getVideoSources,

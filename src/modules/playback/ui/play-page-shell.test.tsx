@@ -423,7 +423,7 @@ describe("PlayPageShell client playback cover", () => {
     });
   });
 
-  it("captures the initial zero-time frame when the video can play", async () => {
+  it("captures the initial frame before playback starts and clears it when playback begins", async () => {
     const host = document.createElement("div");
     document.body.append(host);
     const root = createRoot(host);
@@ -462,12 +462,18 @@ describe("PlayPageShell client playback cover", () => {
 
     expect(art.poster).toBe("data:image/jpeg;base64,zero-frame");
 
+    await act(async () => {
+      art.emit("video:play", new Event("play"));
+    });
+
+    expect(art.poster).toBe("");
+
     act(() => {
       root.unmount();
     });
   });
 
-  it("uploads playback progress when playback pauses", async () => {
+  it("uploads playback progress when playback pauses without restoring the captured cover", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ progress: {} })));
     vi.stubGlobal("fetch", fetchMock);
     const host = document.createElement("div");
@@ -488,6 +494,13 @@ describe("PlayPageShell client playback cover", () => {
       throw new Error("Artplayer was not initialized");
     }
 
+    await act(async () => {
+      art.emit("video:canplay", new Event("canplay"));
+    });
+    await act(async () => {
+      art.emit("video:play", new Event("play"));
+    });
+
     art.currentTime = 1061;
     art.duration = 1247;
 
@@ -495,11 +508,102 @@ describe("PlayPageShell client playback cover", () => {
       art.emit("video:pause");
     });
 
+    expect(art.poster).toBe("");
     expect(fetchMock).toHaveBeenCalledWith("/api/playback/progress/dyttzyapi.com/80474", {
       body: JSON.stringify({ play_episodes: 1, play_time: 1061, total_time: 1247 }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("restarts temporary cover capture when switching episodes", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const initialData = createInitialData();
+    initialData.play_episodes = 2;
+    initialData.sources = [
+      {
+        id: "episode-1",
+        latency: "在线播放",
+        name: "第1集",
+        quality: "HLS",
+        status: "流畅",
+        url: "https://media.test/1.m3u8",
+      },
+      {
+        id: "episode-2",
+        latency: "在线播放",
+        name: "第2集",
+        quality: "HLS",
+        status: "流畅",
+        url: "https://media.test/2.m3u8",
+      },
+    ];
+    initialData.episodes = [
+      { duration: "未知", number: 1, title: "第1集" },
+      { duration: "未知", number: 2, title: "第2集" },
+    ];
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={initialData} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const art = artplayerState.instances[0];
+
+    if (!art) {
+      throw new Error("Artplayer was not initialized");
+    }
+
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tagName: string) => {
+      if (tagName === "canvas") {
+        return {
+          getContext: () => ({ drawImage: vi.fn() }),
+          height: 0,
+          toDataURL: () => "data:image/jpeg;base64,next-frame",
+          width: 0,
+        } as unknown as HTMLCanvasElement;
+      }
+
+      return originalCreateElement(tagName);
+    });
+
+    await act(async () => {
+      art.emit("video:canplay", new Event("canplay"));
+    });
+    await act(async () => {
+      art.emit("video:play", new Event("play"));
+    });
+
+    expect(art.poster).toBe("");
+
+    const episodeButton = [...host.querySelectorAll("button")]
+      .find((button) => button.textContent?.trim() === "1") as HTMLButtonElement | undefined;
+
+    if (!episodeButton) {
+      throw new Error("Episode button was not rendered");
+    }
+
+    await act(async () => {
+      episodeButton.click();
+    });
+
+    expect(art.poster).toBe("https://image.test/poster.jpg");
+
+    await act(async () => {
+      art.emit("video:canplay", new Event("canplay"));
+    });
+
+    expect(art.poster).toBe("data:image/jpeg;base64,next-frame");
 
     act(() => {
       root.unmount();

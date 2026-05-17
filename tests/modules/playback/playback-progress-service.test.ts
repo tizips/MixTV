@@ -116,6 +116,7 @@ describe("playback progress service", () => {
       cover: "https://image.test/poster.jpg",
       douban_id: 0,
       id: "100",
+      index: "2026:unknown:alphamovie",
       original_episodes: 3,
       play_time: 1061,
       play_episodes: 2,
@@ -131,6 +132,7 @@ describe("playback progress service", () => {
     expect(JSON.parse(store.dumpHash("user-1:pr")["alpha:100"] ?? "{}")).toEqual({
       cover: "https://image.test/poster.jpg",
       douban_id: 0,
+      index: "2026:unknown:alphamovie",
       original_episodes: 3,
       play_time: 1061,
       play_episodes: 2,

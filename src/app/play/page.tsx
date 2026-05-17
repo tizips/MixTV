@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { getPlaybackPageData, PlayPageShell } from "@/modules/playback";
+import { createPlaybackProgressStore } from "@/modules/playback/server/playback-progress-service";
 import { env } from "@/shared/env";
 
 export const metadata: Metadata = {
@@ -21,7 +22,8 @@ export default async function PlayPage({ searchParams }: PlayPageProps) {
     return <PlayPageShell playbackPlaceholderError="请先登录后再播放。" />;
   }
 
-  const result = await getPlaybackPageData(await searchParams, { userId });
+  const progressStore = process.env.STORAGE_TYPE ? createPlaybackProgressStore() : undefined;
+  const result = await getPlaybackPageData(await searchParams, { progressStore, userId });
 
   if (result.status === "error") {
     return <PlayPageShell playbackPlaceholderError={result.error} />;

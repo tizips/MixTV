@@ -39,6 +39,10 @@ function createCacheStore(initialValues: Record<string, unknown> = {}): DbPort<u
   ) => {
     const key = options.keys?.[0] ?? "";
 
+    if (scriptText.includes("HGETALL")) {
+      return Object.entries(Object.fromEntries(values)).flat() as TResult;
+    }
+
     if (scriptText.includes("GET")) {
       return (values.get(key) ?? null) as TResult;
     }
@@ -69,6 +73,10 @@ function createProgressStore(initialValues: Record<string, unknown> = {}): Scrip
   );
   const script: ScriptProgressStore["script"] = async <TResult = unknown>(scriptText: string, options?: DbScriptOptions<string>) => {
     const field = String(options?.args?.[0] ?? "");
+
+    if (scriptText.includes("HGETALL")) {
+      return Object.entries(Object.fromEntries(values)).flat() as TResult;
+    }
 
     if (scriptText.includes("HGET")) {
       return (values.get(field) ?? null) as TResult;
@@ -355,6 +363,90 @@ describe("getPlaybackPageData", () => {
     expect(result.status === "ready" ? result.data.play_episodes : null).toBe(2);
     expect(result.status === "ready" ? result.data.play_time : null).toBe(125);
     expect(JSON.parse(progressStore.dumpHash("user-1:pr")["dyttzyapi.com:80474"] ?? "{}").save_time).toBe(1768535315661);
+  });
+
+  it("switches the initial playback source to an existing progress record with the same index", async () => {
+    const progressStore = createProgressStore({
+      "alpha:80474": {
+        cover: "https://image.test/alpha.jpg",
+        douban_id: 0,
+        index: "2026:tv:资源站标题",
+        original_episodes: 2,
+        play_time: 125,
+        play_episodes: 2,
+        remarks: "更新至2集",
+        save_time: 1768535315661,
+        search_title: "",
+        source_name: "Alpha Source",
+        title: "资源站标题",
+        total_time: 1247,
+        year: "2026",
+      },
+    });
+    const detailFetcher = vi.fn(async (source) => {
+      if (source.key === "alpha") {
+        return createResource({
+          className: "剧集",
+          episodeTitles: ["第1集", "第2集"],
+          episodes: ["https://alpha.test/1.m3u8", "https://alpha.test/2.m3u8"],
+          id: "80474",
+          posterUrl: "https://image.test/alpha.jpg",
+          sourceKey: "alpha",
+          sourceName: "Alpha Source",
+          title: "资源站标题",
+          typeName: "剧集",
+          year: "2026",
+        });
+      }
+
+      return createResource({
+        className: "剧集",
+        episodeTitles: ["第1集", "第2集"],
+        episodes: ["https://beta.test/1.m3u8", "https://beta.test/2.m3u8"],
+        id: "90001",
+        posterUrl: "https://image.test/beta.jpg",
+        sourceKey: "beta",
+        sourceName: "Beta Source",
+        title: "资源站标题",
+        typeName: "剧集",
+        year: "2026",
+      });
+    });
+
+    const result = await getPlaybackPageData(
+      { id: "90001", source: "beta" },
+      {
+        cacheStore: createCacheStore(),
+        detailFetcher,
+        progressStore,
+        userId: "user-1",
+        videoSourceStore: createStore({
+          alpha: createSource({ key: "alpha", name: "Alpha Source" }),
+          beta: createSource({ key: "beta", name: "Beta Source" }),
+        }),
+      },
+    );
+
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") {
+      throw new Error("expected ready playback data");
+    }
+
+    expect(result.data.progress_source).toBe("alpha");
+    expect(result.data.progress_id).toBe("80474");
+    expect(result.data.play_episodes).toBe(2);
+    expect(result.data.play_time).toBe(125);
+    expect(result.data.source_name).toBe("Alpha Source");
+    expect(detailFetcher).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "beta", name: "Beta Source" }),
+      "90001",
+      {},
+    );
+    expect(detailFetcher).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "alpha", name: "Alpha Source" }),
+      "80474",
+      {},
+    );
   });
 
   it("returns the direct favorite state for the requested playback resource", async () => {

@@ -206,6 +206,7 @@ export function PlayPageShell({
   const artContainerRef = useRef<HTMLDivElement>(null);
   const artPlayerRef = useRef<Artplayer | null>(null);
   const hasAppliedResumeTimeRef = useRef(false);
+  const hasPlaybackStartedRef = useRef(false);
   const initialResumeTimeSeconds = normalizeResumeTime(playbackData?.play_time);
   const [activeEpisode, setActiveEpisode] = useState(playbackData?.play_episodes ?? 1);
   const [activeSource, setActiveSource] = useState(
@@ -417,6 +418,7 @@ export function PlayPageShell({
         currentPlaybackSecondsRef.current = data.progress.play_time;
         currentPlaybackDurationRef.current = totalTime;
         hasAppliedResumeTimeRef.current = false;
+        hasPlaybackStartedRef.current = false;
 
         if (typeof window !== "undefined") {
           window.history.replaceState(null, "", nextUrl);
@@ -437,6 +439,7 @@ export function PlayPageShell({
     }
 
     shouldResumePlaybackRef.current = isPlayingRef.current;
+    hasPlaybackStartedRef.current = false;
 
     setActiveEpisode(episodeNumber);
     setSelectedGroupKey(getEpisodeGroupKeyForEpisode(playbackData.episodes, episodeNumber));
@@ -486,6 +489,10 @@ export function PlayPageShell({
     };
   }, [playNextEpisode, skipPlayback]);
   const capturePlaybackCover = useCallback((art: Artplayer) => {
+    if (hasPlaybackStartedRef.current) {
+      return;
+    }
+
     const video = art.video;
 
     if (!video.videoWidth || !video.videoHeight || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
@@ -656,11 +663,12 @@ export function PlayPageShell({
         art.on("video:play", () => {
           setPlaybackError(null);
           setIsPlaying(true);
+          hasPlaybackStartedRef.current = true;
+          art.poster = "";
           setPlaybackPosterVisible(art, false);
         });
         art.on("video:pause", () => {
           setIsPlaying(false);
-          setPlaybackPosterVisible(art, true);
           uploadPlaybackProgress();
         });
         art.on("video:ended", () => {
@@ -802,6 +810,7 @@ export function PlayPageShell({
     }
 
     currentPlaybackSecondsRef.current = 0;
+    hasPlaybackStartedRef.current = false;
     if (art) {
       art.poster = playbackCoverDefaultUrl;
       setPlaybackPosterVisible(art, true);

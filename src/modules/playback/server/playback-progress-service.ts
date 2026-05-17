@@ -80,6 +80,10 @@ const readProgressScript = `
 return redis.call("HGET", KEYS[1], ARGV[1])
 `;
 
+const readAllProgressScript = `
+return redis.call("HGETALL", KEYS[1])
+`;
+
 const saveProgressScript = `
 redis.call("HSET", KEYS[1], ARGV[1], ARGV[2])
 return ARGV[2]
@@ -100,6 +104,31 @@ export function createPlaybackProgressField(source: string, id: string) {
 
 function createUserPlaybackProgressHashKey(userId: string) {
   return `${userId}:pr`;
+}
+
+function toHashRecord(value: unknown) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return Object.fromEntries(
+      Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+    );
+  }
+
+  if (!Array.isArray(value)) {
+    return {};
+  }
+
+  const record: Record<string, string> = {};
+
+  for (let index = 0; index < value.length; index += 2) {
+    const key = value[index];
+    const fieldValue = value[index + 1];
+
+    if (typeof key === "string" && typeof fieldValue === "string") {
+      record[key] = fieldValue;
+    }
+  }
+
+  return record;
 }
 
 function readRequiredString(value: unknown, name: string) {
@@ -296,6 +325,15 @@ async function saveStoredProgress({
   });
 }
 
+async function readAllStoredProgress(userId: string, store: PlaybackProgressStore) {
+  return toHashRecord(
+    await store.script(readAllProgressScript, {
+      keys: [createUserPlaybackProgressHashKey(userId)],
+      readOnly: true,
+    }),
+  );
+}
+
 export async function savePlaybackProgress(input: SavePlaybackProgressInput, options: PlaybackProgressOptions) {
   const normalizedInput = normalizeSaveInput(input);
   const store = options.store ?? createPlaybackProgressStore();
@@ -356,6 +394,42 @@ export async function getOrCreateInitialPlaybackProgress(
     source,
     ...record,
   };
+}
+
+export async function findPlaybackProgressByIndex(
+  userId: string,
+  index: string,
+  { store = createPlaybackProgressStore() }: { store?: PlaybackProgressStore } = {},
+) {
+  const normalizedIndex = readRequiredString(index, "index");
+  const records = await readAllStoredProgress(userId, store);
+  let found: PlaybackProgressRecord | null = null;
+
+  for (const [field, rawProgress] of Object.entries(records)) {
+    const delimiterIndex = field.indexOf(":");
+
+    if (delimiterIndex <= 0 || delimiterIndex === field.length - 1) {
+      continue;
+    }
+
+    const parsed = parseStoredPlaybackProgress(rawProgress);
+
+    if (!parsed.record || parsed.record.index !== normalizedIndex) {
+      continue;
+    }
+
+    const currentRecord: PlaybackProgressRecord = {
+      id: field.slice(delimiterIndex + 1),
+      source: field.slice(0, delimiterIndex),
+      ...parsed.record,
+    };
+
+    if (!found || currentRecord.save_time >= found.save_time) {
+      found = currentRecord;
+    }
+  }
+
+  return found;
 }
 
 export async function deletePlaybackProgress(
