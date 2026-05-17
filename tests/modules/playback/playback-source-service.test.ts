@@ -5,6 +5,7 @@ import type { VideoSourceStore } from "@/modules/admin/server/video-source-servi
 import {
   getPlaybackSources,
 } from "@/modules/playback/server/playback-source-service";
+import { createPlaybackSourcesCacheKey } from "@/modules/playback/server/playback-cache";
 import type { DbPort, DbScriptOptions } from "@/shared/db/db-port";
 
 type HashStore = DbPort<unknown, string> & {
@@ -28,7 +29,14 @@ function createHashStore(initialValues: Record<string, Record<string, string>> =
     }
 
     if (scriptText.includes("HSET")) {
-      hash[field] = value;
+      for (let index = 0; index < (runOptions.args ?? []).length - 1; index += 2) {
+        const currentField = runOptions.args?.[index];
+        const currentValue = runOptions.args?.[index + 1];
+
+        if (typeof currentField === "string" && typeof currentValue === "string") {
+          hash[currentField] = currentValue;
+        }
+      }
       values.set(key, hash);
       return value as TResult;
     }
@@ -62,8 +70,8 @@ function createHashStore(initialValues: Record<string, Record<string, string>> =
   };
 }
 
-function createValueStore(initialValues: Record<string, string> = {}): ValueStore {
-  const values = new Map(Object.entries(initialValues));
+function createValueStore(initialValues: Record<string, unknown> = {}): ValueStore {
+  const values = new Map(Object.entries(initialValues).map(([key, value]) => [key, typeof value === "string" ? value : JSON.stringify(value)]));
   const script: ValueStore["script"] = async <TResult = unknown>(scriptText: string, options?: DbScriptOptions<string>) => {
     const key = options?.keys?.[0] ?? "";
 
@@ -149,6 +157,60 @@ function createDetail(overrides: Partial<VideoSourceResource> = {}): VideoSource
 }
 
 describe("playback source service", () => {
+  it("uses cached playback sources by index before loading live data", async () => {
+    const siteConfigStore = createSiteConfigStore(false);
+    const videoSourceStore = createSourceStore();
+    const cacheStore = createHashStore({
+      [createPlaybackSourcesCacheKey("2026:anime:深空彼岸")]: {
+        alpha: JSON.stringify({
+          id: "80474",
+          key: "alpha",
+          name: "Alpha Source",
+          order: 0,
+          quality: "1080P",
+          source_name: "Alpha Source",
+          total_episodes: 2,
+        }),
+      },
+    });
+    const onStart = vi.fn();
+    const onResult = vi.fn();
+    const searcher = vi.fn();
+    const detailFetcher = vi.fn();
+
+    const summary = await getPlaybackSources(
+      { index: "2026:anime:深空彼岸" },
+      {
+        cacheStore,
+        detailFetcher,
+        onResult,
+        onStart,
+        searcher,
+        siteConfigStore,
+        videoSourceStore,
+      },
+    );
+
+    expect(cacheStore.script).toHaveBeenCalledWith(expect.stringContaining("GET"), {
+      keys: [createPlaybackSourcesCacheKey("2026:anime:深空彼岸")],
+      readOnly: true,
+    });
+    expect(siteConfigStore.script).not.toHaveBeenCalled();
+    expect(videoSourceStore.script).not.toHaveBeenCalled();
+    expect(searcher).not.toHaveBeenCalled();
+    expect(detailFetcher).not.toHaveBeenCalled();
+    expect(onStart).toHaveBeenCalledWith({ total: 1 });
+    expect(onResult).toHaveBeenCalledWith({
+      id: "80474",
+      key: "alpha",
+      name: "Alpha Source",
+      quality: "1080P",
+      source_name: "Alpha Source",
+      total_episodes: 2,
+    });
+    expect(summary).toEqual({ completed: 1, total: 1 });
+  });
+
   it("uses cached detail first and skips live source lookup", async () => {
     const indexStore = createHashStore({
       "2026:anime:深空彼岸": {
@@ -248,11 +310,6 @@ describe("playback source service", () => {
 
     expect(searcher).toHaveBeenCalledOnce();
     expect(detailFetcher).toHaveBeenCalledOnce();
-    expect(JSON.parse(indexStore.dumpHash("2026:anime:深空彼岸").alpha ?? "{}")).toMatchObject({
-      id: "80474",
-      name: "Alpha Source",
-      quality: "",
-    });
     expect(cacheStore.dumpValue("cache:video:alpha:80474")).toContain('"id":"80474"');
     expect(summary).toEqual({ completed: 1, total: 1 });
   });

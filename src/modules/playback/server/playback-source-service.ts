@@ -14,8 +14,11 @@ import {
 import {
   createPlaybackCacheKey,
   createPlaybackCacheStore,
+  createPlaybackSourcesCacheKey,
   readPlaybackCacheEntry,
+  readPlaybackSourcesCacheEntry,
   savePlaybackCacheEntry,
+  savePlaybackSourcesCacheEntry,
   type PlaybackCacheStore,
 } from "./playback-cache";
 
@@ -124,6 +127,22 @@ export async function getPlaybackSources(
 ): Promise<PlaybackSourcesSummary> {
   const index = readIndex(input);
   const searchTitle = readSearchTitle(index);
+  const playbackSourcesCacheKey = createPlaybackSourcesCacheKey(index);
+  const cachedSources = await readPlaybackSourcesCacheEntry(cacheStore, playbackSourcesCacheKey);
+
+  if (cachedSources) {
+    onStart?.({ total: cachedSources.length });
+
+    for (const source of cachedSources) {
+      onResult?.(source);
+    }
+
+    return {
+      completed: cachedSources.length,
+      total: cachedSources.length,
+    };
+  }
+
   const [siteConfig, collection, cachedEntries] = await Promise.all([
     getSiteConfig(siteConfigStore),
     getVideoSources(videoSourceStore),
@@ -141,6 +160,7 @@ export async function getPlaybackSources(
 
   const cachedByKey = new Map(cachedEntries.map((entry) => [entry.resourceKey, entry]));
   let completed = 0;
+  const cachedResults: PlaybackSourceItem[] = [];
 
   for (const source of sources) {
     const cachedEntry = cachedByKey.get(source.key);
@@ -167,7 +187,11 @@ export async function getPlaybackSources(
 
           const item = toPublicSourceItem(source.name, firstMatch, firstMatch.id, firstMatch.quality);
 
-          await saveMediaSearchCacheEntries(index, toIndexCacheEntry(item), { store: indexCacheStore });
+          try {
+            await saveMediaSearchCacheEntries(index, toIndexCacheEntry(item), { store: indexCacheStore });
+          } catch {
+            // Cache writes must not block playback source resolution.
+          }
           detail = await detailFetcher(toEndpoint(source), item.id, {
             ...(fetcher ? { fetcher } : {}),
             ...(timeoutMs === undefined ? {} : { timeoutMs }),
@@ -199,8 +223,11 @@ export async function getPlaybackSources(
 
     const result = toPublicSourceItem(source.name, detail, cachedEntry?.id ?? detail.id, cachedEntry?.quality);
     onResult?.(result);
+    cachedResults.push(result);
     completed += 1;
   }
+
+  await savePlaybackSourcesCacheEntry(cacheStore, playbackSourcesCacheKey, cachedResults);
 
   return {
     completed,
