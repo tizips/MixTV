@@ -81,6 +81,35 @@ function asObject(input: unknown) {
   return input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : null;
 }
 
+async function readJsonObjectPayload(request: Request) {
+  const body = await request.text();
+
+  if (!body.trim()) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(body);
+    const payload = asObject(parsed);
+
+    if (payload) {
+      return payload;
+    }
+
+    if (typeof parsed === "string") {
+      try {
+        return asObject(JSON.parse(parsed));
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function readString(payload: Record<string, unknown>, key: string) {
   const value = payload[key];
 
@@ -107,15 +136,7 @@ export async function POST(request: Request) {
 
   let payload: Record<string, unknown> | null = null;
 
-  try {
-    payload = asObject(await request.json());
-  } catch {
-    void recordApiRequest({
-      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
-      ok: false,
-    });
-    return NextResponse.json({ message: "Request body must be a JSON object." }, { status: 400 });
-  }
+  payload = await readJsonObjectPayload(request);
 
   if (!payload) {
     void recordApiRequest({

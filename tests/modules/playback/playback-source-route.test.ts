@@ -137,4 +137,49 @@ describe("playback source API route", () => {
       expect.objectContaining({ userId: "user-1" }),
     );
   });
+
+  it("accepts a JSON body that was stringified twice", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } });
+    switchPlaybackSourceMock.mockResolvedValue({
+      episodes: [],
+      progress: {
+        id: "67899",
+        play_episodes: 6,
+        play_time: 141,
+        source: "ikunzy.com",
+        total_time: 2173,
+      },
+      source_name: "Ikun Source",
+      sources: [],
+    });
+
+    const response = await route.POST(
+      new Request("http://localhost/api/play/sources", {
+        body: JSON.stringify(
+          JSON.stringify({
+            currentId: "74183",
+            currentSource: "iqiyizyapi.com",
+            play_episodes: 6,
+            play_time: 141,
+            targetId: "67899",
+            targetSource: "ikunzy.com",
+            total_time: 2173,
+          }),
+        ),
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(switchPlaybackSourceMock).toHaveBeenCalledWith(
+      {
+        current: { id: "74183", source: "iqiyizyapi.com" },
+        play_episodes: 6,
+        play_time: 141,
+        target: { id: "67899", source: "ikunzy.com" },
+        total_time: 2173,
+      },
+      expect.objectContaining({ userId: "user-1" }),
+    );
+  });
 });
