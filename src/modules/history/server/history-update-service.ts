@@ -51,7 +51,7 @@ export interface HistoryUpdateOptions {
   videoSourceStore?: VideoSourceStore;
 }
 
-export interface HistoryUpdateAllOptions extends HistoryUpdateOptions {}
+export type HistoryUpdateAllOptions = HistoryUpdateOptions;
 
 export class HistoryUpdateValidationError extends Error {
   constructor(message: string) {

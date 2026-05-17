@@ -230,7 +230,7 @@ async function recordStat(
         failDelta,
         statsTtlSeconds,
       ],
-      keys: [createDayKey(timestamp)],
+      keys: [`day:${dayKey}`],
     });
   } catch {
     // Stats collection must never break the request flow.
