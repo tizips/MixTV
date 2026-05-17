@@ -31,9 +31,10 @@ export interface PlaybackSourceCacheItem {
   total_episodes: number;
 }
 
-interface PlaybackSourcesCachePayload extends PlaybackSourceCacheItem {
+type PlaybackSourcesCachePayload = PlaybackSourceCacheItem & {
   order: number;
-}
+  quality: string | undefined;
+};
 
 const readPlaybackCacheScript = `
 return redis.call("GET", KEYS[1])

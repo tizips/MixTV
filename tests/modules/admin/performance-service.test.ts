@@ -28,17 +28,17 @@ describe("performance service", () => {
     });
     expect(metricsByKey.get("system-memory")?.detailAccent).toMatch(/^\(\d+(\.\d)?%\)$/);
 
-    expect(metricsByKey.get("db-query")).toMatchObject({
-      detail: "数据库查询计数暂未接入",
-      value: "未接入",
-    });
-    expect(metricsByKey.get("request")).toMatchObject({
-      detail: "请求吞吐统计暂未接入",
-      value: "未接入",
+    expect(metricsByKey.get("page-traffic")).toMatchObject({
+      detail: expect.stringContaining("平均停留"),
+      title: "页面访问/分钟",
     });
     expect(metricsByKey.get("api-traffic")).toMatchObject({
-      detail: "API 出入站流量统计暂未接入",
-      value: "未接入",
+      detail: expect.stringContaining("成功"),
+      title: "API 流量/分钟",
+    });
+    expect(metricsByKey.get("third-party-traffic")).toMatchObject({
+      detail: expect.stringContaining("成功"),
+      title: "第三方请求/分钟",
     });
   });
 });

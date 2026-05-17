@@ -73,6 +73,7 @@ describe("favorite service", () => {
       cover: "https://image.test/poster.jpg",
       douban_id: 0,
       id: "100",
+      index: "2026:unknown:alphamovie",
       original_episodes: 3,
       remarks: "更新至3集",
       save_time: 1768435200000,
@@ -83,12 +84,12 @@ describe("favorite service", () => {
       year: "2026",
     });
     expect(favorite).not.toHaveProperty("favoriteKey");
-    expect(favorite).not.toHaveProperty("index");
     expect(favorite).not.toHaveProperty("play_time");
     expect(favorite).not.toHaveProperty("total_time");
     expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).toEqual({
       cover: "https://image.test/poster.jpg",
       douban_id: 0,
+      index: "2026:unknown:alphamovie",
       original_episodes: 3,
       remarks: "更新至3集",
       save_time: 1768435200000,
@@ -98,7 +99,6 @@ describe("favorite service", () => {
       year: "2026",
     });
     expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("favoriteKey");
-    expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("index");
     expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("play_time");
     expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("total_episodes");
     await expect(listFavorites("user-1", { store })).resolves.toEqual([favorite]);

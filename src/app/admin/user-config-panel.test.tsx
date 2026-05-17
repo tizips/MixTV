@@ -222,7 +222,7 @@ describe("UserConfigPanel", () => {
     });
   });
 
-  it("toggles initial password visibility in the add user form", async () => {
+  it("keeps the initial password hidden in the add user form", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValue({
       json: async () => ({
@@ -240,17 +240,9 @@ describe("UserConfigPanel", () => {
     });
 
     const addForm = host.querySelector("#add-user-form") as HTMLFormElement | null;
-    const toggleButton = host.querySelector('button[aria-label="查看初始密码"]') as HTMLButtonElement | null;
-
     const passwordInput = addForm?.querySelector('input[autocomplete="new-password"]') as HTMLInputElement | null;
     expect(passwordInput?.type).toBe("password");
-
-    act(() => {
-      toggleButton?.click();
-    });
-
-    const visiblePasswordInput = addForm?.querySelector('input[autocomplete="new-password"]') as HTMLInputElement | null;
-    expect(visiblePasswordInput?.type).toBe("text");
+    expect(host.querySelector('button[aria-label="查看初始密码"]')).toBeNull();
 
     act(() => {
       root.unmount();
