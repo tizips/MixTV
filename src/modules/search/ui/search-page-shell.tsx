@@ -222,12 +222,12 @@ function FavoriteButton({
   return (
     <button
       aria-label={`${isFavorited ? "取消收藏" : "收藏"} ${result.title}`}
-      className="absolute bottom-2.5 right-2.5 z-20 grid h-6 w-6 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 opacity-0 transition duration-200 hover:scale-110 hover:text-accent group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:text-accent"
+      className="absolute bottom-2.5 right-2.5 z-20 grid h-6 w-6 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 opacity-0 transition duration-200 hover:scale-110 hover:text-danger group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:text-danger"
       disabled={isPending}
       type="button"
       onClick={() => onToggle(result)}
     >
-      <i aria-hidden="true" className={`bi ${isFavorited ? "bi-heart-fill text-accent" : "bi-heart"}`} />
+      <i aria-hidden="true" className={`bi ${isFavorited ? "bi-heart-fill text-danger" : "bi-heart"}`} />
     </button>
   );
 }

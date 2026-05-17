@@ -266,6 +266,9 @@ describe("SearchPageShell", () => {
       throw new Error("Favorite button was not rendered");
     }
 
+    expect(favoriteButton.className).toContain("hover:text-danger");
+    expect(favoriteButton.className).toContain("focus-visible:text-danger");
+
     await act(async () => {
       favoriteButton.click();
     });
