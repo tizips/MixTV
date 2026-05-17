@@ -361,6 +361,28 @@ export async function savePlaybackProgress(input: SavePlaybackProgressInput, opt
   };
 }
 
+export async function migratePlaybackProgressRecord(
+  input: SavePlaybackProgressInput,
+  options: PlaybackProgressOptions & { previousProgress?: { id: string; source: string } | null },
+) {
+  const progress = await savePlaybackProgress(input, options);
+  const previousProgress = options.previousProgress;
+
+  if (previousProgress && (previousProgress.source !== progress.source || previousProgress.id !== progress.id)) {
+    try {
+      await deletePlaybackProgress(
+        options.userId,
+        { id: previousProgress.id, source: previousProgress.source },
+        { ...(options.store ? { store: options.store } : {}) },
+      );
+    } catch {
+      // Keep the new record even if the stale entry cannot be removed.
+    }
+  }
+
+  return progress;
+}
+
 export async function getOrCreateInitialPlaybackProgress(
   input: InitialPlaybackProgressInput,
   options: InitialPlaybackProgressOptions,

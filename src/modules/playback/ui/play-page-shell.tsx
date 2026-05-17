@@ -92,6 +92,15 @@ function normalizeResumeTime(value: number | undefined) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
 }
 
+function createPlayUrl(input: { id: string; source: string }) {
+  const searchParams = new URLSearchParams({
+    id: input.id.trim(),
+    source: input.source.trim(),
+  });
+
+  return `/play?${searchParams.toString()}`;
+}
+
 type PlaybackSourceSwitchResponse = {
   episodes: Episode[];
   progress: {
@@ -161,12 +170,50 @@ function readPlaybackSourceSseEvents(buffer: string) {
   return { events, remaining };
 }
 
+async function readPlaybackSourceOptions(
+  response: Response,
+  onResult: (source: PlaybackSourceOption) => void,
+  signal?: AbortSignal,
+) {
+  if (!response.ok || !response.body) {
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    if (signal?.aborted) {
+      return;
+    }
+
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const parsed = readPlaybackSourceSseEvents(buffer);
+    buffer = parsed.remaining;
+
+    for (const event of parsed.events) {
+      if (event.event === "result") {
+        onResult(event.data);
+      }
+    }
+  }
+}
+
 export function PlayPageShell({
   initialData,
   playbackPlaceholderError,
+  playbackIndex,
 }: {
   initialData?: PlayPageData;
   playbackPlaceholderError?: string;
+  playbackIndex?: string;
 } = {}) {
   const [playbackData, setPlaybackData] = useState<PlayPageData | null>(initialData ?? null);
   const placeholderMessage = playbackPlaceholderError ?? "播放信息不可用";
@@ -225,6 +272,9 @@ export function PlayPageShell({
   const [isFavorite, setIsFavorite] = useState(Boolean(playbackData?.is_favorite));
   const [isFavoritePending, setIsFavoritePending] = useState(false);
   const [playbackSourceOptions, setPlaybackSourceOptions] = useState<PlaybackSourceOption[]>([]);
+  const [placeholderSourceOptions, setPlaceholderSourceOptions] = useState<PlaybackSourceOption[]>([]);
+  const [placeholderSourceLoading, setPlaceholderSourceLoading] = useState(false);
+  const [placeholderSourceError, setPlaceholderSourceError] = useState<string | null>(null);
   const [isSourceSwitching, setIsSourceSwitching] = useState(false);
   const activeEpisodeRef = useRef(activeEpisode);
   const isPlayingRef = useRef(isPlaying);
@@ -319,40 +369,61 @@ export function PlayPageShell({
       signal: controller.signal,
     })
       .then(async (response) => {
-        if (!response.ok || !response.body) {
-          return;
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-
-          if (done) {
-            break;
-          }
-
-          buffer += decoder.decode(value, { stream: true });
-          const parsed = readPlaybackSourceSseEvents(buffer);
-          buffer = parsed.remaining;
-
-          for (const event of parsed.events) {
-            if (event.event !== "result") {
-              continue;
-            }
-
-            seen.set(`${event.data.key}:${event.data.id}`, event.data);
-          }
-
-          setPlaybackSourceOptions(Array.from(seen.values()));
-        }
+        await readPlaybackSourceOptions(
+          response,
+          (source) => {
+            seen.set(`${source.key}:${source.id}`, source);
+            setPlaybackSourceOptions(Array.from(seen.values()));
+          },
+          controller.signal,
+        );
       })
       .catch(() => undefined);
 
     return () => controller.abort();
   }, [playbackData?.index]);
+  useEffect(() => {
+    if (!hasPlaybackPlaceholderError || !playbackIndex?.trim()) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const seen = new Map<string, PlaybackSourceOption>();
+    setPlaceholderSourceLoading(true);
+    setPlaceholderSourceError(null);
+    setPlaceholderSourceOptions([]);
+
+    void fetch(`/api/play/sources?index=${encodeURIComponent(playbackIndex.trim())}`, {
+      headers: { Accept: "text/event-stream" },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("Failed to load playback sources.");
+        }
+
+        await readPlaybackSourceOptions(
+          response,
+          (source) => {
+            seen.set(`${source.key}:${source.id}`, source);
+            setPlaceholderSourceOptions(Array.from(seen.values()));
+          },
+          controller.signal,
+        );
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setPlaceholderSourceError("未能加载可用片源，请稍后重试。");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setPlaceholderSourceLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [hasPlaybackPlaceholderError, playbackIndex]);
   const switchPlaybackSource = useCallback(
     async (source: PlaybackSourceOption) => {
       if (!playbackData || isSourceSwitching) {
@@ -392,7 +463,7 @@ export function PlayPageShell({
         const data = (await response.json()) as PlaybackSourceSwitchResponse;
         const nextPlayEpisodes = data.progress.play_episodes;
         const nextSourceId = data.sources[nextPlayEpisodes - 1]?.id ?? data.sources[0]?.id ?? "";
-        const nextUrl = `/play?source=${encodeURIComponent(data.progress.source)}&id=${encodeURIComponent(data.progress.id)}`;
+        const nextUrl = createPlayUrl({ id: data.progress.id, source: data.progress.source });
 
         setPlaybackData((current) => {
           if (!current) {
@@ -431,6 +502,17 @@ export function PlayPageShell({
     },
     [isSourceSwitching, playbackData],
   );
+  useEffect(() => {
+    if (!playbackData?.progress_id || !playbackData?.progress_source || typeof window === "undefined") {
+      return;
+    }
+
+    const nextUrl = createPlayUrl({ id: playbackData.progress_id, source: playbackData.progress_source });
+
+    if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
+      window.history.replaceState(null, "", nextUrl);
+    }
+  }, [playbackData?.progress_id, playbackData?.progress_source]);
   const resetPlaybackForEpisode = useCallback((episodeNumber: number) => {
     const art = artPlayerRef.current;
 
@@ -828,12 +910,52 @@ export function PlayPageShell({
       <div className="min-h-screen px-4 py-5 text-foreground md:px-6 lg:px-8">
         <div className="mx-auto grid w-full max-w-[100rem] gap-5">
           <div className="grid min-h-[50vh] place-items-center rounded-2xl border border-default-200/70 bg-surface px-6 text-center shadow-sm">
-            <div className="grid max-w-md justify-items-center gap-3">
+            <div className="grid max-w-2xl justify-items-center gap-3">
               <span className="grid h-14 w-14 place-items-center rounded-full border border-white/12 bg-white/8 text-2xl text-danger-300">
                 <i aria-hidden="true" className="bi bi-exclamation-triangle" />
               </span>
               <h1 className="text-lg font-semibold tracking-normal">播放信息不可用</h1>
               <p className="text-sm leading-6 text-default-500">{placeholderMessage}</p>
+              {playbackIndex?.trim() ? (
+                <div className="mt-4 grid w-full gap-3 text-left">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-sm font-semibold text-default-700">可用片源</h2>
+                    {placeholderSourceLoading ? (
+                      <span className="text-xs text-default-400">正在加载...</span>
+                    ) : null}
+                  </div>
+                  {placeholderSourceError ? <p className="text-sm text-danger-300">{placeholderSourceError}</p> : null}
+                  {!placeholderSourceLoading && placeholderSourceOptions.length === 0 && !placeholderSourceError ? (
+                    <p className="text-sm text-default-400">没有找到可切换的片源。</p>
+                  ) : null}
+                  <div className="grid gap-3">
+                    {placeholderSourceOptions.map((source) => (
+                      <a
+                        key={`${source.key}:${source.id}`}
+                        className="grid gap-3 rounded-lg border border-[color-mix(in_srgb,var(--accent)_24%,transparent)] bg-white/8 p-4 text-left transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,transparent)] hover:bg-white/12"
+                        href={createPlayUrl({ id: source.id, source: source.key })}
+                      >
+                        <span className="flex min-w-0 items-center gap-3 pr-16">
+                          <span className="min-w-0 truncate font-medium text-foreground">{source.name}</span>
+                        </span>
+                        <span className="flex flex-wrap items-center justify-between gap-3 text-xs text-default-500">
+                          <span className="flex min-w-0 flex-wrap items-center gap-2">
+                            {source.quality ? (
+                              <Chip className="h-5 px-1 text-[11px]" color="accent" size="sm" variant="soft">
+                                {source.quality}
+                              </Chip>
+                            ) : null}
+                            <span>{source.source_name}</span>
+                          </span>
+                          <Chip className="h-5 shrink-0 px-1 text-[11px]" color="default" size="sm" variant="soft">
+                            {source.total_episodes} 集
+                          </Chip>
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

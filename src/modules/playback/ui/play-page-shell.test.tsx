@@ -394,6 +394,49 @@ describe("PlayPageShell client playback cover", () => {
     expect(html).not.toContain("aria-label=\"播放进度\"");
   });
 
+  it("shows playable source links when playback lookup fails but the index is available", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+      if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}`) {
+        return new Response(
+          'event: start\ndata: {"total":1}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","quality":"1080P","source_name":"Alpha Source","total_episodes":2}\n\nevent: complete\ndata: {"completed":1,"total":1}\n\n',
+          { headers: { "Content-Type": "text/event-stream" } },
+        );
+      }
+
+      return new Response(JSON.stringify({ favorites: [] }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(<PlayPageShell playbackIndex="2026:tv:资源站标题" playbackPlaceholderError="查询失效，请重新选择片源。" />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}`,
+      expect.objectContaining({ headers: { Accept: "text/event-stream" } }),
+    );
+    expect(host.querySelector('a[href*="source=alpha"][href*="id=80474"]')).not.toBeNull();
+    expect(host.querySelector('a[href*="index="]')).toBeNull();
+    expect(host.textContent).toContain("Alpha Source");
+    expect(host.textContent).toContain("2 集");
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
   it("uses a generated placeholder image when playback poster data is empty", async () => {
     const host = document.createElement("div");
     document.body.append(host);

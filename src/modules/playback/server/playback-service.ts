@@ -17,8 +17,9 @@ import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import { createMediaSearchIndex } from "@/shared/media/search-index";
 import type { PlayPageData, VideoSource } from "../domain/playback-page-data";
 import {
-  getOrCreateInitialPlaybackProgress,
   findPlaybackProgressByIndex,
+  getOrCreateInitialPlaybackProgress,
+  migratePlaybackProgressRecord,
   type PlaybackProgressStore,
 } from "./playback-progress-service";
 
@@ -390,8 +391,6 @@ export async function getPlaybackPageData(
       return { status: "error", error: "当前资源没有可播放地址。" };
     }
 
-    let activeSourceKey = sourceKey;
-    let activeId = id;
     let activeResource = requested.resource;
     let playbackProgress = null;
 
@@ -408,27 +407,26 @@ export async function getPlaybackPageData(
       );
 
       if (matchedProgress) {
-        playbackProgress = matchedProgress;
-
         if (matchedProgress.source !== sourceKey || matchedProgress.id !== id) {
-          const switched = await loadPlaybackResource(matchedProgress.source, matchedProgress.id, {
-            cacheStore,
-            detailFetcher,
-            fetcher,
-            timeoutMs,
-            videoSourceStore,
-          });
-
-          if (switched.status === "ready") {
-            activeSourceKey = matchedProgress.source;
-            activeId = matchedProgress.id;
-            activeResource = switched.resource;
-          } else {
-            playbackProgress = null;
-            activeSourceKey = sourceKey;
-            activeId = id;
-            activeResource = requested.resource;
-          }
+          playbackProgress = await migratePlaybackProgressRecord(
+            {
+              id,
+              play_episodes: matchedProgress.play_episodes,
+              play_time: matchedProgress.play_time,
+              source: sourceKey,
+              total_time: matchedProgress.total_time,
+            },
+            {
+              ...(now ? { now } : {}),
+              ...(progressStore ? { store: progressStore } : {}),
+              detail: requested.resource,
+              previousProgress: matchedProgress,
+              userId,
+              videoSourceStore,
+            },
+          );
+        } else {
+          playbackProgress = matchedProgress;
         }
       }
     }
@@ -437,8 +435,8 @@ export async function getPlaybackPageData(
       playbackProgress = await getOrCreateInitialPlaybackProgress(
         {
           detail: activeResource,
-          id: activeId,
-          source: activeSourceKey,
+          id,
+          source: sourceKey,
         },
         {
           ...(now ? { now } : {}),
@@ -450,8 +448,8 @@ export async function getPlaybackPageData(
 
     const isFavorite = await readPlaybackFavoriteState({
       favoriteStore,
-      id: activeId,
-      sourceKey: activeSourceKey,
+      id,
+      sourceKey,
       userId,
     });
     const sources = createPlaybackSources(activeResource.episodes, activeResource.episodeTitles ?? []);
@@ -476,8 +474,8 @@ export async function getPlaybackPageData(
           typeName: activeResource.typeName,
           year: activeResource.year,
         }),
-        progress_id: activeId,
-        progress_source: activeSourceKey,
+        progress_id: id,
+        progress_source: sourceKey,
         play_time: playbackProgress?.play_time,
         is_favorite: isFavorite,
         year: activeResource.year,

@@ -87,6 +87,11 @@ function createProgressStore(initialValues: Record<string, unknown> = {}): Scrip
       return String(options?.args?.[1] ?? "") as TResult;
     }
 
+    if (scriptText.includes("HDEL")) {
+      values.delete(field);
+      return 1 as TResult;
+    }
+
     return null as TResult;
   };
 
@@ -365,7 +370,7 @@ describe("getPlaybackPageData", () => {
     expect(JSON.parse(progressStore.dumpHash("user-1:pr")["dyttzyapi.com:80474"] ?? "{}").save_time).toBe(1768535315661);
   });
 
-  it("switches the initial playback source to an existing progress record with the same index", async () => {
+  it("keeps the requested playback source and migrates matching history to it", async () => {
     const progressStore = createProgressStore({
       "alpha:80474": {
         cover: "https://image.test/alpha.jpg",
@@ -432,21 +437,23 @@ describe("getPlaybackPageData", () => {
       throw new Error("expected ready playback data");
     }
 
-    expect(result.data.progress_source).toBe("alpha");
-    expect(result.data.progress_id).toBe("80474");
+    expect(result.data.progress_source).toBe("beta");
+    expect(result.data.progress_id).toBe("90001");
     expect(result.data.play_episodes).toBe(2);
     expect(result.data.play_time).toBe(125);
-    expect(result.data.source_name).toBe("Alpha Source");
+    expect(result.data.source_name).toBe("Beta Source");
     expect(detailFetcher).toHaveBeenCalledWith(
       expect.objectContaining({ key: "beta", name: "Beta Source" }),
       "90001",
       {},
     );
-    expect(detailFetcher).toHaveBeenCalledWith(
-      expect.objectContaining({ key: "alpha", name: "Alpha Source" }),
-      "80474",
-      {},
-    );
+    expect(detailFetcher).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(progressStore.dumpHash("user-1:pr")["beta:90001"] ?? "{}")).toMatchObject({
+      play_episodes: 2,
+      play_time: 125,
+      source_name: "Beta Source",
+    });
+    expect(progressStore.dumpHash("user-1:pr")["alpha:80474"]).toBeUndefined();
   });
 
   it("returns the direct favorite state for the requested playback resource", async () => {

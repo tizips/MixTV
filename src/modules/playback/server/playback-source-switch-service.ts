@@ -4,7 +4,10 @@ import {
   getVideoSources,
   type VideoSourceStore,
 } from "@/modules/admin/server/video-source-service";
-import { deletePlaybackProgress, savePlaybackProgress, type PlaybackProgressStore } from "@/modules/playback/server/playback-progress-service";
+import {
+  migratePlaybackProgressRecord,
+  type PlaybackProgressStore,
+} from "@/modules/playback/server/playback-progress-service";
 import {
   createPlaybackCacheKey,
   createPlaybackCacheStore,
@@ -169,7 +172,7 @@ export async function switchPlaybackSource(
     ? Math.min(Math.max(playEpisodes, 1), detail.episodes.length)
     : playEpisodes;
 
-  const progress = await savePlaybackProgress(
+  const progress = await migratePlaybackProgressRecord(
     {
       id: targetId,
       play_episodes: clampedPlayEpisodes,
@@ -183,18 +186,11 @@ export async function switchPlaybackSource(
       ...(fetcher ? { fetcher } : {}),
       ...(progressStore ? { store: progressStore } : {}),
       ...(timeoutMs === undefined ? {} : { timeoutMs }),
+      previousProgress: currentSource !== targetSource || currentId !== targetId ? { id: currentId, source: currentSource } : null,
       userId,
       videoSourceStore,
     },
   );
-
-  if (currentSource !== targetSource || currentId !== targetId) {
-    try {
-      await deletePlaybackProgress(userId, { id: currentId, source: currentSource }, { ...(progressStore ? { store: progressStore } : {}) });
-    } catch {
-      // Keep the newly switched progress even if cleanup of the old record fails.
-    }
-  }
 
   return {
     episodes: createPlaybackEpisodes(detail.episodes, detail.episodeTitles ?? []),

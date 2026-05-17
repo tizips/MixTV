@@ -11,22 +11,27 @@ export const metadata: Metadata = {
 export const runtime = "nodejs";
 
 type PlayPageProps = {
-  searchParams: Promise<{ id?: string | string[]; source?: string | string[] }>;
+  searchParams: Promise<{ id?: string | string[]; index?: string | string[]; source?: string | string[] }>;
 };
+
+function readSingleParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0]?.trim() || "" : value?.trim() || "";
+}
 
 export default async function PlayPage({ searchParams }: PlayPageProps) {
   const session = await auth();
   const userId = typeof session?.user?.id === "string" ? session.user.id : "";
+  const resolvedSearchParams = await searchParams;
 
   if (!userId) {
     return <PlayPageShell playbackPlaceholderError="请先登录后再播放。" />;
   }
 
   const progressStore = process.env.STORAGE_TYPE ? createPlaybackProgressStore() : undefined;
-  const result = await getPlaybackPageData(await searchParams, { progressStore, userId });
+  const result = await getPlaybackPageData(resolvedSearchParams, { progressStore, userId });
 
   if (result.status === "error") {
-    return <PlayPageShell playbackPlaceholderError={result.error} />;
+    return <PlayPageShell playbackIndex={readSingleParam(resolvedSearchParams.index)} playbackPlaceholderError={result.error} />;
   }
 
   return <PlayPageShell initialData={result.data} />;
