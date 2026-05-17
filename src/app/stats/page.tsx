@@ -19,7 +19,7 @@ export default async function StatsPage() {
 
   const overview = await getTrafficOverview({
     dayCount: 7,
-    timelineMinutes: 120,
+    timelineMinutes: 720,
   });
 
   return <StatsDashboard overview={overview} />;
