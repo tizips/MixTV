@@ -44,6 +44,7 @@ describe("HomepageShell", () => {
     expect(markup).toContain(env.NEXT_PUBLIC_SITE_NAME);
     expect(markup).toContain("欢迎");
     expect(markup).toContain(data.heroBanner[0].title);
+    expect(markup).not.toContain("继续观看");
     expect(markup).toContain("min-h-screen p-4 text-foreground");
     expect(markup).not.toContain("homepage-");
     expect(markup).not.toContain("bg-black/30");

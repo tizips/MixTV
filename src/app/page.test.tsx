@@ -26,10 +26,10 @@ describe("HomePage", () => {
     expect(html).toContain(env.NEXT_PUBLIC_SITE_NAME);
   });
 
-  it("renders only the homepage modules enabled by admin config", async () => {
+  it("does not render the continue watching placeholder on the server", async () => {
     const html = renderToStaticMarkup(await HomePage());
 
-    expect(html).toContain("继续观看");
+    expect(html).not.toContain("继续观看");
     expect(html).not.toContain("焦点轮播");
     expect(html).not.toContain("即将上线");
     expect(html).not.toContain("热门电影");
