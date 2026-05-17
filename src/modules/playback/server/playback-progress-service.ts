@@ -6,10 +6,12 @@ import {
   type VideoSourceStore,
 } from "@/modules/admin/server/video-source-service";
 import type { DbPort } from "@/shared/db/db-port";
+import { createMediaSearchIndex } from "@/shared/media/search-index";
 
 export interface StoredPlaybackProgressRecord {
   cover: string;
   douban_id: number;
+  index?: string;
   original_episodes: number;
   play_time: number;
   play_episodes: number;
@@ -36,6 +38,7 @@ export interface SavePlaybackProgressInput {
 }
 
 export interface PlaybackProgressOptions {
+  detail?: Awaited<ReturnType<typeof getVideoSourceDetail>>;
   detailFetcher?: (
     source: VideoSourceEndpoint,
     id: string,
@@ -80,6 +83,11 @@ return redis.call("HGET", KEYS[1], ARGV[1])
 const saveProgressScript = `
 redis.call("HSET", KEYS[1], ARGV[1], ARGV[2])
 return ARGV[2]
+`;
+
+const deleteProgressScript = `
+redis.call("HDEL", KEYS[1], ARGV[1])
+return 1
 `;
 
 export function createPlaybackProgressStore(): PlaybackProgressStore {
@@ -138,6 +146,15 @@ function createRemarks(detail: Awaited<ReturnType<typeof getVideoSourceDetail>>,
   return detail.remarks || (episodeCount > 0 ? `更新至${episodeCount}集` : "");
 }
 
+function createPlaybackProgressIndex(detail: Awaited<ReturnType<typeof getVideoSourceDetail>>) {
+  return createMediaSearchIndex({
+    className: detail.className,
+    title: detail.title,
+    typeName: detail.typeName,
+    year: detail.year,
+  });
+}
+
 function createStoredPlaybackProgressRecord({
   detail,
   playEpisodes,
@@ -157,6 +174,7 @@ function createStoredPlaybackProgressRecord({
   return {
     cover: detail.posterUrl,
     douban_id: 0,
+    index: createPlaybackProgressIndex(detail),
     original_episodes: episodeCount,
     play_time: playTime,
     play_episodes: clampedIndex,
@@ -186,6 +204,7 @@ function parseStoredPlaybackProgress(
 
     const progress = parsed as Partial<StoredPlaybackProgressRecord>;
     const legacyIndex = parsed as Partial<{ index: number }>;
+    const storedIndex = parsed as Partial<{ index: string }>;
     const hasPlayEpisodes = typeof progress.play_episodes === "number";
     const playEpisodes = hasPlayEpisodes ? progress.play_episodes : legacyIndex.index;
     const needsMigration = !hasPlayEpisodes && typeof legacyIndex.index === "number";
@@ -193,6 +212,7 @@ function parseStoredPlaybackProgress(
     if (
       typeof progress.cover !== "string" ||
       typeof progress.douban_id !== "number" ||
+      (progress.index !== undefined && typeof progress.index !== "string" && typeof progress.index !== "number") ||
       typeof progress.original_episodes !== "number" ||
       typeof progress.play_time !== "number" ||
       typeof playEpisodes !== "number" ||
@@ -211,6 +231,7 @@ function parseStoredPlaybackProgress(
       needsMigration,
       record: {
         ...progress,
+        index: typeof storedIndex.index === "string" ? storedIndex.index : undefined,
         play_episodes: playEpisodes,
       } as StoredPlaybackProgressRecord,
     };
@@ -280,7 +301,7 @@ export async function savePlaybackProgress(input: SavePlaybackProgressInput, opt
   const store = options.store ?? createPlaybackProgressStore();
   const videoSourceStore = options.videoSourceStore ?? createVideoSourceStore();
   const source = await findSource(normalizedInput.source, videoSourceStore);
-  const detail = await (options.detailFetcher ?? getVideoSourceDetail)(source, normalizedInput.id, {
+  const detail = options.detail ?? await (options.detailFetcher ?? getVideoSourceDetail)(source, normalizedInput.id, {
     ...(options.fetcher ? { fetcher: options.fetcher } : {}),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
   });
@@ -335,4 +356,19 @@ export async function getOrCreateInitialPlaybackProgress(
     source,
     ...record,
   };
+}
+
+export async function deletePlaybackProgress(
+  userId: string,
+  input: { id: string; source: string },
+  { store = createPlaybackProgressStore() }: { store?: PlaybackProgressStore } = {},
+) {
+  const source = readRequiredString(input.source, "source");
+  const id = readRequiredString(input.id, "id");
+  const field = createPlaybackProgressField(source, id);
+
+  await store.script(deleteProgressScript, {
+    args: [field],
+    keys: [createUserPlaybackProgressHashKey(userId)],
+  });
 }

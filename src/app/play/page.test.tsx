@@ -14,6 +14,7 @@ function createInitialData(): PlayPageData {
     return {
       area: "电影天堂资源",
       category: "剧集",
+      index: "2026:tv:资源站标题",
       play_episodes: 1,
       description: "播放详情简介",
       episodes: [{ duration: "未知", number: 1, title: "第1集" }],
@@ -79,6 +80,7 @@ describe("PlayPage", () => {
     const data: PlayPageData = {
       area: "电影天堂资源",
       category: "剧集",
+      index: "2026:tv:资源站标题",
       play_episodes: 2,
       description: "播放详情简介",
       episodes: [{ duration: "未知", number: 2, title: "第2集" }],

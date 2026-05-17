@@ -25,6 +25,19 @@ const tabGlowClassNames = [
 
 type TabGlowClassName = (typeof tabGlowClassNames)[number];
 type ArtplayerWithHls = Artplayer & { hls?: Hls };
+type PlaybackSourceOption = {
+  id: string;
+  key: string;
+  name: string;
+  quality?: string;
+  source_name: string;
+  total_episodes: number;
+};
+type PlaybackSourceSseEvent =
+  | { event: "start"; data: { total: number } }
+  | { event: "result"; data: PlaybackSourceOption }
+  | { event: "complete"; data: { completed: number; total: number } }
+  | { event: "error"; data: { message?: string } };
 
 function getRandomTabGlowClass(currentClassName: TabGlowClassName): TabGlowClassName {
   const nextClassNames = tabGlowClassNames.filter((className) => className !== currentClassName);
@@ -79,6 +92,75 @@ function normalizeResumeTime(value: number | undefined) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
 }
 
+type PlaybackSourceSwitchResponse = {
+  episodes: Episode[];
+  progress: {
+    id: string;
+    play_episodes: number;
+    play_time: number;
+    source: string;
+    total_time: number;
+  };
+  source_name: string;
+  sources: Array<{
+    id: string;
+    latency: string;
+    name: string;
+    quality: string;
+    status: "流畅" | "拥挤" | "维护";
+    url: string;
+  }>;
+};
+
+function parsePlaybackSourceSseBlock(block: string): PlaybackSourceSseEvent | null {
+  let event = "message";
+  const dataLines: string[] = [];
+
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) {
+      event = line.slice("event:".length).trim();
+    } else if (line.startsWith("data:")) {
+      dataLines.push(line.slice("data:".length).trimStart());
+    }
+  }
+
+  if (!dataLines.length) {
+    return null;
+  }
+
+  try {
+    const data = JSON.parse(dataLines.join("\n")) as unknown;
+
+    if (event === "start" || event === "result" || event === "complete" || event === "error") {
+      return { event, data } as PlaybackSourceSseEvent;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function readPlaybackSourceSseEvents(buffer: string) {
+  const events: PlaybackSourceSseEvent[] = [];
+  let remaining = buffer;
+  let separatorIndex = remaining.indexOf("\n\n");
+
+  while (separatorIndex >= 0) {
+    const block = remaining.slice(0, separatorIndex).trimEnd();
+    remaining = remaining.slice(separatorIndex + 2);
+    const event = parsePlaybackSourceSseBlock(block);
+
+    if (event) {
+      events.push(event);
+    }
+
+    separatorIndex = remaining.indexOf("\n\n");
+  }
+
+  return { events, remaining };
+}
+
 export function PlayPageShell({
   initialData,
   playbackPlaceholderError,
@@ -86,7 +168,7 @@ export function PlayPageShell({
   initialData?: PlayPageData;
   playbackPlaceholderError?: string;
 } = {}) {
-  const playbackData = initialData ?? null;
+  const [playbackData, setPlaybackData] = useState<PlayPageData | null>(initialData ?? null);
   const placeholderMessage = playbackPlaceholderError ?? "播放信息不可用";
   const playbackCoverUrl = useMemo(() => {
     if (!playbackData) {
@@ -141,6 +223,8 @@ export function PlayPageShell({
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(Boolean(playbackData?.is_favorite));
   const [isFavoritePending, setIsFavoritePending] = useState(false);
+  const [playbackSourceOptions, setPlaybackSourceOptions] = useState<PlaybackSourceOption[]>([]);
+  const [isSourceSwitching, setIsSourceSwitching] = useState(false);
   const activeEpisodeRef = useRef(activeEpisode);
   const isPlayingRef = useRef(isPlaying);
   const shouldResumePlaybackRef = useRef(false);
@@ -166,6 +250,7 @@ export function PlayPageShell({
   const visibleEpisodes = selectedGroup ? (isDescending ? [...selectedGroup.episodes].reverse() : selectedGroup.episodes) : [];
   const currentSource =
     playbackData?.sources.find((source) => source.id === activeSource) ?? playbackData?.sources[0];
+  const currentSourceName = playbackData?.source_name.trim() || currentSource?.name.trim() || "";
   const currentPlaybackUrl =
     currentSource?.url ??
     playbackData?.sources[activeEpisode - 1]?.url ??
@@ -215,6 +300,135 @@ export function PlayPageShell({
       method: "POST",
     }).catch(() => undefined);
   }, [hasPlaybackPlaceholderError, playbackData, progressEndpoint]);
+  useEffect(() => {
+    if (!playbackData?.index) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const seen = new Map<string, PlaybackSourceOption>();
+    void Promise.resolve().then(() => {
+      if (!controller.signal.aborted) {
+        setPlaybackSourceOptions([]);
+      }
+    });
+
+    void fetch(`/api/play/sources?index=${encodeURIComponent(playbackData.index)}`, {
+      headers: { Accept: "text/event-stream" },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok || !response.body) {
+          return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const parsed = readPlaybackSourceSseEvents(buffer);
+          buffer = parsed.remaining;
+
+          for (const event of parsed.events) {
+            if (event.event !== "result") {
+              continue;
+            }
+
+            seen.set(`${event.data.key}:${event.data.id}`, event.data);
+          }
+
+          setPlaybackSourceOptions(Array.from(seen.values()));
+        }
+      })
+      .catch(() => undefined);
+
+    return () => controller.abort();
+  }, [playbackData?.index]);
+  const switchPlaybackSource = useCallback(
+    async (source: PlaybackSourceOption) => {
+      if (!playbackData || isSourceSwitching) {
+        return;
+      }
+
+      const currentTime = Math.floor(Math.max(0, currentPlaybackSecondsRef.current));
+      const totalTime = Math.floor(Math.max(0, currentPlaybackDurationRef.current));
+
+      setIsSourceSwitching(true);
+      setPlaybackError(null);
+
+      try {
+        const response = await fetch("/api/play/sources", {
+          body: JSON.stringify({
+            currentId: playbackData.progress_id,
+            currentSource: playbackData.progress_source,
+            play_episodes: activeEpisodeRef.current,
+            play_time: currentTime,
+            targetId: source.id,
+            targetSource: source.key,
+            total_time: totalTime,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          method: "POST",
+        });
+
+        if (!response.ok) {
+          const data = (await response.json().catch(() => null)) as { message?: string } | null;
+          setPlaybackError(data?.message ?? "切换源失败，请稍后重试。");
+          return;
+        }
+
+        const data = (await response.json()) as PlaybackSourceSwitchResponse;
+        const nextPlayEpisodes = data.progress.play_episodes;
+        const nextSourceId = data.sources[nextPlayEpisodes - 1]?.id ?? data.sources[0]?.id ?? "";
+        const nextUrl = `/play?source=${encodeURIComponent(data.progress.source)}&id=${encodeURIComponent(data.progress.id)}`;
+
+        setPlaybackData((current) => {
+          if (!current) {
+            return current;
+          }
+
+          return {
+            ...current,
+            area: data.source_name || current.area,
+            episodes: data.episodes,
+            play_episodes: nextPlayEpisodes,
+            play_time: data.progress.play_time,
+            progress_id: data.progress.id,
+            progress_source: data.progress.source,
+            source_name: data.source_name || current.source_name,
+            sources: data.sources,
+          };
+        });
+
+        setActiveEpisode(nextPlayEpisodes);
+        setActiveSource(nextSourceId);
+        setSelectedGroupKey(getEpisodeGroupKeyForEpisode(data.episodes, nextPlayEpisodes));
+        currentPlaybackSecondsRef.current = data.progress.play_time;
+        currentPlaybackDurationRef.current = totalTime;
+        hasAppliedResumeTimeRef.current = false;
+
+        if (typeof window !== "undefined") {
+          window.history.replaceState(null, "", nextUrl);
+        }
+      } catch {
+        setPlaybackError("切换源失败，请稍后重试。");
+      } finally {
+        setIsSourceSwitching(false);
+      }
+    },
+    [isSourceSwitching, playbackData],
+  );
   const resetPlaybackForEpisode = useCallback((episodeNumber: number) => {
     const art = artPlayerRef.current;
 
@@ -490,6 +704,7 @@ export function PlayPageShell({
     playbackCoverUrl,
     playbackCoverDefaultUrl,
     playNextEpisode,
+    setPlaybackPosterVisible,
     uploadPlaybackProgress,
   ]);
 
@@ -597,7 +812,7 @@ export function PlayPageShell({
     void art.switchUrl(currentSource.url).catch(() => {
       setPlaybackError("切换线路失败，请稍后重试。");
     });
-  }, [currentSource, playbackCoverDefaultUrl]);
+  }, [currentSource, playbackCoverDefaultUrl, setPlaybackPosterVisible]);
 
   if (hasPlaybackPlaceholderError || !playbackData) {
     return (
@@ -724,43 +939,92 @@ export function PlayPageShell({
 
               <Tabs.Panel id="sources">
                 <div className="grid max-h-[490px] gap-3 overflow-y-auto p-4 pr-3 md:p-5 md:pr-4">
-                  {playbackData.sources.map((source, index) => (
-                    <button
-                      key={source.id}
-                      type="button"
-                      className={`relative grid gap-3 rounded-lg border p-4 text-left transition-colors ${source.id === activeSource
-                        ? "border-accent bg-white/2"
-                        : "border-[color-mix(in_srgb,var(--accent)_24%,transparent)] bg-white/12 hover:border-[color-mix(in_srgb,var(--accent)_38%,transparent)] hover:bg-white/16"
-                        }`}
-                      onClick={() => resetPlaybackForEpisode(index + 1)}
-                    >
-                      {source.id === activeSource ? (
-                        <Badge
-                          className="px-2.5 text-white"
-                          color="success"
-                          placement="top-right"
-                          size="md"
-                          variant="primary"
-                        >
-                          当前源
-                        </Badge>
-                      ) : null}
-                      <span className="flex min-w-0 items-center gap-3 pr-16">
-                        <span className="min-w-0 truncate font-medium text-foreground">{source.name}</span>
-                      </span>
-                      <span className="flex items-center justify-between gap-3 text-xs text-default-500">
-                        <span className="flex min-w-0 flex-wrap items-center gap-2">
-                          <Chip className="h-5 px-1 text-[11px]" color="accent" size="sm" variant="soft">
-                            {source.quality}
-                          </Chip>
-                          <span>{source.latency}</span>
+                  {playbackSourceOptions.length > 0 ? (
+                    <>
+                      {playbackSourceOptions.map((source) => {
+                        const isCurrentSource =
+                          source.key === playbackData.progress_source && source.id === playbackData.progress_id;
+
+                        return (
+                          <button
+                            type="button"
+                            key={`${source.key}:${source.id}`}
+                            className={`relative grid cursor-pointer gap-3 rounded-lg border p-4 text-left transition-colors ${isCurrentSource
+                              ? "border-accent bg-white/2"
+                              : "border-[color-mix(in_srgb,var(--accent)_24%,transparent)] bg-white/12 hover:border-[color-mix(in_srgb,var(--accent)_38%,transparent)] hover:bg-white/16"
+                              }`}
+                            disabled={isSourceSwitching}
+                            onClick={() => switchPlaybackSource(source)}
+                          >
+                            {isCurrentSource ? (
+                              <Badge
+                                className="px-2.5 text-white"
+                                color="success"
+                                placement="top-right"
+                                size="md"
+                                variant="primary"
+                              >
+                                当前源
+                              </Badge>
+                            ) : null}
+                            <span className="flex min-w-0 items-center gap-3 pr-16">
+                              <span className="min-w-0 truncate font-medium text-foreground">{source.name}</span>
+                            </span>
+                            <span className="flex flex-wrap items-center justify-between gap-3 text-xs text-default-500">
+                              <span className="flex min-w-0 flex-wrap items-center gap-2">
+                                {source.quality ? (
+                                  <Chip className="h-5 px-1 text-[11px]" color="accent" size="sm" variant="soft">
+                                    {source.quality}
+                                  </Chip>
+                                ) : null}
+                              </span>
+                              <Chip className="h-5 shrink-0 px-1 text-[11px]" color="default" size="sm" variant="soft">
+                                {source.total_episodes} 集
+                              </Chip>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    playbackData.sources.map((source, index) => (
+                      <button
+                        key={source.id}
+                        type="button"
+                        className={`relative grid cursor-pointer gap-3 rounded-lg border p-4 text-left transition-colors ${source.id === activeSource
+                          ? "border-accent bg-white/2"
+                          : "border-[color-mix(in_srgb,var(--accent)_24%,transparent)] bg-white/12 hover:border-[color-mix(in_srgb,var(--accent)_38%,transparent)] hover:bg-white/16"
+                          }`}
+                        onClick={() => resetPlaybackForEpisode(index + 1)}
+                      >
+                        {source.id === activeSource ? (
+                          <Badge
+                            className="px-2.5 text-white"
+                            color="success"
+                            placement="top-right"
+                            size="md"
+                            variant="primary"
+                          >
+                            当前源
+                          </Badge>
+                        ) : null}
+                        <span className="flex min-w-0 items-center gap-3 pr-16">
+                          <span className="min-w-0 truncate font-medium text-foreground">{source.name}</span>
                         </span>
-                        <Chip className="h-5 shrink-0 px-1 text-[11px]" color="default" size="sm" variant="soft">
-                          {playbackData.episodes.length} 集
-                        </Chip>
-                      </span>
-                    </button>
-                  ))}
+                        <span className="flex items-center justify-between gap-3 text-xs text-default-500">
+                          <span className="flex min-w-0 flex-wrap items-center gap-2">
+                            <Chip className="h-5 px-1 text-[11px]" color="accent" size="sm" variant="soft">
+                              {source.quality}
+                            </Chip>
+                            <span>{source.latency}</span>
+                          </span>
+                          <Chip className="h-5 shrink-0 px-1 text-[11px]" color="default" size="sm" variant="soft">
+                            {playbackData.episodes.length} 集
+                          </Chip>
+                        </span>
+                      </button>
+                    ))
+                  )}
                 </div>
               </Tabs.Panel>
             </Tabs>
@@ -782,7 +1046,6 @@ export function PlayPageShell({
           <div className="min-w-0">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-sm text-default-500">{playbackData.original_title}</p>
                 <h2 className="mt-1 text-2xl font-semibold tracking-normal text-foreground">{playbackData.title}</h2>
               </div>
               <Button
@@ -798,8 +1061,20 @@ export function PlayPageShell({
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
+              {currentSourceName ? (
+                <Chip
+                  className="rounded-full bg-accent/14 px-3 text-sm font-semibold text-accent ring-1 ring-accent/25 shadow-sm"
+                  color="accent"
+                  variant="soft"
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <i aria-hidden="true" className="bi bi-broadcast" />
+                    {currentSourceName}
+                  </span>
+                </Chip>
+              ) : null}
               {playbackData.tags.map((tag) => (
-                <Chip key={tag} color="accent" variant="soft">
+                <Chip key={tag} className="rounded-full px-2.5 text-[11px]" color="accent" variant="soft">
                   {tag}
                 </Chip>
               ))}

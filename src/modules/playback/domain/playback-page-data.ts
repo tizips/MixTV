@@ -16,6 +16,7 @@ export type VideoSource = {
 export type PlayPageData = {
   title: string;
   original_title: string;
+  index: string;
   play_episodes: number;
   cover_default: string;
   cover: string;

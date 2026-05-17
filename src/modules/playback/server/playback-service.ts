@@ -14,6 +14,7 @@ import {
 import { hasFavorite, type FavoriteStore } from "@/modules/favorites/server/favorite-service";
 import type { DbPort } from "@/shared/db/db-port";
 import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
+import { createMediaSearchIndex } from "@/shared/media/search-index";
 import type { PlayPageData, VideoSource } from "../domain/playback-page-data";
 import {
   getOrCreateInitialPlaybackProgress,
@@ -42,7 +43,7 @@ export interface PlaybackPageQuery {
 }
 
 const missingPlaybackQueryMessage = "缺少 source 或 id 参数，无法加载播放信息。";
-const playbackCacheTtlSeconds = 2 * 60 * 60;
+const playbackCacheTtlSeconds = 60 * 60;
 
 export type PlaybackCacheStore = DbPort<unknown, string>;
 
@@ -384,6 +385,12 @@ export async function getPlaybackPageData(
         play_episodes: playbackProgress?.play_episodes ?? 1,
         cover_default: coverDefault,
         cover: resource.posterUrl || coverDefault,
+        index: createMediaSearchIndex({
+          className: resource.className,
+          title: resource.title,
+          typeName: resource.typeName,
+          year: resource.year,
+        }),
         progress_id: id,
         progress_source: sourceKey,
         play_time: playbackProgress?.play_time,

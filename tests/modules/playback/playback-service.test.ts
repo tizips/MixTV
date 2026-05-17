@@ -211,7 +211,7 @@ describe("getPlaybackPageData", () => {
     });
   });
 
-  it("caches third-party detail for two hours by source key and resource id", async () => {
+  it("caches third-party detail for one hour by source key and resource id", async () => {
     const detailFetcher = vi.fn(async () => createResource({ doubanId: 34925294 }));
     const cacheStore = createCacheStore();
 
@@ -240,7 +240,7 @@ describe("getPlaybackPageData", () => {
           episodes: ["https://media.test/1.m3u8", "https://media.test/2.m3u8"],
           description: "播放详情简介",
         }),
-        7200,
+        3600,
       ],
       keys: ["cache:video:dyttzyapi.com:80474"],
     });

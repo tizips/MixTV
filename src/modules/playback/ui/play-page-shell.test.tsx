@@ -155,6 +155,7 @@ function createInitialData(): PlayPageData {
     return {
       area: "电影天堂资源",
       category: "剧集",
+      index: "2026:tv:资源站标题",
       play_episodes: 1,
       description: "播放详情简介",
       episodes: [{ duration: "未知", number: 1, title: "第1集" }],
@@ -244,6 +245,36 @@ describe("PlayPageShell client playback cover", () => {
       headers: { Accept: "application/json" },
       method: "POST",
     });
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("shows the current source name before the tags and omits the original title line", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={createInitialData()} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const infoSection = host.querySelectorAll("section")[1] as HTMLElement | undefined;
+
+    if (!infoSection) {
+      throw new Error("Playback info section was not rendered");
+    }
+
+    const text = infoSection.textContent ?? "";
+
+    expect(text).not.toContain("剧集");
+    expect(text.indexOf("电影天堂资源")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("更新至1集")).toBeGreaterThan(text.indexOf("电影天堂资源"));
 
     act(() => {
       root.unmount();
@@ -589,6 +620,101 @@ describe("PlayPageShell client playback cover", () => {
     expect(host.textContent).toContain("第 2 集");
     expect(currentArt.url).toBe("https://media.test/2.m3u8");
     expect(currentArt.playing).toBe(true);
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("switches playback sources in place and updates the route", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+      if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}`) {
+        return new Response(
+          'event: start\ndata: {"total":1}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","quality":"1080P","source_name":"Alpha Source","total_episodes":2}\n\nevent: complete\ndata: {"completed":1,"total":1}\n\n',
+          { headers: { "Content-Type": "text/event-stream" } },
+        );
+      }
+
+      if (url === "/api/play/sources" && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({
+            episodes: [
+              { duration: "未知", number: 1, title: "第1集" },
+              { duration: "未知", number: 2, title: "第2集" },
+            ],
+            progress: {
+              id: "80474",
+              play_episodes: 2,
+              play_time: 125,
+              source: "alpha",
+              total_time: 2708,
+            },
+            source_name: "Alpha Source",
+            sources: [
+              {
+                id: "episode-1",
+                latency: "在线播放",
+                name: "第1集",
+                quality: "HLS",
+                status: "流畅",
+                url: "https://media.test/1.m3u8",
+              },
+              {
+                id: "episode-2",
+                latency: "在线播放",
+                name: "第2集",
+                quality: "HLS",
+                status: "流畅",
+                url: "https://media.test/2.m3u8",
+              },
+            ],
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      return new Response(JSON.stringify({ favorites: [] }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={createInitialData()} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const sourceButton = [...host.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("Alpha Source")) as HTMLButtonElement | undefined;
+
+    if (!sourceButton) {
+      throw new Error("Playback source button was not rendered");
+    }
+
+    await act(async () => {
+      sourceButton.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/play/sources", expect.objectContaining({ method: "POST" }));
+    expect(window.location.search).toContain("source=alpha");
+    expect(window.location.search).toContain("id=80474");
+
+    const infoSection = host.querySelectorAll("section")[1] as HTMLElement | undefined;
+
+    if (!infoSection) {
+      throw new Error("Playback info section was not rendered after source switch");
+    }
+
+    expect(infoSection.textContent ?? "").toContain("Alpha Source");
 
     act(() => {
       root.unmount();
