@@ -93,7 +93,7 @@ function mediaSearchResponse() {
   return new Response(
     [
       'event: start\ndata: {"total":1}\n\n',
-      'event: result\ndata: [{"total_episodes":2,"idx":"title:qingyunian:year:2026","id":"movie-1","key":"alpha","cover":"https://image.test/poster.jpg","source_name":"Alpha","title":"庆余年 第二季","year":"2026"}]\n\n',
+      'event: result\ndata: [{"total_episodes":2,"idx":"2026:tv:庆余年第二季","id":"movie-1","key":"alpha","cover":"https://image.test/poster.jpg","source_name":"Alpha","title":"庆余年 第二季","year":"2026"}]\n\n',
       'event: complete\ndata: {"completed":1,"total":1}\n\n',
     ].join(""),
     { headers: { "Content-Type": "text/event-stream" } },
@@ -104,8 +104,8 @@ function aggregatedMediaSearchResponse() {
   return new Response(
     [
       'event: start\ndata: {"total":2}\n\n',
-      'event: result\ndata: [{"total_episodes":1,"idx":"title:samemovie:year:2026","id":"a","key":"alpha","cover":"https://image.test/a.jpg","source_name":"Alpha","title":"Same Movie","year":"2026"}]\n\n',
-      'event: result\ndata: [{"total_episodes":1,"idx":"title:samemovie:year:2026","id":"a","key":"alpha","cover":"https://image.test/a.jpg","source_name":"Alpha","title":"Same Movie","year":"2026"}]\n\n',
+      'event: result\ndata: [{"total_episodes":1,"idx":"2026:movie:samemovie","id":"a","key":"alpha","cover":"https://image.test/a.jpg","source_name":"Alpha","title":"Same Movie","year":"2026"}]\n\n',
+      'event: result\ndata: [{"total_episodes":1,"idx":"2026:movie:samemovie","id":"a","key":"alpha","cover":"https://image.test/a.jpg","source_name":"Alpha","title":"Same Movie","year":"2026"}]\n\n',
       'event: complete\ndata: {"completed":2,"total":2}\n\n',
     ].join(""),
     { headers: { "Content-Type": "text/event-stream" } },

@@ -1,11 +1,13 @@
 import { searchVideoSource, type VideoSourceAdapterOptions, type VideoSourceEndpoint, type VideoSourceResource } from "@/integrations/video-sources";
 import { getSiteConfig, type SiteConfigStore } from "@/modules/admin/server/site-config-service";
+import { createMediaSearchIndex } from "@/shared/media/search-index";
 import {
   createVideoSourceStore,
   getVideoSources,
   type VideoSourceItem,
   type VideoSourceStore,
 } from "@/modules/admin/server/video-source-service";
+import { saveMediaSearchCacheEntries, type MediaSearchCacheStore } from "./media-search-cache-service";
 
 export interface MediaSearchInput {
   query: string;
@@ -41,6 +43,7 @@ type AggregatedMediaSearchResult = MediaSearchResult & {
 export interface MediaSearchOptions {
   fetcher?: VideoSourceAdapterOptions["fetcher"];
   maxPages?: number;
+  cacheStore?: MediaSearchCacheStore;
   onResult?: (result: MediaSearchSourceResult) => void;
   onStart?: (summary: { total: number }) => void;
   searcher?: (
@@ -78,33 +81,13 @@ function toSearchEndpoint(source: VideoSourceItem): VideoSourceEndpoint {
   };
 }
 
-function normalizeTitle(title: string) {
-  return title
-    .trim()
-    .toLowerCase()
-    .replace(/[：:]/g, " ")
-    .replace(/\s+/g, "")
-    .replace(/第(一|二|三|四|五|六|七|八|九|十|\d+)(季|部)$/g, "");
-}
-
 function createAggregationKey(resource: VideoSourceResource) {
-  if (resource.doubanId) {
-    return `douban:${resource.doubanId}`;
-  }
-
-  const title = normalizeTitle(resource.title);
-  const year = resource.year.trim();
-  const typeName = resource.typeName?.trim() || resource.className?.trim();
-
-  if (title && year && year !== "unknown") {
-    return `title:${title}:year:${year}`;
-  }
-
-  if (title && typeName) {
-    return `title:${title}:type:${typeName}`;
-  }
-
-  return `source:${resource.sourceKey}:${resource.id}`;
+  return createMediaSearchIndex({
+    className: resource.className,
+    title: resource.title,
+    typeName: resource.typeName,
+    year: resource.year,
+  });
 }
 
 function createMediaSearchResult(id: string, resource: VideoSourceResource): MediaSearchResult {
@@ -139,6 +122,7 @@ export async function searchMediaSources(
   input: MediaSearchInput,
   {
     fetcher,
+    cacheStore,
     maxPages,
     onResult,
     onStart,
@@ -187,6 +171,22 @@ export async function searchMediaSources(
         aggregated.source_total = aggregated.sourceKeys.size;
 
         aggregatedByKey.set(key, aggregated);
+
+        try {
+          await saveMediaSearchCacheEntries(
+            key,
+            [{
+              id: result.id,
+              quality: result.quality ?? "",
+              resourceKey: result.sourceKey,
+              name: result.sourceName,
+            }],
+            { store: cacheStore },
+          );
+        } catch {
+          // Cache writes should never break search aggregation.
+        }
+
         const { sourceKeys, ...publicResult } = aggregated;
         changedResults.push(publicResult);
       }
