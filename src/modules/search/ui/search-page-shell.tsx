@@ -9,7 +9,6 @@ import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 
 type SearchType = "media" | "cloud";
 type ViewMode = "grid" | "list";
-type SortMode = "relevance" | "year-desc" | "year-asc";
 type SearchStreamStatus = "idle" | "searching" | "complete";
 
 type AggregatedMediaResource = {
@@ -58,18 +57,12 @@ const searchTypes: Array<{ key: SearchType; label: string; icon: string }> = [
   { key: "cloud", label: "网盘资源", icon: "bi-cloud-arrow-down" },
 ];
 
-const titleFilters = ["全部", "电影", "剧集", "动漫", "综艺"];
-
 function isSearchType(value: string | null): value is SearchType {
   return value === "media" || value === "cloud";
 }
 
 function isViewMode(value: string | null): value is ViewMode {
   return value === "grid" || value === "list";
-}
-
-function isSortMode(value: string | null): value is SortMode {
-  return value === "relevance" || value === "year-desc" || value === "year-asc";
 }
 
 function getUrlSearchParams() {
@@ -611,11 +604,6 @@ export function SearchPageShell() {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [favoritedKeys, setFavoritedKeys] = useState<Set<string>>(() => new Set());
   const [pendingFavoriteKeys, setPendingFavoriteKeys] = useState<Set<string>>(() => new Set());
-  const [titleFilter, setTitleFilter] = useState(() => getUrlSearchParams().get("category") ?? "全部");
-  const [sortMode, setSortMode] = useState<SortMode>(() => {
-    const sort = getUrlSearchParams().get("sort");
-    return isSortMode(sort) ? sort : "relevance";
-  });
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const view = getUrlSearchParams().get("view");
     return isViewMode(view) ? view : "grid";
@@ -650,8 +638,6 @@ export function SearchPageShell() {
     setStreamError("");
     setFavoritedKeys(new Set());
     setPendingFavoriteKeys(new Set());
-    setTitleFilter("全部");
-    setSortMode("relevance");
   }
 
   useEffect(() => {
@@ -749,22 +735,8 @@ export function SearchPageShell() {
   }, [activeQuery, searchRequestId]);
 
   const visibleResults = useMemo(() => {
-    const filtered = baseResults.filter((result) => {
-      const matchesTitle = titleFilter === "全部" || result.category === titleFilter;
-
-      return matchesTitle;
-    });
-
-    if (sortMode === "year-desc") {
-      return [...filtered].sort((left, right) => right.year - left.year);
-    }
-
-    if (sortMode === "year-asc") {
-      return [...filtered].sort((left, right) => left.year - right.year);
-    }
-
-    return filtered;
-  }, [baseResults, sortMode, titleFilter]);
+    return baseResults;
+  }, [baseResults]);
 
   function runSearch(keyword = queryInput) {
     const normalizedKeyword = keyword.trim();
@@ -786,8 +758,6 @@ export function SearchPageShell() {
     setStreamError("");
     setFavoritedKeys(new Set());
     setPendingFavoriteKeys(new Set());
-    setTitleFilter("全部");
-    setSortMode("relevance");
     setSearchRequestId((value) => value + 1);
   }
 
@@ -947,56 +917,6 @@ export function SearchPageShell() {
                       </Button>
                     ))}
                   </div>
-                </div>
-              </div>
-
-              <div className="grid gap-3 rounded-[1.1rem] bg-surface/72 p-3 shadow-[0_14px_44px_rgba(15,23,42,0.06)] backdrop-blur-xl lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                <div aria-label="内容类型筛选" className="flex min-w-0 flex-wrap items-center gap-2" role="group">
-                  {titleFilters.map((filter) => (
-                    <Button
-                      key={filter}
-                      aria-pressed={titleFilter === filter}
-                      className="h-8 rounded-full px-3 text-sm"
-                      size="sm"
-                      type="button"
-                      variant={titleFilter === filter ? "primary" : "ghost"}
-                      onPress={() => setTitleFilter(filter)}
-                    >
-                      {filter}
-                    </Button>
-                  ))}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    className="h-9 rounded-full px-3 text-sm"
-                    size="sm"
-                    type="button"
-                    variant={sortMode === "relevance" ? "ghost" : "primary"}
-                    onPress={() => {
-                      setSortMode((currentMode) => {
-                        if (currentMode === "relevance") {
-                          return "year-desc";
-                        }
-                        if (currentMode === "year-desc") {
-                          return "year-asc";
-                        }
-                        return "relevance";
-                      });
-                    }}
-                  >
-                    <i
-                      aria-hidden="true"
-                      className={`bi ${
-                        sortMode === "year-desc"
-                          ? "bi-sort-down"
-                          : sortMode === "year-asc"
-                            ? "bi-sort-up"
-                            : "bi-filter"
-                      }`}
-                    />
-                    {sortMode === "year-desc" ? "年份降序" : sortMode === "year-asc" ? "年份升序" : "综合排序"}
-                  </Button>
                 </div>
               </div>
 
