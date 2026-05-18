@@ -1,5 +1,9 @@
 import { getDanmakuConfig } from "@/modules/admin";
-import { formatPlaybackDanmakuRequestTitle } from "../domain/playback-danmaku";
+import {
+  buildPlaybackDanmakuKeyword,
+  formatPlaybackDanmakuRequestTitle,
+  parsePlaybackSeason,
+} from "../domain/playback-danmaku";
 
 export interface PlaybackDanmakuRequest {
   title?: string | string[];
