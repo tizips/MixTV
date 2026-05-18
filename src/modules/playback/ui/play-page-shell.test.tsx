@@ -9,12 +9,14 @@ import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import { PlayPageShell } from "./play-page-shell";
 import type { PlayPageData } from "../domain/playback-page-data";
 
-type ArtplayerEventName = `video:${string}` | "destroy" | "error" | "fullscreenWeb";
+type ArtplayerEventName = `video:${string}` | "artplayerPluginDanmuku:config" | "destroy" | "error" | "fullscreenWeb";
 type ArtplayerHandler = (...args: unknown[]) => void;
 
 const artplayerState = vi.hoisted(() => ({
   instances: [] as FakeArtplayer[],
   controls: [] as Array<{ name?: string; position?: string; tooltip?: string; index?: number }>,
+  danmakuLoads: [] as unknown[][],
+  danmakuOptions: [] as Array<Record<string, unknown>>,
   settings: [] as Array<{ name?: string; html?: string }>,
 }));
 
@@ -48,9 +50,10 @@ class FakeArtplayer {
   };
   private handlers = new Map<ArtplayerEventName, ArtplayerHandler[]>();
 
-  constructor(options: { url: string; poster?: string }) {
+  constructor(options: { url: string; poster?: string; plugins?: Array<{ name?: string }> }) {
     this.url = options.url;
     this.poster = options.poster ?? "";
+    this.plugins = Object.fromEntries((options.plugins ?? []).map((plugin) => [plugin.name, plugin]));
     artplayerState.instances.push(this);
   }
 
@@ -84,7 +87,30 @@ vi.mock("artplayer", () => ({
 }));
 
 vi.mock("artplayer-plugin-danmuku", () => ({
-  default: () => ({}),
+  default: (options: Record<string, unknown>) => {
+    artplayerState.danmakuOptions.push(options);
+
+    const plugin = {
+      color: "#FFFFFF",
+      emitter: false,
+      fontSize: 20,
+      load: vi.fn(async (danmuku?: unknown[]) => {
+        artplayerState.danmakuLoads.push(danmuku ?? []);
+        return plugin;
+      }),
+      margin: [10, "75%"],
+      mode: 0,
+      modes: [0, 1, 2],
+      opacity: 0.85,
+      speed: 7.5,
+      name: "artplayerPluginDanmuku",
+      antiOverlap: true,
+      synchronousPlayback: true,
+      visible: true,
+    };
+
+    return plugin;
+  },
 }));
 
 vi.mock("hls.js", () => ({
@@ -145,10 +171,13 @@ afterEach(() => {
   document.body.innerHTML = "";
   artplayerState.instances = [];
   artplayerState.controls = [];
+  artplayerState.danmakuLoads = [];
+  artplayerState.danmakuOptions = [];
   artplayerState.settings = [];
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  localStorage.clear();
 });
 
 function createInitialData(): PlayPageData {
@@ -380,6 +409,171 @@ describe("PlayPageShell client playback cover", () => {
     expect(artplayerState.controls.map((control) => control.position)).toEqual(["left", "left", "left"]);
     expect(artplayerState.controls.map((control) => control.index)).toEqual([11, 12, 13]);
     expect(artplayerState.settings).toEqual([]);
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("loads danmaku items from the playback danmaku API into the plugin", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+      if (url === `/api/play/danmaku?${new URLSearchParams({ title: "资源站标题 S01E01", play_episodes: "1" })}`) {
+        return new Response(
+          JSON.stringify([
+            {
+              text: "这女的戏份真多",
+              time: 0,
+              mode: 0,
+            },
+          ]),
+        );
+      }
+
+      return new Response(JSON.stringify({ favorites: [] }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={createInitialData()} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/play/danmaku?${new URLSearchParams({ title: "资源站标题 S01E01", play_episodes: "1" })}`,
+      expect.objectContaining({ headers: { Accept: "application/json" } }),
+    );
+    expect(artplayerState.danmakuLoads).toEqual([
+      [
+        {
+          text: "这女的戏份真多",
+          time: 0,
+          mode: 0,
+        },
+      ],
+    ]);
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("restores the saved playback volume before rendering the player", async () => {
+    localStorage.setItem("mixtv.playback.volume", "83");
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={createInitialData()} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(artplayerState.instances[0]?.volume).toBeCloseTo(0.83, 2);
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("restores and persists saved playback danmaku settings", async () => {
+    localStorage.setItem(
+      "mixtv.playback.danmaku",
+      JSON.stringify({
+        antiOverlap: false,
+        emitter: true,
+        fontSize: 28,
+        margin: [10, "50%"],
+        mode: 2,
+        modes: [0, 2],
+        opacity: 0.66,
+        speed: 8,
+        synchronousPlayback: false,
+        visible: false,
+      }),
+    );
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={createInitialData()} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(artplayerState.danmakuOptions.at(-1)).toEqual(
+      expect.objectContaining({
+        antiOverlap: false,
+        emitter: true,
+        fontSize: 28,
+        margin: [10, "50%"],
+        mode: 2,
+        modes: [0, 2],
+        opacity: 0.66,
+        speed: 8,
+        synchronousPlayback: false,
+        visible: false,
+      }),
+    );
+
+    const art = artplayerState.instances[0];
+
+    if (!art) {
+      throw new Error("Artplayer was not initialized");
+    }
+
+    art.volume = 0.61;
+    art.emit("video:volumechange", new Event("volumechange"));
+
+    expect(localStorage.getItem("mixtv.playback.volume")).toBe("61");
+
+    art.emit("artplayerPluginDanmuku:config", {
+      antiOverlap: true,
+      emitter: false,
+      fontSize: 24,
+      margin: [10, 10],
+      mode: 1,
+      modes: [0, 1, 2],
+      opacity: 0.7,
+      speed: 7.5,
+      synchronousPlayback: true,
+      visible: true,
+    });
+
+    expect(localStorage.getItem("mixtv.playback.danmaku")).toBe(
+      JSON.stringify({
+        antiOverlap: true,
+        color: "#FFFFFF",
+        emitter: false,
+        fontSize: 24,
+        margin: [10, 10],
+        mode: 1,
+        modes: [0, 1, 2],
+        opacity: 0.7,
+        speed: 7.5,
+        synchronousPlayback: true,
+        visible: true,
+      }),
+    );
 
     act(() => {
       root.unmount();

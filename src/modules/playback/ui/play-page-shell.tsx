@@ -9,10 +9,40 @@ import { Badge, Button, Chip, Separator, Tabs } from "@heroui/react";
 import { env } from "@/shared/env";
 import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import type { Episode, PlayPageData } from "../domain/playback-page-data";
+import { createPlaybackDanmakuUrl } from "../domain/playback-danmaku";
 
 const episodeGroupSize = 50;
 const playbackDurationSeconds = 45 * 60 + 8;
-const initialPlayerVolume: number = 72;
+const defaultPlaybackVolume: number = 50;
+const playbackVolumeStorageKey = "mixtv.playback.volume";
+const playbackDanmakuStorageKey = "mixtv.playback.danmaku";
+type PlaybackDanmakuPreferences = {
+  antiOverlap: boolean;
+  color: string;
+  emitter: boolean;
+  fontSize: number;
+  margin: NonNullable<DanmakuOption["margin"]>;
+  mode: NonNullable<DanmakuOption["mode"]>;
+  modes: NonNullable<DanmakuOption["modes"]>;
+  opacity: number;
+  speed: number;
+  synchronousPlayback: boolean;
+  visible: boolean;
+};
+
+const defaultPlaybackDanmakuSettings: PlaybackDanmakuPreferences = {
+  antiOverlap: true,
+  color: "#FFFFFF",
+  emitter: false,
+  fontSize: 20,
+  margin: [10, "75%"],
+  mode: 0,
+  modes: [0, 1, 2],
+  opacity: 0.85,
+  speed: 7.5,
+  synchronousPlayback: true,
+  visible: true,
+};
 const tabBaseClassName =
   "group relative h-[72px] justify-center rounded-none text-sm font-medium transition-colors before:absolute before:inset-x-6 before:top-1/2 before:h-[72px] before:-translate-y-1/2 before:opacity-0 before:transition-opacity data-[selected]:text-accent data-[selected]:before:opacity-100";
 
@@ -38,25 +68,26 @@ type PlaybackSourceSseEvent =
   | { event: "result"; data: PlaybackSourceOption }
   | { event: "complete"; data: { completed: number; total: number } }
   | { event: "error"; data: { message?: string } };
+type PlaybackDanmakuResponseItem = {
+  color?: unknown;
+  emitter?: unknown;
+  antiOverlap?: unknown;
+  fontSize?: unknown;
+  mode?: unknown;
+  modes?: unknown;
+  opacity?: unknown;
+  speed?: unknown;
+  synchronousPlayback?: unknown;
+  text?: unknown;
+  time?: unknown;
+  visible?: unknown;
+};
 
 function getRandomTabGlowClass(currentClassName: TabGlowClassName): TabGlowClassName {
   const nextClassNames = tabGlowClassNames.filter((className) => className !== currentClassName);
   const candidates = nextClassNames.length > 0 ? nextClassNames : tabGlowClassNames;
 
   return candidates[Math.floor(Math.random() * candidates.length)] ?? tabGlowClassNames[0];
-}
-
-function getEpisodeDanmuku(episodeNumber: number): Danmu[] {
-  const episodeOffset = episodeNumber % 7;
-
-  return [
-    { text: "这段转场很顺", time: 8 + episodeOffset, mode: 0, color: "#FFFFFF" },
-    { text: "前方高能", time: 18 + episodeOffset, mode: 0, color: "#89D5FF" },
-    { text: "画面质感不错", time: 32 + episodeOffset, mode: 1, color: "#FFD302" },
-    { text: "这一集节奏起来了", time: 46 + episodeOffset, mode: 0, color: "#A0EE00" },
-    { text: "字幕同步正常", time: 72 + episodeOffset, mode: 2, color: "#FFFFFF" },
-    { text: "建议开启倍速", time: 105 + episodeOffset, mode: 0, color: "#FFAA02" },
-  ];
 }
 
 function getArtplayerDanmakuPlugin(art: Artplayer): DanmakuPluginResult | undefined {
@@ -99,6 +130,193 @@ function createPlayUrl(input: { id: string; source: string }) {
   });
 
   return `/play?${searchParams.toString()}`;
+}
+
+function readStoredPlaybackVolume(): number {
+  if (typeof window === "undefined") {
+    return defaultPlaybackVolume;
+  }
+
+  const storedValue = window.localStorage.getItem(playbackVolumeStorageKey);
+
+  if (!storedValue) {
+    return defaultPlaybackVolume;
+  }
+
+  const parsedValue = Number(storedValue);
+
+  return Number.isFinite(parsedValue) ? clamp(Math.round(parsedValue), 0, 100) : defaultPlaybackVolume;
+}
+
+function readStoredPlaybackDanmakuSettings(): PlaybackDanmakuPreferences {
+  if (typeof window === "undefined") {
+    return { ...defaultPlaybackDanmakuSettings };
+  }
+
+  const storedValue = window.localStorage.getItem(playbackDanmakuStorageKey);
+
+  if (!storedValue) {
+    return { ...defaultPlaybackDanmakuSettings };
+  }
+
+  try {
+    return normalizePlaybackDanmakuPreferences(JSON.parse(storedValue));
+  } catch {
+    return { ...defaultPlaybackDanmakuSettings };
+  }
+}
+
+function storePlaybackDanmakuSettings(settings: PlaybackDanmakuPreferences) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(playbackDanmakuStorageKey, JSON.stringify(settings));
+}
+
+function normalizePlaybackDanmakuMargin(value: unknown): NonNullable<DanmakuOption["margin"]> | undefined {
+  if (!Array.isArray(value) || value.length < 2) {
+    return undefined;
+  }
+
+  const [top, bottom] = value;
+
+  if (typeof top !== "number" || !Number.isFinite(top)) {
+    return undefined;
+  }
+
+  if (typeof bottom === "number" && Number.isFinite(bottom)) {
+    return [clamp(Math.round(top), 0, 100), clamp(Math.round(bottom), 0, 100)];
+  }
+
+  if (typeof bottom === "string" && /^-?\d+(\.\d+)?%$/.test(bottom.trim())) {
+    return [clamp(Math.round(top), 0, 100), bottom.trim() as `${number}%`];
+  }
+
+  return undefined;
+}
+
+function normalizePlaybackDanmakuModes(value: unknown): NonNullable<DanmakuOption["modes"]> | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const nextModes = value
+    .map((item) => normalizePlaybackDanmakuMode(item))
+    .filter((item): item is 0 | 1 | 2 => item !== undefined);
+
+  if (!nextModes.length) {
+    return undefined;
+  }
+
+  return Array.from(new Set(nextModes));
+}
+
+function normalizePlaybackDanmakuPreferences(value: unknown): PlaybackDanmakuPreferences {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { ...defaultPlaybackDanmakuSettings };
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return {
+    antiOverlap: typeof record.antiOverlap === "boolean" ? record.antiOverlap : defaultPlaybackDanmakuSettings.antiOverlap,
+    color: typeof record.color === "string" && record.color.trim() ? record.color.trim() : defaultPlaybackDanmakuSettings.color,
+    emitter: typeof record.emitter === "boolean" ? record.emitter : defaultPlaybackDanmakuSettings.emitter,
+    fontSize: typeof record.fontSize === "number" && Number.isFinite(record.fontSize)
+      ? record.fontSize
+      : defaultPlaybackDanmakuSettings.fontSize,
+    margin: normalizePlaybackDanmakuMargin(record.margin) ?? defaultPlaybackDanmakuSettings.margin,
+    mode: normalizePlaybackDanmakuMode(record.mode) ?? defaultPlaybackDanmakuSettings.mode,
+    modes: normalizePlaybackDanmakuModes(record.modes) ?? defaultPlaybackDanmakuSettings.modes,
+    opacity: typeof record.opacity === "number" && Number.isFinite(record.opacity)
+      ? clamp(record.opacity, 0, 1)
+      : defaultPlaybackDanmakuSettings.opacity,
+    speed: typeof record.speed === "number" && Number.isFinite(record.speed)
+      ? clamp(record.speed, 1, 10)
+      : defaultPlaybackDanmakuSettings.speed,
+    synchronousPlayback: typeof record.synchronousPlayback === "boolean"
+      ? record.synchronousPlayback
+      : defaultPlaybackDanmakuSettings.synchronousPlayback,
+    visible: typeof record.visible === "boolean" ? record.visible : defaultPlaybackDanmakuSettings.visible,
+  };
+}
+
+function normalizePlaybackDanmakuMode(value: unknown): 0 | 1 | 2 | undefined {
+  if (value === 0 || value === "0" || value === "scroll" || value === "Scroll") {
+    return 0;
+  }
+
+  if (value === 1 || value === "1" || value === "top" || value === "Top") {
+    return 1;
+  }
+
+  if (value === 2 || value === "2" || value === "bottom" || value === "Bottom") {
+    return 2;
+  }
+
+  return undefined;
+}
+
+function normalizePlaybackDanmakuColor(value: unknown) {
+  if (typeof value === "string" && value.trim()) {
+    const trimmed = value.trim();
+    return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return `#${Math.max(0, Math.min(0xffffff, Math.floor(value))).toString(16).padStart(6, "0")}`;
+  }
+
+  return undefined;
+}
+
+function readPlaybackDanmakuItems(payload: unknown): Danmu[] {
+  if (!Array.isArray(payload)) {
+    return [];
+  }
+
+  const result: Danmu[] = [];
+
+  for (const item of payload) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      continue;
+    }
+
+    const danmakuItem = item as PlaybackDanmakuResponseItem;
+    const text = typeof danmakuItem.text === "string" ? danmakuItem.text.trim() : "";
+
+    if (!text) {
+      continue;
+    }
+
+    const time = typeof danmakuItem.time === "number" ? danmakuItem.time : Number(danmakuItem.time);
+
+    if (!Number.isFinite(time) || time < 0) {
+      continue;
+    }
+
+    const danmu: Danmu = {
+      text,
+      time,
+    };
+
+    const mode = normalizePlaybackDanmakuMode(danmakuItem.mode);
+
+    if (mode !== undefined) {
+      danmu.mode = mode;
+    }
+
+    const color = normalizePlaybackDanmakuColor(danmakuItem.color);
+
+    if (color) {
+      danmu.color = color;
+    }
+
+    result.push(danmu);
+  }
+
+  return result;
 }
 
 type PlaybackSourceSwitchResponse = {
@@ -266,7 +484,8 @@ export function PlayPageShell({
   const [tabGlowClassName, setTabGlowClassName] = useState<TabGlowClassName>(tabGlowClassNames[0]);
   const [isDescending, setIsDescending] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState<number>(initialPlayerVolume);
+  const [volume, setVolume] = useState<number>(readStoredPlaybackVolume);
+  const [danmakuPreferences, setDanmakuPreferences] = useState<PlaybackDanmakuPreferences>(readStoredPlaybackDanmakuSettings);
   const [isWebFullscreen, setIsWebFullscreen] = useState(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(Boolean(playbackData?.is_favorite));
@@ -276,25 +495,12 @@ export function PlayPageShell({
   const [placeholderSourceLoading, setPlaceholderSourceLoading] = useState(false);
   const [placeholderSourceError, setPlaceholderSourceError] = useState<string | null>(null);
   const [isSourceSwitching, setIsSourceSwitching] = useState(false);
+  const danmakuPreferencesRef = useRef(danmakuPreferences);
   const activeEpisodeRef = useRef(activeEpisode);
   const isPlayingRef = useRef(isPlaying);
   const shouldResumePlaybackRef = useRef(false);
   const currentPlaybackSecondsRef = useRef(initialResumeTimeSeconds);
   const currentPlaybackDurationRef = useRef(playbackDurationSeconds);
-  const initialDanmakuOptionRef = useRef<DanmakuOption>({
-    danmuku: getEpisodeDanmuku(playbackData?.play_episodes ?? 1),
-    speed: 5,
-    margin: [10, 10],
-    opacity: 0.85,
-    color: "#FFFFFF",
-    mode: 0,
-    modes: [0, 1, 2],
-    fontSize: 36,
-    antiOverlap: true,
-    synchronousPlayback: true,
-    visible: true,
-    emitter: false,
-  });
 
   const episodeGroups = useMemo(() => (playbackData ? getEpisodeGroups(playbackData.episodes) : []), [playbackData]);
   const selectedGroup = episodeGroups.find((group) => group.key === selectedGroupKey) ?? episodeGroups[0];
@@ -307,6 +513,10 @@ export function PlayPageShell({
     playbackData?.sources[activeEpisode - 1]?.url ??
     playbackData?.sources[0]?.url ??
     "";
+  const currentPlaybackDanmakuUrl = createPlaybackDanmakuUrl({
+    title: playbackData?.title ?? "",
+    playEpisodes: activeEpisode,
+  });
   const progressEndpoint = useMemo(() => {
     const progressSource = playbackData?.progress_source;
     const progressId = playbackData?.progress_id;
@@ -331,6 +541,51 @@ export function PlayPageShell({
       posterElement.style.display = visible ? "" : "none";
     }
   }, []);
+  const loadPlaybackDanmaku = useCallback(async () => {
+    if (!currentPlaybackDanmakuUrl) {
+      return [];
+    }
+
+    try {
+      const response = await fetch(currentPlaybackDanmakuUrl, {
+        headers: { Accept: "application/json" },
+      });
+
+      if (!response.ok) {
+        return [];
+      }
+
+      const payload = (await response.json()) as unknown;
+
+      return readPlaybackDanmakuItems(payload);
+    } catch {
+      return [];
+    }
+  }, [currentPlaybackDanmakuUrl]);
+  const loadPlaybackDanmakuIntoPlugin = useCallback(async () => {
+    const art = artPlayerRef.current;
+
+    if (!art) {
+      return;
+    }
+
+    const danmakuPlugin = getArtplayerDanmakuPlugin(art);
+
+    if (!danmakuPlugin) {
+      return;
+    }
+
+    const danmaku = await loadPlaybackDanmaku();
+
+    if (artPlayerRef.current !== art) {
+      return;
+    }
+
+    await danmakuPlugin.load(danmaku);
+  }, [loadPlaybackDanmaku]);
+  useEffect(() => {
+    danmakuPreferencesRef.current = danmakuPreferences;
+  }, [danmakuPreferences]);
   const uploadPlaybackProgress = useCallback(() => {
     const art = artPlayerRef.current;
 
@@ -389,9 +644,11 @@ export function PlayPageShell({
 
     const controller = new AbortController();
     const seen = new Map<string, PlaybackSourceOption>();
-    setPlaceholderSourceLoading(true);
-    setPlaceholderSourceError(null);
-    setPlaceholderSourceOptions([]);
+    queueMicrotask(() => {
+      setPlaceholderSourceLoading(true);
+      setPlaceholderSourceError(null);
+      setPlaceholderSourceOptions([]);
+    });
 
     void fetch(`/api/play/sources?index=${encodeURIComponent(playbackIndex.trim())}`, {
       headers: { Accept: "text/event-stream" },
@@ -622,8 +879,8 @@ export function PlayPageShell({
           url: currentPlaybackUrl,
           type: "m3u8",
           poster: playbackCoverDefaultUrl,
-          volume: initialPlayerVolume / 100,
-          muted: initialPlayerVolume === 0,
+          volume: defaultPlaybackVolume / 100,
+          muted: defaultPlaybackVolume === 0,
           playbackRate: true,
           setting: true,
           hotkey: true,
@@ -635,7 +892,12 @@ export function PlayPageShell({
             crossOrigin: "anonymous",
             preload: "auto",
           },
-          plugins: [artplayerPluginDanmuku(initialDanmakuOptionRef.current)],
+          plugins: [
+            artplayerPluginDanmuku({
+              danmuku: [] as Danmu[],
+              ...danmakuPreferencesRef.current,
+            }),
+          ],
           customType: {
             m3u8(video, url, artInstance) {
               const player = artInstance as ArtplayerWithHls;
@@ -689,8 +951,8 @@ export function PlayPageShell({
 
         artPlayerRef.current = art;
         art.playbackRate = 1;
-        art.volume = initialPlayerVolume / 100;
-        art.muted = initialPlayerVolume === 0;
+        art.volume = volume / 100;
+        art.muted = volume === 0;
         art.controls.add({
           name: "mixtv-skip-backward",
           html: '<i class="bi bi-skip-backward-fill"></i>',
@@ -768,6 +1030,15 @@ export function PlayPageShell({
           const nextVolume = Math.round(art.volume * 100);
 
           setVolume(nextVolume);
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(playbackVolumeStorageKey, String(nextVolume));
+          }
+        });
+        art.on("artplayerPluginDanmuku:config", (option) => {
+          const nextPreferences = normalizePlaybackDanmakuPreferences(option);
+
+          setDanmakuPreferences(nextPreferences);
+          storePlaybackDanmakuSettings(nextPreferences);
         });
         art.on("error", () => {
           setPlaybackError("视频加载失败，请稍后重试或切换线路。");
@@ -777,6 +1048,8 @@ export function PlayPageShell({
           shouldResumePlaybackRef.current = false;
           void art.play();
         }
+
+        void loadPlaybackDanmakuIntoPlugin();
       });
 
     return () => {
@@ -790,6 +1063,8 @@ export function PlayPageShell({
     hasPlaybackPlaceholderError,
     initialResumeTimeSeconds,
     currentPlaybackUrl,
+    currentPlaybackDanmakuUrl,
+    loadPlaybackDanmaku,
     playbackData,
     playbackCoverUrl,
     playbackCoverDefaultUrl,
@@ -845,15 +1120,20 @@ export function PlayPageShell({
   }, [volume]);
 
   useEffect(() => {
-    const art = artPlayerRef.current;
-    const danmakuPlugin = art ? getArtplayerDanmakuPlugin(art) : undefined;
-
-    if (!danmakuPlugin) {
+    if (typeof window === "undefined") {
       return;
     }
 
-    void danmakuPlugin.load(getEpisodeDanmuku(activeEpisode));
-  }, [activeEpisode]);
+    window.localStorage.setItem(playbackVolumeStorageKey, String(volume));
+  }, [volume]);
+
+  useEffect(() => {
+    storePlaybackDanmakuSettings(danmakuPreferences);
+  }, [danmakuPreferences]);
+
+  useEffect(() => {
+    void loadPlaybackDanmakuIntoPlugin();
+  }, [activeEpisode, loadPlaybackDanmakuIntoPlugin]);
 
   const toggleFavorite = useCallback(async () => {
     if (isFavoritePending) {

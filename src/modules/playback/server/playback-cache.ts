@@ -223,8 +223,6 @@ export function createPlaybackSourcesCacheKey(index: string) {
 }
 
 export async function readPlaybackCacheEntry(cacheStore: PlaybackCacheStore, cacheKey: string) {
-  console.info("[playback-cache] readPlaybackCacheEntry", { key: cacheKey });
-
   try {
     return parseCachedResource(
       await cacheStore.script(readPlaybackCacheScript, {
@@ -273,8 +271,6 @@ function isPlaybackSourcesCacheItem(value: unknown): value is PlaybackSourceCach
 }
 
 export async function readPlaybackSourcesCacheEntry(cacheStore: PlaybackCacheStore, cacheKey: string) {
-  console.info("[playback-cache] readPlaybackSourcesCacheEntry", { key: cacheKey });
-
   try {
     const record = toHashRecord(await cacheStore.script(readPlaybackSourcesCacheScript, {
       keys: [cacheKey],
