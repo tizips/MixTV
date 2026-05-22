@@ -2,53 +2,16 @@
 
 import { act, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HomepageConfigPanel } from "./homepage-config-panel";
+import { createAntdMock } from "@/test/antd-mock";
+import { HomepageConfigPanel, resetHomepageConfigPanelState } from "./homepage-config-panel";
 
 const toastState = vi.hoisted(() => ({
-  danger: vi.fn(),
+  error: vi.fn(),
   success: vi.fn(),
 }));
 
-vi.mock("@heroui/react", () => ({
-  Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
-  Card: Object.assign(({ children }: { children: ReactNode }) => <section>{children}</section>, {
-    Content: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    Header: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  }),
-  Chip: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  ListBox: Object.assign(({ children }: { children: ReactNode }) => <div>{children}</div>, {
-    Item: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  }),
-  Switch: Object.assign(
-    ({
-      "aria-label": ariaLabel,
-      isDisabled,
-      isSelected,
-      onChange,
-    }: {
-      "aria-label"?: string;
-      children?: ReactNode;
-      isDisabled?: boolean;
-      isSelected?: boolean;
-      onChange?: (selected: boolean) => void;
-    }) => (
-      <input
-        aria-label={ariaLabel}
-        checked={Boolean(isSelected)}
-        disabled={isDisabled}
-        onChange={(event) => onChange?.(event.currentTarget.checked)}
-        type="checkbox"
-      />
-    ),
-    {
-      Control: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-      Thumb: () => <span />,
-    },
-  ),
-  toast: toastState,
-}));
+vi.mock("antd", () => createAntdMock({ message: toastState }));
 
 function renderHomepageConfigPanel({ strict = false }: { strict?: boolean } = {}) {
   const host = document.createElement("div");
@@ -65,7 +28,8 @@ function renderHomepageConfigPanel({ strict = false }: { strict?: boolean } = {}
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn());
-  toastState.danger.mockReset();
+  resetHomepageConfigPanelState();
+  toastState.error.mockReset();
   toastState.success.mockReset();
 });
 
@@ -98,6 +62,7 @@ describe("HomepageConfigPanel", () => {
     const { root } = renderHomepageConfigPanel({ strict: true });
 
     await act(async () => {
+      await Promise.resolve();
       await Promise.resolve();
     });
 
@@ -149,19 +114,23 @@ describe("HomepageConfigPanel", () => {
 
     const { host, root } = renderHomepageConfigPanel();
 
-    await act(async () => {
-      await Promise.resolve();
-    });
+    for (let index = 0; index < 5 && toastState.success.mock.calls.length === 0; index += 1) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    }
 
     expect(fetchMock).toHaveBeenCalledWith("/api/admin/homepage");
     expect(toastState.success).toHaveBeenCalledWith("首页配置已加载");
     expect(host.textContent).not.toContain("保存配置");
+    expect(host.textContent).toContain("最后更新时间 未保存");
 
     const carouselSwitch = host.querySelector('input[aria-label="切换焦点轮播"]') as HTMLInputElement | null;
     expect(carouselSwitch?.checked).toBe(false);
 
     await act(async () => {
       carouselSwitch?.click();
+      await Promise.resolve();
       await Promise.resolve();
     });
 
@@ -209,17 +178,60 @@ describe("HomepageConfigPanel", () => {
 
     await act(async () => {
       await Promise.resolve();
+      await Promise.resolve();
     });
 
     const carouselSwitch = host.querySelector('input[aria-label="切换焦点轮播"]') as HTMLInputElement | null;
 
     await act(async () => {
       carouselSwitch?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
       await Promise.resolve();
     });
 
-    expect(toastState.danger).toHaveBeenCalledWith("首页模块配置保存失败");
+    for (let index = 0; index < 5 && toastState.error.mock.calls.length === 0; index += 1) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    }
+
     expect(carouselSwitch?.checked).toBe(false);
+    expect(toastState.error).toHaveBeenCalledWith("首页模块配置保存失败");
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("shows the last updated time after loading homepage config", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue({
+      json: async () => ({
+        modules: {
+          carousel: true,
+          "welcome-announcement": true,
+          "continue-watching": true,
+          "coming-soon": true,
+          "trending-movies": true,
+          "trending-series": true,
+          "new-anime": true,
+          "trending-variety": true,
+          "trending-short-dramas": true,
+        },
+        updatedAt: "2026-05-20T00:00:00.000Z",
+      }),
+      ok: true,
+    } as Response);
+
+    const { root } = renderHomepageConfigPanel();
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("最后更新时间");
+    expect(document.body.textContent).not.toContain("最后更新时间 未保存");
 
     act(() => {
       root.unmount();

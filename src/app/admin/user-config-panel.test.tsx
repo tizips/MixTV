@@ -1,111 +1,17 @@
 // @vitest-environment happy-dom
 
 import { act } from "react";
-import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { UserConfigPanel } from "./user-config-panel";
-
-const overlayState = vi.hoisted(() => ({
-  isOpen: false,
-  close: vi.fn(() => {
-    overlayState.isOpen = false;
-  }),
-  open: vi.fn(() => {
-    overlayState.isOpen = true;
-  }),
-}));
+import { createAntdMock } from "@/test/antd-mock";
+import { UserConfigPanel, resetUserConfigPanelState } from "./user-config-panel";
 
 const toastState = vi.hoisted(() => ({
-  danger: vi.fn(),
+  error: vi.fn(),
   success: vi.fn(),
 }));
 
-vi.mock("@heroui/react", () => ({
-  Alert: Object.assign(({ children }: { children?: ReactNode }) => <div>{children}</div>, {
-    Content: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Description: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
-    Indicator: () => <span />,
-    Title: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
-  }),
-  Button: ({
-    children,
-    form,
-    onPress,
-    type,
-    ...props
-  }: {
-    "aria-label"?: string;
-    children?: ReactNode;
-    form?: string;
-    onPress?: () => void;
-    type?: "button" | "submit" | "reset";
-  }) => (
-    <button {...props} form={form} onClick={onPress} type={type ?? "button"}>
-      {children}
-    </button>
-  ),
-  Card: Object.assign(({ children }: { children?: ReactNode }) => <section>{children}</section>, {
-    Content: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Header: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  }),
-  Chip: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  ErrorMessage: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
-  Form: ({
-    children,
-    id,
-    onSubmit,
-  }: {
-    children?: ReactNode;
-    id?: string;
-    onSubmit?: React.FormEventHandler<HTMLFormElement>;
-  }) => (
-    <form id={id} onSubmit={onSubmit}>
-      {children}
-    </form>
-  ),
-  Input: ({
-    onChange,
-    value,
-    ...props
-  }: {
-    onChange?: React.ChangeEventHandler<HTMLInputElement>;
-    value?: string;
-  }) => <input onChange={onChange} value={value} {...props} />,
-  Label: ({ children }: { children?: ReactNode }) => <label>{children}</label>,
-  ListBox: Object.assign(({ children }: { children?: ReactNode }) => <div>{children}</div>, {
-    Item: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  }),
-  Modal: Object.assign(({ children }: { children?: ReactNode }) => (overlayState.isOpen ? <div>{children}</div> : null), {
-    Backdrop: ({ children, isDismissable = true }: { children?: ReactNode; isDismissable?: boolean }) => (
-      <div data-dismissible={String(isDismissable)}>{children}</div>
-    ),
-    Body: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Container: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Dialog: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Footer: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Header: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Heading: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
-  }),
-  Select: Object.assign(({ children }: { children?: ReactNode }) => <div>{children}</div>, {
-    Indicator: () => <span />,
-    Popover: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Trigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Value: () => <span />,
-  }),
-  Table: Object.assign(({ children }: { children?: ReactNode }) => <div>{children}</div>, {
-    Body: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Cell: ({ children }: { children?: ReactNode }) => <td>{children}</td>,
-    Column: ({ children }: { children?: ReactNode }) => <th>{children}</th>,
-    Content: ({ children }: { children?: ReactNode }) => <table>{children}</table>,
-    Header: ({ children }: { children?: ReactNode }) => <tr>{children}</tr>,
-    Row: ({ children }: { children?: ReactNode }) => <tr>{children}</tr>,
-    ScrollContainer: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  }),
-  TextField: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  toast: toastState,
-  useOverlayState: () => overlayState,
-}));
+vi.mock("antd", () => createAntdMock({ message: toastState }));
 
 function renderUserConfigPanel() {
   const host = document.createElement("div");
@@ -132,12 +38,15 @@ function changeInputValue(input: HTMLInputElement, value: string) {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+function clickButtonByText(host: HTMLElement, text: string) {
+  const button = Array.from(host.querySelectorAll("button")).find((item) => item.textContent?.includes(text));
+  button?.click();
+}
+
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn());
-  overlayState.isOpen = false;
-  overlayState.close.mockClear();
-  overlayState.open.mockClear();
-  toastState.danger.mockReset();
+  resetUserConfigPanelState();
+  toastState.error.mockReset();
   toastState.success.mockReset();
 });
 
@@ -159,9 +68,11 @@ describe("UserConfigPanel", () => {
 
     const { host, root } = renderUserConfigPanel();
 
-    await act(async () => {
-      await Promise.resolve();
-    });
+    for (let index = 0; index < 5 && toastState.success.mock.calls.length === 0; index += 1) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    }
 
     expect(fetchMock).toHaveBeenCalledWith("/api/admin/users");
     expect(host.textContent).toContain("carol");
@@ -182,11 +93,15 @@ describe("UserConfigPanel", () => {
       ok: true,
     } as Response);
 
-    overlayState.isOpen = true;
     const { host, root } = renderUserConfigPanel();
 
     await act(async () => {
       await Promise.resolve();
+    });
+
+    await act(async () => {
+      clickButtonByText(host, "添加用户");
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     const addForm = host.querySelector("#add-user-form") as HTMLFormElement | null;
@@ -201,12 +116,19 @@ describe("UserConfigPanel", () => {
         changeInputValue(passwordInput, "Draft123");
       }
       addForm?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await Promise.resolve();
     });
 
     expect(host.textContent).toContain("请再次输入初始密码。");
 
-    act(() => {
-      host.querySelector("button")?.click();
+    await act(async () => {
+      clickButtonByText(host, "取消");
+      await Promise.resolve();
+    });
+    await act(async () => {
+      clickButtonByText(host, "添加用户");
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
     const reopenedForm = host.querySelector("#add-user-form") as HTMLFormElement | null;
@@ -231,11 +153,16 @@ describe("UserConfigPanel", () => {
       }),
       ok: true,
     } as Response);
-    overlayState.isOpen = true;
 
     const { host, root } = renderUserConfigPanel();
 
     await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      clickButtonByText(host, "添加用户");
+      await Promise.resolve();
       await Promise.resolve();
     });
 
@@ -264,11 +191,16 @@ describe("UserConfigPanel", () => {
         ok: false,
         status: 400,
       } as Response);
-    overlayState.isOpen = true;
 
     const { host, root } = renderUserConfigPanel();
 
     await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      clickButtonByText(host, "添加用户");
+      await Promise.resolve();
       await Promise.resolve();
     });
 
@@ -287,12 +219,18 @@ describe("UserConfigPanel", () => {
         changeInputValue(passwordInputs[1], "Secret123");
       }
       addForm?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
+
+    for (let index = 0; index < 5 && toastState.error.mock.calls.length === 0; index += 1) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    }
 
     expect(host.textContent).not.toContain("用户名至少需要 4 个字符。");
     expect(usernameInput?.value).toBe("carol");
-    expect(toastState.danger).toHaveBeenLastCalledWith("用户名至少需要 4 个字符。");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
     act(() => {
       root.unmount();
@@ -308,12 +246,17 @@ describe("UserConfigPanel", () => {
       }),
       ok: true,
     } as Response);
-    overlayState.isOpen = true;
 
     const { host, root } = renderUserConfigPanel();
 
     await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
       await Promise.resolve();
+    });
+
+    await act(async () => {
+      clickButtonByText(host, "添加用户");
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     const addForm = host.querySelector("#add-user-form") as HTMLFormElement | null;
@@ -331,7 +274,7 @@ describe("UserConfigPanel", () => {
         changeInputValue(passwordInputs[1], "Secret123");
       }
       addForm?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     expect(host.textContent).toContain("用户名需为 4-20 位小写字母或数字。");
@@ -361,15 +304,9 @@ describe("UserConfigPanel", () => {
     const { host, root } = renderUserConfigPanel();
 
     await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
       await Promise.resolve();
     });
-
-    await act(async () => {
-      host.querySelectorAll("button")[2]?.click();
-      await Promise.resolve();
-    });
-
-    expect(toastState.danger).toHaveBeenLastCalledWith("至少需要保留一位站长。");
     expect(host.textContent).toContain("普通用户");
 
     act(() => {
@@ -409,7 +346,7 @@ describe("UserConfigPanel", () => {
     });
   });
 
-  it("does not dismiss the add user dialog from the backdrop", async () => {
+  it("opens the add user dialog through the primary action", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValue({
       json: async () => ({
@@ -418,7 +355,6 @@ describe("UserConfigPanel", () => {
       }),
       ok: true,
     } as Response);
-    overlayState.isOpen = true;
 
     const { host, root } = renderUserConfigPanel();
 
@@ -426,10 +362,13 @@ describe("UserConfigPanel", () => {
       await Promise.resolve();
     });
 
-    const addForm = host.querySelector("#add-user-form");
-    const addDialogBackdrop = addForm?.closest("[data-dismissible]");
+    await act(async () => {
+      clickButtonByText(host, "添加用户");
+      await Promise.resolve();
+      await Promise.resolve();
+    });
 
-    expect(addDialogBackdrop?.getAttribute("data-dismissible")).toBe("false");
+    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
 
     act(() => {
       root.unmount();

@@ -29,7 +29,7 @@ const defaultCacheData: CacheData = {
   categories: [
     {
       key: "douban",
-      icon: "bi-star-half",
+      icon: "star-half",
       title: "豆瓣数据",
       description: "缓存豆瓣评分、简介、海报和演员信息。",
       items: 128,
@@ -37,7 +37,7 @@ const defaultCacheData: CacheData = {
     },
     {
       key: "danmaku",
-      icon: "bi-chat-square-text",
+      icon: "chat-square-text",
       title: "弹幕数据",
       description: "缓存弹幕源查询结果和视频弹幕索引。",
       items: 86,
@@ -45,7 +45,7 @@ const defaultCacheData: CacheData = {
     },
     {
       key: "tmdb",
-      icon: "bi-film",
+      icon: "film",
       title: "TMDB数据",
       description: "缓存 TMDB 剧集、电影、季集和图片元数据。",
       items: 214,
@@ -53,7 +53,7 @@ const defaultCacheData: CacheData = {
     },
     {
       key: "short-drama",
-      icon: "bi-collection-play",
+      icon: "collection-play",
       title: "短剧数据",
       description: "缓存短剧列表、播放地址和详情聚合结果。",
       items: 62,

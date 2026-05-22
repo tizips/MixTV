@@ -1,7 +1,20 @@
 "use client";
 
+import {
+  CloudDownloadOutlined,
+  ClockCircleOutlined,
+  DashboardOutlined,
+  DatabaseFilled,
+  FileTextOutlined,
+  FolderOpenOutlined,
+  GlobalOutlined,
+  LayoutOutlined,
+  SlidersOutlined,
+  SyncOutlined,
+  TeamOutlined,
+} from "@ant-design/icons";
 import { useState } from "react";
-import { Button, Card, Chip, Separator, Tabs } from "@heroui/react";
+import { Button, Card, Divider, Tag } from "antd";
 import { CacheManagementPanel } from "./cache-management-panel";
 import { ConfigFilesPanel } from "./config-files-panel";
 import { CloudSearchPanel } from "./cloud-search-panel";
@@ -31,7 +44,7 @@ type AdminTabKey =
 type AdminTab = {
   key: AdminTabKey;
   label: string;
-  icon: string;
+  Icon: typeof FolderOpenOutlined;
   accent: string;
   description: string;
   cards: Array<{ title: string; value: string }>;
@@ -41,7 +54,7 @@ const adminTabs: AdminTab[] = [
   {
     key: "config-files",
     label: "配置文件",
-    icon: "bi-folder2-open",
+    Icon: FolderOpenOutlined,
     accent: "text-accent",
     description: "统一查看和管理站点配置文件、导入导出和备份入口。",
     cards: [
@@ -53,7 +66,7 @@ const adminTabs: AdminTab[] = [
   {
     key: "site-config",
     label: "站点配置",
-    icon: "bi-sliders",
+    Icon: SlidersOutlined,
     accent: "text-accent",
     description: "管理全站开关、公告、主题和站点基础信息。",
     cards: [
@@ -65,7 +78,7 @@ const adminTabs: AdminTab[] = [
   {
     key: "homepage",
     label: "首页模块",
-    icon: "bi-layout-text-window-reverse",
+    Icon: LayoutOutlined,
     accent: "text-accent",
     description: "控制首页各模块开关、排序和首页展示策略。",
     cards: [
@@ -77,7 +90,7 @@ const adminTabs: AdminTab[] = [
   {
     key: "user-config",
     label: "用户配置",
-    icon: "bi-people",
+    Icon: TeamOutlined,
     accent: "text-accent",
     description: "查看用户权限、登录方式、账号策略和管理操作入口。",
     cards: [
@@ -89,7 +102,7 @@ const adminTabs: AdminTab[] = [
   {
     key: "video-source",
     label: "视频源配置",
-    icon: "bi-broadcast",
+    Icon: GlobalOutlined,
     accent: "text-accent",
     description: "集中管理站点内容源、健康状态和同步信息。",
     cards: [
@@ -101,7 +114,7 @@ const adminTabs: AdminTab[] = [
   {
     key: "cloud-search",
     label: "网盘搜索",
-    icon: "bi-cloud-arrow-down",
+    Icon: CloudDownloadOutlined,
     accent: "text-accent",
     description: "管理网盘搜索入口、索引结果和搜索策略。",
     cards: [
@@ -113,7 +126,7 @@ const adminTabs: AdminTab[] = [
   {
     key: "danmaku",
     label: "弹幕配置",
-    icon: "bi-chat-square-text",
+    Icon: FileTextOutlined,
     accent: "text-accent",
     description: "控制弹幕开关、过滤规则和展示策略。",
     cards: [
@@ -125,7 +138,7 @@ const adminTabs: AdminTab[] = [
   {
     key: "timing-management",
     label: "定时管理",
-    icon: "bi-clock-history",
+    Icon: ClockCircleOutlined,
     accent: "text-accent",
     description: "集中管理定时任务、触发策略和执行记录。",
     cards: [
@@ -137,7 +150,7 @@ const adminTabs: AdminTab[] = [
   {
     key: "cache",
     label: "缓存管理",
-    icon: "bi-database-fill-gear",
+    Icon: DatabaseFilled,
     accent: "text-accent",
     description: "查看缓存命中、清理入口和缓存刷新动作。",
     cards: [
@@ -149,7 +162,7 @@ const adminTabs: AdminTab[] = [
   {
     key: "migration",
     label: "数据迁移",
-    icon: "bi-arrow-repeat",
+    Icon: SyncOutlined,
     accent: "text-accent",
     description: "承载数据导入、迁移任务、回滚和进度信息。",
     cards: [
@@ -161,7 +174,7 @@ const adminTabs: AdminTab[] = [
   {
     key: "performance",
     label: "性能监控",
-    icon: "bi-speedometer2",
+    Icon: DashboardOutlined,
     accent: "text-accent",
     description: "展示接口耗时、错误率和系统运行情况。",
     cards: [
@@ -173,74 +186,89 @@ const adminTabs: AdminTab[] = [
 ];
 
 function PlaceholderAdminPanel({ tab }: { tab: AdminTab }) {
+  const Icon = tab.Icon;
+
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-      <Card className="border border-default-200/70 bg-background/70" variant="secondary">
-        <Card.Header className="flex flex-col items-start gap-4 p-6 pb-0 md:p-8 md:pb-0">
+      <Card>
+        <div className="flex flex-col items-start gap-4 p-6 pb-0 md:p-8 md:pb-0">
           <div className="flex items-center gap-3">
-            <i aria-hidden="true" className={`bi ${tab.icon} text-2xl ${tab.accent}`} />
+            <Icon className={`text-2xl ${tab.accent}`} />
             <div>
-              <p className={`text-sm font-medium uppercase tracking-[0.24em] ${tab.accent}`}>当前分类</p>
-              <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">{tab.label}</h2>
+              <p
+                className={`text-sm font-medium uppercase tracking-[0.24em] ${tab.accent}`}
+              >
+                当前分类
+              </p>
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+                {tab.label}
+              </h2>
             </div>
           </div>
-          <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">{tab.description}</p>
-        </Card.Header>
+          <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
+            {tab.description}
+          </p>
+        </div>
 
-        <Card.Content className="gap-5 p-6 pt-5 md:p-8 md:pt-5">
+        <div className="gap-5 p-6 pt-5 md:p-8 md:pt-5">
           <div className="flex flex-wrap gap-3">
-            <Button variant="primary">进入管理</Button>
-            <Button variant="outline">刷新状态</Button>
+            <Button type="primary">进入管理</Button>
+            <Button>刷新状态</Button>
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
             {tab.cards.map((card) => (
-              <Card key={card.title} className="border border-default-200/80 bg-background/60" variant="secondary">
-                <Card.Header className="px-4 pb-2 pt-4">
-                  <p className="text-sm font-medium text-default-500">{card.title}</p>
-                </Card.Header>
-                <Card.Content className="px-4 pt-0">
-                  <p className="text-lg font-semibold text-foreground">{card.value}</p>
-                </Card.Content>
+              <Card key={card.title}>
+                <div className="px-4 pb-2 pt-4">
+                  <p className="text-sm font-medium text-default-500">
+                    {card.title}
+                  </p>
+                </div>
+                <div className="px-4 pt-0">
+                  <p className="text-lg font-semibold text-foreground">
+                    {card.value}
+                  </p>
+                </div>
               </Card>
             ))}
           </div>
-        </Card.Content>
+        </div>
       </Card>
 
       <div className="space-y-4">
-        <Card className="border border-default-200/70 bg-background/70" variant="secondary">
-          <Card.Header className="px-5 pb-2 pt-5">
+        <Card>
+          <div className="px-5 pb-2 pt-5">
             <div>
               <p className="text-sm font-medium text-default-500">模块摘要</p>
-              <p className="text-base font-semibold text-foreground">{tab.label}</p>
+              <p className="text-base font-semibold text-foreground">
+                {tab.label}
+              </p>
             </div>
-          </Card.Header>
-          <Separator />
-          <Card.Content className="grid gap-3 px-5 py-4">
-            <Chip color="accent" variant="soft">
-              HeroUI tab panel
-            </Chip>
+          </div>
+          <Divider />
+          <div className="grid gap-3 px-5 py-4">
+            <Tag color="processing">HeroUI tab panel</Tag>
             <p className="text-sm leading-6 text-default-600">
-              这一区域保留了之前的管理分区，只是把手写 Tailwind chrome 换成了更稳定的 HeroUI 组件。
+              这一区域保留了之前的管理分区，只是把手写 Tailwind chrome
+              换成了更稳定的 HeroUI 组件。
             </p>
-          </Card.Content>
+          </div>
         </Card>
 
-        <Card className="border border-default-200/70 bg-background/70" variant="secondary">
-          <Card.Header className="px-5 pb-2 pt-5">
+        <Card>
+          <div className="px-5 pb-2 pt-5">
             <div>
               <p className="text-sm font-medium text-default-500">操作入口</p>
-              <p className="text-base font-semibold text-foreground">常用动作</p>
+              <p className="text-base font-semibold text-foreground">
+                常用动作
+              </p>
             </div>
-          </Card.Header>
-          <Separator />
-          <Card.Content className="grid gap-3 px-5 py-4">
-            <Button variant="primary">
-              保存草稿
-            </Button>
-            <Button variant="outline">导出配置</Button>
-          </Card.Content>
+          </div>
+          <Divider />
+          <div className="grid gap-3 px-5 py-4">
+            <Button type="primary">保存草稿</Button>
+            <Button>导出配置</Button>
+          </div>
         </Card>
       </div>
     </div>
@@ -249,60 +277,61 @@ function PlaceholderAdminPanel({ tab }: { tab: AdminTab }) {
 
 export function AdminTabs() {
   const [activeTab, setActiveTab] = useState<AdminTabKey>("config-files");
+  const currentTab =
+    adminTabs.find((tab) => tab.key === activeTab) ?? adminTabs[0];
+  const activePanel =
+    currentTab.key === "config-files" ? (
+      <ConfigFilesPanel />
+    ) : currentTab.key === "site-config" ? (
+      <SiteConfigPanel />
+    ) : currentTab.key === "homepage" ? (
+      <HomepageConfigPanel />
+    ) : currentTab.key === "user-config" ? (
+      <UserConfigPanel />
+    ) : currentTab.key === "video-source" ? (
+      <VideoSourcePanel />
+    ) : currentTab.key === "cloud-search" ? (
+      <CloudSearchPanel />
+    ) : currentTab.key === "danmaku" ? (
+      <DanmakuPanel />
+    ) : currentTab.key === "timing-management" ? (
+      <TimingManagementPanel />
+    ) : currentTab.key === "cache" ? (
+      <CacheManagementPanel />
+    ) : currentTab.key === "migration" ? (
+      <DataMigrationPanel />
+    ) : currentTab.key === "performance" ? (
+      <PerformanceMonitoringPanel />
+    ) : (
+      <PlaceholderAdminPanel tab={currentTab} />
+    );
 
   return (
-    <Tabs
-      className="w-full"
-      selectedKey={activeTab}
-      onSelectionChange={(key) => setActiveTab(String(key) as AdminTabKey)}
-      variant="secondary"
-    >
-      <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <Tabs.ListContainer className="rounded-2xl bg-[var(--surface)] p-2 shadow-sm lg:sticky lg:top-24 lg:self-start">
-          <Tabs.List aria-label="Admin navigation" className="gap-2 bg-transparent lg:flex-col">
-            {adminTabs.map((tab) => (
-              <Tabs.Tab key={tab.key} id={tab.key} className="w-full justify-start px-4 py-3 text-sm font-medium">
+    <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <Card>
+        <div className="grid gap-2">
+          {adminTabs.map((tab) => {
+            const Icon = tab.Icon;
+
+            return (
+              <Button
+                key={tab.key}
+                className="shadow-none!"
+                block
+                type={activeTab === tab.key ? "primary" : "default"}
+                onClick={() => setActiveTab(tab.key)}
+              >
                 <span className="inline-flex items-center gap-2 whitespace-nowrap">
-                  <i aria-hidden="true" className={`bi ${tab.icon} text-base ${tab.accent}`} />
+                  <Icon className={`text-base ${tab.accent}`} />
                   <span>{tab.label}</span>
                 </span>
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-        </Tabs.ListContainer>
-
-        <div className="min-w-0">
-          {adminTabs.map((tab) => (
-            <Tabs.Panel key={tab.key} id={tab.key}>
-              {tab.key === "config-files" ? (
-                <ConfigFilesPanel />
-              ) : tab.key === "site-config" ? (
-                <SiteConfigPanel />
-              ) : tab.key === "homepage" ? (
-                <HomepageConfigPanel />
-              ) : tab.key === "user-config" ? (
-                <UserConfigPanel />
-              ) : tab.key === "video-source" ? (
-                <VideoSourcePanel />
-              ) : tab.key === "cloud-search" ? (
-                <CloudSearchPanel />
-              ) : tab.key === "danmaku" ? (
-                <DanmakuPanel />
-              ) : tab.key === "timing-management" ? (
-                <TimingManagementPanel />
-              ) : tab.key === "cache" ? (
-                <CacheManagementPanel />
-              ) : tab.key === "migration" ? (
-                <DataMigrationPanel />
-              ) : tab.key === "performance" ? (
-                <PerformanceMonitoringPanel />
-              ) : (
-                <PlaceholderAdminPanel tab={tab} />
-              )}
-            </Tabs.Panel>
-          ))}
+              </Button>
+            );
+          })}
         </div>
-      </div>
-    </Tabs>
+      </Card>
+
+      <div className="min-w-0">{activePanel}</div>
+    </div>
   );
 }

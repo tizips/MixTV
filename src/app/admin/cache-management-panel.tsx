@@ -1,11 +1,26 @@
 "use client";
 
+import {
+  AppstoreOutlined,
+  BarChartOutlined,
+  DatabaseFilled,
+  DeleteFilled,
+  DeleteOutlined,
+  FileTextOutlined,
+  HddOutlined,
+  PlaySquareFilled,
+  RedoOutlined,
+  StarFilled,
+  TableOutlined,
+  VideoCameraOutlined,
+} from "@ant-design/icons";
 import { useMemo, useState } from "react";
-import { Alert, Button, Card, Chip, Separator } from "@heroui/react";
+import type { CSSProperties } from "react";
+import { Alert, Button, Card, Divider, Tag, theme } from "antd";
 
 type CacheCategory = {
   key: string;
-  icon: string;
+  Icon: typeof StarFilled;
   title: string;
   description: string;
   items: number;
@@ -15,7 +30,7 @@ type CacheCategory = {
 const initialCacheCategories: CacheCategory[] = [
   {
     key: "douban",
-    icon: "bi-star-half",
+    Icon: StarFilled,
     title: "豆瓣数据",
     description: "缓存豆瓣评分、简介、海报和演员信息。",
     items: 128,
@@ -23,7 +38,7 @@ const initialCacheCategories: CacheCategory[] = [
   },
   {
     key: "danmaku",
-    icon: "bi-chat-square-text",
+    Icon: FileTextOutlined,
     title: "弹幕数据",
     description: "缓存弹幕源查询结果和视频弹幕索引。",
     items: 86,
@@ -31,7 +46,7 @@ const initialCacheCategories: CacheCategory[] = [
   },
   {
     key: "tmdb",
-    icon: "bi-film",
+    Icon: VideoCameraOutlined,
     title: "TMDB数据",
     description: "缓存 TMDB 剧集、电影、季集和图片元数据。",
     items: 214,
@@ -39,7 +54,7 @@ const initialCacheCategories: CacheCategory[] = [
   },
   {
     key: "short-drama",
-    icon: "bi-collection-play",
+    Icon: PlaySquareFilled,
     title: "短剧数据",
     description: "缓存短剧列表、播放地址和详情聚合结果。",
     items: 62,
@@ -56,20 +71,76 @@ function formatSize(sizeKb: number) {
 }
 
 export function CacheManagementPanel() {
-  const [cacheCategories, setCacheCategories] = useState(initialCacheCategories);
+  const { token } = theme.useToken();
+  const [cacheCategories, setCacheCategories] = useState(
+    initialCacheCategories,
+  );
   const [statusMessage, setStatusMessage] = useState("缓存统计已加载");
 
   const cacheStats = useMemo(() => {
-    const totalItems = cacheCategories.reduce((total, category) => total + category.items, 0);
-    const totalSizeKb = cacheCategories.reduce((total, category) => total + category.sizeKb, 0);
-    const activeTypes = cacheCategories.filter((category) => category.items > 0).length;
+    const totalItems = cacheCategories.reduce(
+      (total, category) => total + category.items,
+      0,
+    );
+    const totalSizeKb = cacheCategories.reduce(
+      (total, category) => total + category.sizeKb,
+      0,
+    );
+    const activeTypes = cacheCategories.filter(
+      (category) => category.items > 0,
+    ).length;
 
     return {
       totalItems,
+      totalSizeKb,
       totalSize: formatSize(totalSizeKb),
       activeTypes,
     };
   }, [cacheCategories]);
+
+  const totalCategoryCount = cacheCategories.length;
+  const activePercent =
+    totalCategoryCount > 0
+      ? Math.round((cacheStats.activeTypes / totalCategoryCount) * 100)
+      : 0;
+  const emptyTypes = totalCategoryCount - cacheStats.activeTypes;
+  const emptyPercent =
+    totalCategoryCount > 0
+      ? Math.round((emptyTypes / totalCategoryCount) * 100)
+      : 0;
+  const maxCategorySize = Math.max(
+    1,
+    ...cacheCategories.map((category) => category.sizeKb),
+  );
+  const statItems = [
+    {
+      helper: "全部缓存分类的记录数量",
+      icon: <AppstoreOutlined />,
+      label: "缓存项",
+      suffix: "项",
+      tone: "var(--accent)",
+      value: cacheStats.totalItems,
+      width: cacheStats.totalItems > 0 ? 100 : 0,
+    },
+    {
+      helper: "当前缓存估算磁盘占用",
+      icon: <HddOutlined />,
+      label: "存储空间",
+      suffix: "",
+      tone: token.colorInfo,
+      value: cacheStats.totalSize,
+      width: cacheStats.totalSizeKb > 0 ? 100 : 0,
+    },
+    {
+      helper: "仍有数据的缓存分类",
+      icon: <TableOutlined />,
+      label: "活跃类型",
+      suffix: "类",
+      tone: token.colorWarning,
+      value: cacheStats.activeTypes,
+      width: activePercent,
+    },
+  ];
 
   const refreshStats = () => {
     setStatusMessage("缓存统计已刷新");
@@ -103,159 +174,283 @@ export function CacheManagementPanel() {
 
   return (
     <Card>
-      <Card.Header className="flex flex-col gap-4 p-6 pb-0 md:p-8 md:pb-0">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <i aria-hidden="true" className="bi bi-database-fill-gear text-2xl text-accent" />
-              <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">缓存管理</h2>
+              <DatabaseFilled className="text-2xl text-accent" />
+              <div>
+                <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+                  缓存管理
+                </h2>
+              </div>
             </div>
             <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
               查看缓存数据统计，按分类清理站点聚合数据，或一次性释放全部缓存占用。
             </p>
           </div>
 
-          <Chip color="accent" variant="soft">
-            {statusMessage}
-          </Chip>
+          <Tag color={cacheStats.activeTypes > 0 ? "success" : "warning"}>
+            {cacheStats.activeTypes > 0
+              ? `活跃缓存 ${cacheStats.activeTypes} 类`
+              : "暂无缓存"}
+          </Tag>
         </div>
-      </Card.Header>
+      </div>
 
-      <Card.Content className="grid gap-6 p-6 pt-5 md:p-8 md:pt-5">
-        <section className="grid gap-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        className="mb-6 overflow-hidden rounded-lg border border-(--admin-stat-border) bg-(--surface)"
+        aria-live="polite"
+        style={
+          {
+            "--admin-stat-active": "var(--accent)",
+            "--admin-stat-border": token.colorBorderSecondary,
+            "--admin-stat-danger": token.colorError,
+            "--admin-stat-split": token.colorSplit,
+          } as CSSProperties
+        }
+      >
+        <div className="flex flex-col gap-4 border-b border-(--admin-stat-split) px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+              <BarChartOutlined className="text-xl" />
+            </span>
             <div>
-              <p className="text-sm font-medium text-default-500">缓存数据统计</p>
-              <p className="text-base font-semibold text-foreground">当前缓存概览</p>
+              <p className="text-sm font-medium text-foreground">缓存统计</p>
+              <p className="mt-1 text-xs leading-5 text-default-500">
+                当前缓存分类、记录数量和存储占用概览。
+              </p>
             </div>
-            <Button variant="outline" onPress={refreshStats}>
-              <i aria-hidden="true" className="bi bi-arrow-clockwise" />
+          </div>
+          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+            <Tag color="processing">{statusMessage}</Tag>
+            <Button size="small" onClick={refreshStats}>
+              <RedoOutlined />
               刷新
             </Button>
           </div>
+        </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card className="overflow-hidden border border-accent-soft bg-accent-soft" variant="secondary">
-              <Card.Header className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-3 px-5 pb-3 pt-5">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background/80 text-accent-soft-foreground">
-                  <i aria-hidden="true" className="bi bi-stack text-lg" />
-                </span>
-                <div className="grid min-w-0 gap-1">
-                  <p className="text-sm font-medium text-default-500">缓存项总数</p>
-                  <p className="text-xs leading-5 text-default-500">全部缓存分类的记录数量</p>
-                </div>
-              </Card.Header>
-              <Card.Content className="px-5 pt-0">
-                <div className="flex items-end justify-between gap-3">
-                  <p className="text-3xl font-semibold text-foreground">{cacheStats.totalItems}</p>
-                  <Chip color="accent" size="sm" variant="soft">
-                    项
-                  </Chip>
-                </div>
-              </Card.Content>
-            </Card>
+        <div className="grid gap-0 lg:grid-cols-[minmax(15rem,0.95fr)_minmax(0,2fr)]">
+          <div className="border-b border-(--admin-stat-split) p-4 lg:border-b-0 lg:border-r">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-medium uppercase text-default-500">
+                  Cache total
+                </p>
+                <p className="mt-2 text-4xl font-semibold text-foreground">
+                  {totalCategoryCount}
+                </p>
+                <p className="mt-2 text-sm text-default-500">缓存分类总数</p>
+              </div>
+              <span
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-accent"
+                style={{
+                  background:
+                    "color-mix(in srgb, var(--accent) 12%, transparent)",
+                }}
+              >
+                <DatabaseFilled className="text-lg" />
+              </span>
+            </div>
 
-            <Card className="overflow-hidden border border-accent-soft bg-accent-soft" variant="secondary">
-              <Card.Header className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-3 px-5 pb-3 pt-5">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background/80 text-accent-soft-foreground">
-                  <i aria-hidden="true" className="bi bi-hdd text-lg" />
-                </span>
-                <div className="grid min-w-0 gap-1">
-                  <p className="text-sm font-medium text-default-500">占用存储空间</p>
-                  <p className="text-xs leading-5 text-default-500">当前缓存估算磁盘占用</p>
-                </div>
-              </Card.Header>
-              <Card.Content className="px-5 pt-0">
-                <div className="flex items-end justify-between gap-3">
-                  <p className="text-3xl font-semibold text-foreground">{cacheStats.totalSize}</p>
-                  <Chip color="accent" size="sm" variant="soft">
-                    空间
-                  </Chip>
-                </div>
-              </Card.Content>
-            </Card>
+            <div
+              className="mt-5 flex h-2 overflow-hidden rounded-full bg-(--surface-secondary)"
+              aria-label={`活跃缓存 ${activePercent}%，空缓存 ${emptyPercent}%`}
+            >
+              <div
+                style={{
+                  background: "var(--admin-stat-active)",
+                  width: `${activePercent}%`,
+                }}
+              />
+              <div
+                style={{
+                  background: "var(--admin-stat-danger)",
+                  width: `${emptyPercent}%`,
+                }}
+              />
+            </div>
 
-            <Card className="overflow-hidden border border-accent-soft bg-accent-soft" variant="secondary">
-              <Card.Header className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-3 px-5 pb-3 pt-5">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background/80 text-accent-soft-foreground">
-                  <i aria-hidden="true" className="bi bi-grid-3x3-gap text-lg" />
-                </span>
-                <div className="grid min-w-0 gap-1">
-                  <p className="text-sm font-medium text-default-500">缓存类型</p>
-                  <p className="text-xs leading-5 text-default-500">仍有数据的缓存分类</p>
-                </div>
-              </Card.Header>
-              <Card.Content className="px-5 pt-0">
-                <div className="flex items-end justify-between gap-3">
-                  <p className="text-3xl font-semibold text-foreground">{cacheStats.activeTypes}</p>
-                  <Chip color="accent" size="sm" variant="soft">
-                    类型
-                  </Chip>
-                </div>
-              </Card.Content>
-            </Card>
-          </div>
-        </section>
-
-        <Separator />
-
-        <section className="grid gap-4">
-          <div>
-            <p className="text-sm font-medium text-default-500">缓存分类</p>
-            <p className="text-base font-semibold text-foreground">按数据来源清理</p>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-default-500">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-(--admin-stat-active)" />
+                活跃 {activePercent}%
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-(--admin-stat-danger)" />
+                空缓存 {emptyPercent}%
+              </span>
+            </div>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            {cacheCategories.map((category) => (
-              <Card key={category.key}>
-                <Card.Header className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-3 px-5 pb-3 pt-5">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-default-200 bg-background text-accent">
-                    <i aria-hidden="true" className={`bi ${category.icon} text-lg`} />
+          <div className="grid divide-y divide-(--admin-stat-split) text-sm md:grid-cols-3 md:divide-x md:divide-y-0">
+            {statItems.map((item) => (
+              <div key={item.label} className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                    style={{
+                      background: `color-mix(in srgb, ${item.tone} 12%, transparent)`,
+                      color: item.tone,
+                    }}
+                  >
+                    {item.icon}
                   </span>
-                  <div className="grid min-w-0 gap-1">
-                    <p className="text-base font-semibold text-foreground">{category.title}</p>
-                    <p className="text-sm leading-6 text-default-600">{category.description}</p>
+                  <span className="text-xs font-medium text-default-500">
+                    {item.width}%
+                  </span>
+                </div>
+                <div className="mt-4 flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {item.label}
+                    </p>
+                    <p className="mt-1 text-xs text-default-500">
+                      {item.helper}
+                    </p>
                   </div>
-                </Card.Header>
-                <Card.Content className="grid gap-4 px-5 pt-0">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-accent-soft bg-accent-soft px-3 py-2">
-                      <p className="text-xs text-default-500">缓存项</p>
-                      <p className="text-base font-semibold text-foreground">{category.items}</p>
-                    </div>
-                    <div className="rounded-xl border border-accent-soft bg-accent-soft px-3 py-2">
-                      <p className="text-xs text-default-500">存储大小</p>
-                      <p className="text-base font-semibold text-foreground">{formatSize(category.sizeKb)}</p>
-                    </div>
-                  </div>
-                  <Button fullWidth variant="danger-soft" onPress={() => clearCategory(category.key)}>
-                    <i aria-hidden="true" className="bi bi-trash3" />
-                    清理缓存
-                  </Button>
-                </Card.Content>
-              </Card>
+                  <span className="text-2xl font-semibold text-foreground">
+                    {item.value}
+                    {item.suffix ? (
+                      <span className="ml-1 text-xs font-medium text-default-500">
+                        {item.suffix}
+                      </span>
+                    ) : null}
+                  </span>
+                </div>
+                <div
+                  className="mt-4 h-1.5 overflow-hidden rounded-full bg-(--surface-secondary)"
+                  aria-label={`${item.label}占比 ${item.width}%`}
+                >
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      background: item.tone,
+                      width: `${item.width}%`,
+                    }}
+                  />
+                </div>
+              </div>
             ))}
           </div>
-        </section>
+        </div>
+      </div>
 
-        <Separator />
+      <div className="space-y-4">
+        <div className="flex flex-col gap-4 pb-0 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
+            <DatabaseFilled className="text-xl text-accent" />
+            <p className="mb-0! text-sm font-medium text-foreground">
+              缓存分类
+            </p>
+            <span className="text-sm text-default-500">按数据来源清理缓存</span>
+          </div>
+        </div>
 
-        <section className="grid gap-4">
-          <Alert status="warning">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>清理所有缓存</Alert.Title>
-              <Alert.Description>
-                注意：清理缓存后，相应的数据将需要重新从源服务器获取，可能会影响加载速度。
-              </Alert.Description>
-            </Alert.Content>
-          </Alert>
-          <Button fullWidth variant="danger" onPress={clearAllCaches}>
-            <i aria-hidden="true" className="bi bi-trash3-fill" />
-            清理所有缓存
-          </Button>
-        </section>
-      </Card.Content>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {cacheCategories.map((category) => {
+            const Icon = category.Icon;
+            const isEmpty = category.items === 0 && category.sizeKb === 0;
+            const sizePercent = Math.round(
+              (category.sizeKb / maxCategorySize) * 100,
+            );
+
+            return (
+              <div
+                key={category.key}
+                className="overflow-hidden rounded-lg border border-(--admin-category-border) bg-(--surface)"
+                style={
+                  {
+                    "--admin-category-border": token.colorBorderSecondary,
+                    "--admin-category-split": token.colorSplit,
+                  } as CSSProperties
+                }
+              >
+                <div className="flex items-start justify-between gap-4 border-b border-(--admin-category-split) p-4">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-accent"
+                      style={{
+                        background:
+                          "color-mix(in srgb, var(--accent) 12%, transparent)",
+                      }}
+                    >
+                      <Icon className="text-lg" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="mb-0! text-sm font-medium text-foreground">
+                          {category.title}
+                        </p>
+                        <Tag color={isEmpty ? "default" : "success"}>
+                          {isEmpty ? "已清空" : "有缓存"}
+                        </Tag>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-default-500">
+                        {category.description}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid divide-y divide-(--admin-category-split) text-sm sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                  <div className="p-4">
+                    <p className="text-xs text-default-500">缓存项</p>
+                    <p className="mt-2 text-2xl font-semibold text-foreground">
+                      {category.items}
+                    </p>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-xs text-default-500">存储大小</p>
+                    <p className="mt-2 text-2xl font-semibold text-foreground">
+                      {formatSize(category.sizeKb)}
+                    </p>
+                    <div
+                      className="mt-3 h-1.5 overflow-hidden rounded-full bg-(--surface-secondary)"
+                      aria-label={`${category.title}存储占比 ${sizePercent}%`}
+                    >
+                      <div
+                        className="h-full rounded-full bg-accent"
+                        style={{ width: `${sizePercent}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end border-t border-(--admin-category-split) p-4">
+                  <Button
+                    danger
+                    disabled={isEmpty}
+                    size="small"
+                    onClick={() => clearCategory(category.key)}
+                  >
+                    <DeleteOutlined />
+                    清理缓存
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <Divider className="my-0" />
+
+        <div className="grid gap-4">
+          <Alert
+            className="rounded-lg"
+            type="warning"
+            title="清理所有缓存"
+            description="注意：清理缓存后，相应的数据将需要重新从源服务器获取，可能会影响加载速度。"
+          />
+          <div className="flex justify-end">
+            <Button danger size="small" onClick={clearAllCaches}>
+              <DeleteFilled />
+              清理所有缓存
+            </Button>
+          </div>
+        </div>
+      </div>
     </Card>
   );
 }

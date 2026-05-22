@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 
-import { act, StrictMode, useState } from "react";
-import type { ReactNode } from "react";
+import { act, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { VideoSourcePanel } from "./video-source-panel";
+import { createAntdMock } from "@/test/antd-mock";
+import { VideoSourcePanel, resetVideoSourcePanelState } from "./video-source-panel";
 
 const toastState = vi.hoisted(() => ({
   danger: vi.fn(),
@@ -12,145 +12,7 @@ const toastState = vi.hoisted(() => ({
   success: vi.fn(),
 }));
 
-vi.mock("@heroui/react", () => ({
-  Button: ({
-    children,
-    form,
-    isDisabled,
-    onPress,
-    type,
-  }: {
-    children?: ReactNode;
-    form?: string;
-    isDisabled?: boolean;
-    onPress?: () => void;
-    type?: "button" | "submit" | "reset";
-  }) => (
-    <button disabled={isDisabled} form={form} onClick={onPress} type={type ?? "button"}>
-      {children}
-    </button>
-  ),
-  Card: Object.assign(({ children }: { children?: ReactNode }) => <section>{children}</section>, {
-    Content: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Header: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  }),
-  Checkbox: Object.assign(
-    ({
-      "aria-label": ariaLabel,
-      children,
-    }: {
-      "aria-label"?: string;
-      children?: ReactNode;
-    }) => (
-      <label>
-        <input aria-label={ariaLabel} type="checkbox" />
-        {children}
-      </label>
-    ),
-    {
-      Control: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-      Indicator: ({ children }: { children?: ReactNode | ((state: { isIndeterminate: boolean; isSelected: boolean }) => ReactNode) }) => (
-        <span>{typeof children === "function" ? children({ isIndeterminate: false, isSelected: false }) : children}</span>
-      ),
-    },
-  ),
-  Chip: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  Form: ({
-    children,
-    id,
-    onSubmit,
-  }: {
-    children?: ReactNode;
-    id?: string;
-    onSubmit?: React.FormEventHandler<HTMLFormElement>;
-  }) => (
-    <form id={id} onSubmit={onSubmit}>
-      {children}
-    </form>
-  ),
-  Input: ({
-    "aria-label": ariaLabel,
-    disabled,
-    name,
-    onChange,
-    value,
-  }: {
-    "aria-label"?: string;
-    disabled?: boolean;
-    name?: string;
-    onChange?: React.ChangeEventHandler<HTMLInputElement>;
-    value?: string;
-  }) => <input aria-label={ariaLabel} disabled={disabled} name={name} onChange={onChange} value={value} />,
-  Label: ({ children }: { children?: ReactNode }) => <label>{children}</label>,
-  ListBox: Object.assign(({ children }: { children?: ReactNode }) => <div>{children}</div>, {
-    Item: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  }),
-  Modal: Object.assign(({ children, state }: { children?: ReactNode; state: { isOpen: boolean } }) =>
-    state.isOpen ? <div role="dialog">{children}</div> : null,
-  {
-    Backdrop: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Body: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Container: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Dialog: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Footer: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Header: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Heading: ({ children }: { children?: ReactNode }) => <h3>{children}</h3>,
-  }),
-  Select: Object.assign(({ children }: { children?: ReactNode }) => <div>{children}</div>, {
-    Indicator: () => <span />,
-    Popover: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Trigger: ({ children }: { children?: ReactNode }) => <button type="button">{children}</button>,
-    Value: () => <span />,
-  }),
-  Switch: Object.assign(
-    ({
-      "aria-label": ariaLabel,
-      isDisabled,
-      isSelected,
-      onChange,
-    }: {
-      "aria-label"?: string;
-      isDisabled?: boolean;
-      isSelected?: boolean;
-      onChange?: () => void;
-    }) => (
-      <input
-        aria-label={ariaLabel}
-        checked={Boolean(isSelected)}
-        disabled={isDisabled}
-        onChange={() => onChange?.()}
-        type="checkbox"
-      />
-    ),
-    {
-      Control: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-      Thumb: () => <span />,
-    },
-  ),
-  Table: Object.assign(({ children }: { children?: ReactNode }) => <table>{children}</table>, {
-    Body: ({ children }: { children?: ReactNode }) => <tbody>{children}</tbody>,
-    Cell: ({ children }: { children?: ReactNode }) => <td>{children}</td>,
-    Column: ({ children }: { children?: ReactNode }) => <th>{children}</th>,
-    Content: ({ children }: { children?: ReactNode }) => <>{children}</>,
-    Header: ({ children }: { children?: ReactNode }) => <thead>{children}</thead>,
-    Row: ({ children }: { children?: ReactNode }) => {
-      toastState.rowRenderCount();
-
-      return <tr>{children}</tr>;
-    },
-    ScrollContainer: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  }),
-  TextField: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  toast: toastState,
-  useOverlayState: () => {
-    const [isOpen, setIsOpen] = useState(false);
-    return {
-      close: () => setIsOpen(false),
-      isOpen,
-      open: () => setIsOpen(true),
-    };
-  },
-}));
+vi.mock("antd", () => createAntdMock({ message: toastState }));
 
 function renderVideoSourcePanel() {
   const host = document.createElement("div");
@@ -183,6 +45,7 @@ function changeInputValue(input: HTMLInputElement, value: string) {
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn());
+  resetVideoSourcePanelState();
   toastState.danger.mockReset();
   toastState.rowRenderCount.mockReset();
   toastState.success.mockReset();
@@ -194,7 +57,7 @@ afterEach(() => {
 });
 
 describe("VideoSourcePanel", () => {
-  it("does not rerender table rows when opening source modals", async () => {
+  it("keeps the source table mounted when opening source modals", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValueOnce({
       json: async () => ({
@@ -221,8 +84,7 @@ describe("VideoSourcePanel", () => {
       await Promise.resolve();
     });
 
-    expect(toastState.rowRenderCount).toHaveBeenCalled();
-    toastState.rowRenderCount.mockClear();
+    expect(host.querySelectorAll("tr[data-source-key]").length).toBe(80);
 
     const addButton = Array.from(host.querySelectorAll("button")).find((button) => button.textContent === "添加");
 
@@ -232,9 +94,7 @@ describe("VideoSourcePanel", () => {
     });
 
     expect(host.textContent).toContain("添加视频源");
-    expect(toastState.rowRenderCount).not.toHaveBeenCalled();
-
-    toastState.rowRenderCount.mockClear();
+    expect(host.querySelectorAll("tr[data-source-key]").length).toBe(80);
 
     const validityButton = Array.from(host.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("有效性检测"),
@@ -246,7 +106,60 @@ describe("VideoSourcePanel", () => {
     });
 
     expect(host.textContent).toContain("有效性检测");
-    expect(toastState.rowRenderCount).not.toHaveBeenCalled();
+    expect(host.querySelectorAll("tr[data-source-key]").length).toBe(80);
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("renders source statistics and the collection update time", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce({
+      json: async () => ({
+        sources: [
+          {
+            adult: false,
+            apiUrl: "https://alpha.test/api",
+            key: "alpha",
+            name: "Alpha",
+            no: 1,
+            status: "enabled",
+            type: "normal",
+            updatedAt: null,
+            validity: "valid",
+            weight: 10,
+          },
+          {
+            adult: true,
+            apiUrl: "https://beta.test/api",
+            key: "beta",
+            name: "Beta",
+            no: 2,
+            status: "disabled",
+            type: "short-drama",
+            updatedAt: null,
+            validity: "invalid",
+            weight: 20,
+          },
+        ],
+        updatedAt: "2026-05-20T12:30:00.000Z",
+      }),
+      ok: true,
+    } as Response);
+
+    const { host, root } = renderVideoSourcePanel();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(host.textContent).toContain("视频源统计");
+    expect(host.textContent).toContain("Source total");
+    expect(host.textContent).toContain("启用 50%");
+    expect(host.textContent).toContain("异常 50%");
+    expect(host.textContent).toContain("最后更新时间");
+    expect(host.textContent).not.toContain("未保存");
 
     act(() => {
       root.unmount();
@@ -286,13 +199,14 @@ describe("VideoSourcePanel", () => {
 
     await act(async () => {
       editButton?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
       await Promise.resolve();
     });
 
     const editingKeyInput = host.querySelector('input[name="sourceKey"]') as HTMLInputElement | null;
     expect(editingKeyInput).not.toBeNull();
     expect(editingKeyInput?.value).toBe("alpha");
-    expect(editingKeyInput?.disabled).toBe(true);
+    expect(editingKeyInput?.readOnly).toBe(true);
 
     await act(async () => {
       root.unmount();
@@ -308,6 +222,7 @@ describe("VideoSourcePanel", () => {
 
     await act(async () => {
       addButton?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
       await Promise.resolve();
     });
 
@@ -368,6 +283,7 @@ describe("VideoSourcePanel", () => {
 
     await act(async () => {
       checkButton?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
       await Promise.resolve();
     });
 
@@ -377,12 +293,14 @@ describe("VideoSourcePanel", () => {
 
     await act(async () => {
       changeInputValue(keywordInput!, "movie");
-      const form = host.querySelector("#validity-check-form") as HTMLFormElement | null;
+      const dialog = host.querySelector('[role="dialog"]');
+      const form = dialog?.querySelector("form") as HTMLFormElement | null;
       form?.dispatchEvent(new SubmitEvent("submit", { bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
       await Promise.resolve();
     });
 
-    expect(fetchMock).toHaveBeenLastCalledWith("/api/admin/source-check?keyword=movie", {
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/admin/video-source/validity-check?keyword=movie", {
       headers: { Accept: "text/event-stream" },
       method: "GET",
     });

@@ -1,24 +1,35 @@
 "use client";
 
-import { memo, type Key, useEffect, useMemo, useState } from "react";
 import {
+  AlertOutlined,
+  ApiOutlined,
+  BarChartOutlined,
+  CheckCircleFilled,
+  GlobalOutlined,
+  PlusOutlined,
+  SyncOutlined,
+  WarningFilled,
+} from "@ant-design/icons";
+import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties, HTMLAttributes } from "react";
+import {
+  App,
   Button,
   Card,
-  Checkbox,
-  Chip,
+  Col,
+  Divider,
   Form,
   Input,
-  Label,
-  ListBox,
+  InputNumber,
   Modal,
+  Row,
   Select,
   Switch,
   Table,
-  TextField,
-  toast,
-  useOverlayState,
-  type Selection,
-} from "@heroui/react";
+  Tag,
+  theme,
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
 import type {
   VideoSourceCollection,
   VideoSourceItem,
@@ -40,6 +51,20 @@ type EditableVideoSource = {
   validity: VideoSourceValidity;
 };
 
+type VideoSourceFormValues = {
+  adult: boolean;
+  apiUrl: string;
+  name: string;
+  sourceKey: string;
+  status: VideoSourceStatus;
+  type: VideoSourceType;
+  weight: number;
+};
+
+type ValidityCheckFormValues = {
+  validityKeyword: string;
+};
+
 const sourceStatusLabelMap: Record<VideoSourceStatus, string> = {
   enabled: "启用",
   disabled: "禁用",
@@ -57,31 +82,21 @@ const sourceValidityLabelMap: Record<VideoSourceValidity, string> = {
   invalid: "异常",
 };
 
-const sourceStatusChipColorMap: Record<VideoSourceStatus, "success" | "default"> = {
-  enabled: "success",
-  disabled: "default",
-};
-
-const sourceTypeChipColorMap: Record<VideoSourceType, "accent" | "default"> = {
-  normal: "default",
-  "short-drama": "accent",
-};
-
-const sourceValidityChipColorMap: Record<VideoSourceValidity, "accent" | "danger" | "success" | "warning"> = {
-  checking: "accent",
+const sourceValidityColorMap: Record<VideoSourceValidity, string> = {
+  checking: "processing",
   valid: "success",
   warning: "warning",
-  invalid: "danger",
+  invalid: "error",
 };
 
-const sourceValidityIconMap: Record<VideoSourceValidity, string> = {
-  checking: "bi-arrow-repeat",
-  valid: "bi-check-circle-fill",
-  warning: "bi-exclamation-triangle-fill",
-  invalid: "bi-x-circle-fill",
-};
+const sourceValidityIconMap: Record<VideoSourceValidity, typeof SyncOutlined> =
+  {
+    checking: SyncOutlined,
+    valid: CheckCircleFilled,
+    warning: WarningFilled,
+    invalid: AlertOutlined,
+  };
 
-const tableActionButtonClassName = "h-7 px-2 text-xs";
 const defaultValidityKeyword = "斗罗大陆";
 
 const defaultDraft: EditableVideoSource = {
@@ -97,6 +112,10 @@ const defaultDraft: EditableVideoSource = {
 };
 
 let videoSourcesLoadRequest: Promise<VideoSourceCollection> | null = null;
+
+export function resetVideoSourcePanelState() {
+  videoSourcesLoadRequest = null;
+}
 
 const normalizeSourceWeight = (value: string) => {
   const weight = Number(value);
@@ -117,7 +136,12 @@ function isVideoSourceType(value: unknown): value is VideoSourceType {
 }
 
 function isVideoSourceValidity(value: unknown): value is VideoSourceValidity {
-  return value === "checking" || value === "valid" || value === "warning" || value === "invalid";
+  return (
+    value === "checking" ||
+    value === "valid" ||
+    value === "warning" ||
+    value === "invalid"
+  );
 }
 
 function normalizeVideoSourceItem(payload: unknown): VideoSourceItem | null {
@@ -142,17 +166,28 @@ function normalizeVideoSourceItem(payload: unknown): VideoSourceItem | null {
     name: raw.name,
     key: raw.key,
     apiUrl: raw.apiUrl,
-    no: typeof raw.no === "number" && Number.isFinite(raw.no) ? Math.max(0, Math.round(raw.no)) : 0,
+    no:
+      typeof raw.no === "number" && Number.isFinite(raw.no)
+        ? Math.max(0, Math.round(raw.no))
+        : 0,
     status: raw.status,
     adult: raw.adult,
     type: raw.type,
-    weight: typeof raw.weight === "number" ? normalizeSourceWeight(String(raw.weight)) : 50,
+    weight:
+      typeof raw.weight === "number"
+        ? normalizeSourceWeight(String(raw.weight))
+        : 50,
     validity: isVideoSourceValidity(raw.validity) ? raw.validity : "warning",
-    updatedAt: typeof raw.updatedAt === "string" || raw.updatedAt === null ? raw.updatedAt : null,
+    updatedAt:
+      typeof raw.updatedAt === "string" || raw.updatedAt === null
+        ? raw.updatedAt
+        : null,
   };
 }
 
-function normalizeVideoSourceCollection(payload: unknown): VideoSourceCollection {
+function normalizeVideoSourceCollection(
+  payload: unknown,
+): VideoSourceCollection {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return { sources: [], updatedAt: null };
   }
@@ -167,11 +202,16 @@ function normalizeVideoSourceCollection(payload: unknown): VideoSourceCollection
 
   return {
     sources,
-    updatedAt: typeof raw.updatedAt === "string" || raw.updatedAt === null ? raw.updatedAt : null,
+    updatedAt:
+      typeof raw.updatedAt === "string" || raw.updatedAt === null
+        ? raw.updatedAt
+        : null,
   };
 }
 
-function normalizeValidityCheckResult(payload: unknown): Pick<VideoSourceItem, "key" | "validity"> | null {
+function normalizeValidityCheckResult(
+  payload: unknown,
+): Pick<VideoSourceItem, "key" | "validity"> | null {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return null;
   }
@@ -287,6 +327,37 @@ function createDraftFromSource(source: VideoSourceItem): EditableVideoSource {
   };
 }
 
+function createFormValuesFromDraft(
+  draft: EditableVideoSource,
+): VideoSourceFormValues {
+  return {
+    adult: draft.adult,
+    apiUrl: draft.apiUrl,
+    name: draft.name,
+    sourceKey: draft.key,
+    status: draft.status,
+    type: draft.type,
+    weight: draft.weight,
+  };
+}
+
+function createDraftFromFormValues(
+  values: VideoSourceFormValues,
+  originalKey: string | null,
+): EditableVideoSource {
+  return {
+    adult: Boolean(values.adult),
+    apiUrl: values.apiUrl,
+    key: values.sourceKey,
+    name: values.name,
+    originalKey,
+    status: values.status,
+    type: values.type,
+    validity: "warning",
+    weight: normalizeSourceWeight(String(values.weight)),
+  };
+}
+
 function createSourcePayload(draft: EditableVideoSource) {
   return {
     name: draft.name.trim(),
@@ -300,12 +371,30 @@ function createSourcePayload(draft: EditableVideoSource) {
   };
 }
 
+function formatLastUpdated(value: string | null) {
+  if (!value) {
+    return "未保存";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "未保存";
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium",
+    timeStyle: "medium",
+  }).format(date);
+}
+
 function validateDraft(draft: EditableVideoSource) {
   const payload = createSourcePayload(draft);
 
   if (!payload.name) {
     return "请输入视频源名称。";
   }
+
   if (!payload.key) {
     return "请输入视频源 KEY。";
   }
@@ -323,230 +412,80 @@ function validateDraft(draft: EditableVideoSource) {
   return null;
 }
 
-function VideoSourceSelect<TValue extends string>({
-  label,
-  selectedKey,
-  options,
-  onSelectionChange,
-}: {
-  label: string;
-  selectedKey: TValue;
-  options: Array<{ value: TValue; label: string }>;
-  onSelectionChange: (value: TValue) => void;
-}) {
-  const handleSelectionChange = (key: Key | null) => {
-    if (key == null) {
-      return;
-    }
-
-    onSelectionChange(String(key) as TValue);
-  };
-
-  return (
-    <Select fullWidth variant="secondary" selectedKey={selectedKey} onSelectionChange={handleSelectionChange}>
-      <Label>{label}</Label>
-      <Select.Trigger>
-        <Select.Value />
-        <Select.Indicator />
-      </Select.Trigger>
-      <Select.Popover>
-        <ListBox className="bg-[var(--surface)]">
-          {options.map((option) => (
-            <ListBox.Item id={option.value} key={option.value} textValue={option.label}>
-              {option.label}
-            </ListBox.Item>
-          ))}
-        </ListBox>
-      </Select.Popover>
-    </Select>
-  );
-}
-
-type VideoSourceTableProps = {
-  operationSourceKey: string | null;
-  onDeleteSource: (key: string) => void;
-  onOpenEditSource: (source: VideoSourceItem) => void;
-  onSaveSourcePatch: (key: string, patch: Partial<VideoSourceItem>, successMessage: string) => void;
-  onSelectionChange: (selection: Selection) => void;
-  selectedSourceKeySet: Set<string>;
-  sources: VideoSourceItem[];
-};
-
-const VideoSourceTable = memo(function VideoSourceTable({
-  operationSourceKey,
-  onDeleteSource,
-  onOpenEditSource,
-  onSaveSourcePatch,
-  onSelectionChange,
-  selectedSourceKeySet,
-  sources,
-}: VideoSourceTableProps) {
-  return (
-    <Table>
-      <Table.ScrollContainer className="rounded-xl">
-        <Table.Content
-          aria-label="视频源列表"
-          className="min-w-[960px] text-sm"
-          selectedKeys={selectedSourceKeySet}
-          selectionMode="multiple"
-          onSelectionChange={onSelectionChange}
-        >
-          <Table.Header>
-            <Table.Column className="w-14">
-              <div className="flex items-center">
-                <Checkbox aria-label="选择全部视频源" slot="selection">
-                  <Checkbox.Control>
-                    <Checkbox.Indicator>
-                      {({ isIndeterminate, isSelected }) =>
-                        isIndeterminate ? (
-                          <i aria-hidden="true" className="bi bi-dash" />
-                        ) : isSelected ? (
-                          <i aria-hidden="true" className="bi bi-check" />
-                        ) : null
-                      }
-                    </Checkbox.Indicator>
-                  </Checkbox.Control>
-                </Checkbox>
-              </div>
-            </Table.Column>
-            <Table.Column isRowHeader className="min-w-40">
-              名称
-            </Table.Column>
-            <Table.Column className="min-w-32">KEY</Table.Column>
-            <Table.Column className="min-w-20 text-center">状态</Table.Column>
-            <Table.Column className="min-w-20 text-center">成人资源</Table.Column>
-            <Table.Column className="min-w-20 text-center">源类型</Table.Column>
-            <Table.Column className="min-w-16 text-center">权重</Table.Column>
-            <Table.Column className="min-w-20 text-center">有效性</Table.Column>
-            <Table.Column className="text-end">操作</Table.Column>
-          </Table.Header>
-          <Table.Body>
-            {sources.map((source) => (
-              <Table.Row key={source.key} id={source.key}>
-                <Table.Cell>
-                  <div className="flex min-h-10 items-center">
-                    <Checkbox aria-label={`选择${source.name}`} slot="selection">
-                      <Checkbox.Control>
-                        <Checkbox.Indicator>
-                          {({ isSelected }) =>
-                            isSelected ? <i aria-hidden="true" className="bi bi-check" /> : null
-                          }
-                        </Checkbox.Indicator>
-                      </Checkbox.Control>
-                    </Checkbox>
-                  </div>
-                </Table.Cell>
-                <Table.Cell className="min-w-40 font-medium text-foreground">{source.name}</Table.Cell>
-                <Table.Cell className="min-w-32 font-mono text-xs text-default-600">{source.key}</Table.Cell>
-                <Table.Cell className="min-w-20 text-center">
-                  <Chip color={sourceStatusChipColorMap[source.status]} size="sm" variant="soft">
-                    {sourceStatusLabelMap[source.status]}
-                  </Chip>
-                </Table.Cell>
-                <Table.Cell className="min-w-20 text-center">
-                  <Switch
-                    aria-label={`切换${source.name}成人资源`}
-                    isDisabled={operationSourceKey === source.key}
-                    isSelected={source.adult}
-                    onChange={() => onSaveSourcePatch(source.key, { adult: !source.adult }, "视频源已保存")}
-                  >
-                    <Switch.Control>
-                      <Switch.Thumb />
-                    </Switch.Control>
-                  </Switch>
-                </Table.Cell>
-                <Table.Cell className="min-w-20 text-center">
-                  <Chip color={sourceTypeChipColorMap[source.type]} size="sm" variant="soft">
-                    {sourceTypeLabelMap[source.type]}
-                  </Chip>
-                </Table.Cell>
-                <Table.Cell className="min-w-16 text-center">
-                  <Chip color="accent" size="sm" variant="soft">
-                    {source.weight}
-                  </Chip>
-                </Table.Cell>
-                <Table.Cell className="min-w-20 text-center">
-                  <Chip color={sourceValidityChipColorMap[source.validity]} size="sm" variant="soft">
-                    <span className="inline-flex items-center gap-1.5">
-                      <i aria-hidden="true" className={`bi ${sourceValidityIconMap[source.validity]}`} />
-                      {sourceValidityLabelMap[source.validity]}
-                    </span>
-                  </Chip>
-                </Table.Cell>
-                <Table.Cell className="text-end">
-                  <div className="flex items-center justify-end gap-2">
-                    <Button
-                      className={tableActionButtonClassName}
-                      size="sm"
-                      variant={source.status === "enabled" ? "danger-soft" : "primary"}
-                      isDisabled={operationSourceKey === source.key}
-                      onPress={() =>
-                        onSaveSourcePatch(
-                          source.key,
-                          { status: source.status === "enabled" ? "disabled" : "enabled" },
-                          source.status === "enabled" ? "视频源已禁用" : "视频源已启用",
-                        )
-                      }
-                    >
-                      {source.status === "enabled" ? "禁用" : "启用"}
-                    </Button>
-                    <Button
-                      className={tableActionButtonClassName}
-                      size="sm"
-                      variant="secondary"
-                      isDisabled={operationSourceKey === source.key}
-                      onPress={() => onOpenEditSource(source)}
-                    >
-                      编辑
-                    </Button>
-                    <Button
-                      className={tableActionButtonClassName}
-                      size="sm"
-                      variant="danger"
-                      isDisabled={operationSourceKey === source.key}
-                      onPress={() => onDeleteSource(source.key)}
-                    >
-                      删除
-                    </Button>
-                  </div>
-                </Table.Cell>
-              </Table.Row>
-            ))}
-          </Table.Body>
-        </Table.Content>
-      </Table.ScrollContainer>
-    </Table>
-  );
-}, areVideoSourceTablePropsEqual);
-
-function areVideoSourceTablePropsEqual(previous: VideoSourceTableProps, next: VideoSourceTableProps) {
-  return (
-    previous.operationSourceKey === next.operationSourceKey &&
-    previous.selectedSourceKeySet === next.selectedSourceKeySet &&
-    previous.sources === next.sources
-  );
-}
-
 export function VideoSourcePanel() {
-  const editSourceModal = useOverlayState();
-  const validityCheckModal = useOverlayState();
+  const { message: msg } = App.useApp();
+  const { token } = theme.useToken();
+  const [sourceForm] = Form.useForm<VideoSourceFormValues>();
+  const [validityForm] = Form.useForm<ValidityCheckFormValues>();
   const [sources, setSources] = useState<VideoSourceItem[]>([]);
   const [selectedSourceKeys, setSelectedSourceKeys] = useState<string[]>([]);
-  const [editingSource, setEditingSource] = useState<EditableVideoSource | null>(null);
-  const [validityKeyword, setValidityKeyword] = useState("");
+  const [editingSource, setEditingSource] =
+    useState<EditableVideoSource | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [operationSourceKey, setOperationSourceKey] = useState<string | null>(null);
+  const [operationSourceKey, setOperationSourceKey] = useState<string | null>(
+    null,
+  );
   const [isBatchSaving, setIsBatchSaving] = useState(false);
   const [isValidityChecking, setIsValidityChecking] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isValidityModalOpen, setIsValidityModalOpen] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  const sourceKeys = useMemo(() => sources.map((source) => source.key), [sources]);
+  const sourceKeys = useMemo(
+    () => sources.map((source) => source.key),
+    [sources],
+  );
   const selectedSourceKeySet = useMemo(
     () => new Set(selectedSourceKeys.filter((key) => sourceKeys.includes(key))),
     [selectedSourceKeys, sourceKeys],
   );
   const selectedCount = selectedSourceKeySet.size;
-  const enabledCount = sources.filter((source) => source.status === "enabled").length;
+  const enabledCount = sources.filter(
+    (source) => source.status === "enabled",
+  ).length;
+  const disabledCount = sources.filter(
+    (source) => source.status === "disabled",
+  ).length;
+  const invalidCount = sources.filter(
+    (source) => source.validity === "invalid",
+  ).length;
+  const sourceTotal = sources.length;
+  const enabledPercent =
+    sourceTotal > 0 ? Math.round((enabledCount / sourceTotal) * 100) : 0;
+  const disabledPercent =
+    sourceTotal > 0 ? Math.round((disabledCount / sourceTotal) * 100) : 0;
+  const invalidPercent =
+    sourceTotal > 0 ? Math.round((invalidCount / sourceTotal) * 100) : 0;
+  const statItems = [
+    {
+      helper: "可参与搜索",
+      icon: <CheckCircleFilled />,
+      iconColor: "var(--accent)",
+      label: "启用",
+      tone: "var(--accent)",
+      value: enabledCount,
+      width: enabledPercent,
+    },
+    {
+      helper: "暂不参与聚合",
+      icon: <WarningFilled />,
+      iconColor: token.colorWarning,
+      label: "禁用",
+      tone: token.colorWarning,
+      value: disabledCount,
+      width: disabledPercent,
+    },
+    {
+      helper: "需要排查接口",
+      icon: <AlertOutlined />,
+      iconColor: token.colorError,
+      label: "异常",
+      tone: token.colorError,
+      value: invalidCount,
+      width: invalidPercent,
+    },
+  ];
 
   useEffect(() => {
     let cancelled = false;
@@ -560,12 +499,14 @@ export function VideoSourcePanel() {
         if (!cancelled) {
           setSources(data.sources);
           setSelectedSourceKeys([]);
-          toast.success("视频源配置已加载");
+          setLastUpdated(data.updatedAt);
+          msg.success("视频源配置已加载");
         }
       } catch (error) {
         if (!cancelled) {
-          const message = error instanceof Error ? error.message : "视频源配置读取失败";
-          toast.danger(message);
+          const message =
+            error instanceof Error ? error.message : "视频源配置读取失败";
+          msg.error(message);
         }
       } finally {
         if (!cancelled) {
@@ -579,16 +520,29 @@ export function VideoSourcePanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [msg]);
 
   const updateSourcesFromCollection = (collection: VideoSourceCollection) => {
     setSources(collection.sources);
-    setSelectedSourceKeys((current) => current.filter((key) => collection.sources.some((source) => source.key === key)));
+    setLastUpdated(collection.updatedAt);
+    setSelectedSourceKeys((current) =>
+      current.filter((key) =>
+        collection.sources.some((source) => source.key === key),
+      ),
+    );
   };
 
-  const saveSourcePatch = async (key: string, patch: Partial<VideoSourceItem>, successMessage: string) => {
+  const saveSourcePatch = async (
+    key: string,
+    patch: Partial<VideoSourceItem>,
+    successMessage: string,
+  ) => {
     const previousSources = sources;
-    setSources((current) => current.map((source) => (source.key === key ? { ...source, ...patch } : source)));
+    setSources((current) =>
+      current.map((source) =>
+        source.key === key ? { ...source, ...patch } : source,
+      ),
+    );
     setOperationSourceKey(key);
 
     try {
@@ -603,11 +557,11 @@ export function VideoSourcePanel() {
         normalizeVideoSourceCollection,
       );
       updateSourcesFromCollection(data);
-      toast.success(successMessage);
+      msg.success(successMessage);
     } catch (error) {
       setSources(previousSources);
       const message = error instanceof Error ? error.message : "视频源保存失败";
-      toast.danger(message);
+      msg.error(message);
     } finally {
       setOperationSourceKey(null);
     }
@@ -626,25 +580,27 @@ export function VideoSourcePanel() {
       updateSourcesFromCollection(data);
       if (editingSource?.originalKey === key) {
         setEditingSource(null);
-        editSourceModal.close();
+        setIsEditModalOpen(false);
       }
-      toast.success("视频源已删除");
+      msg.success("视频源已删除");
     } catch (error) {
       const message = error instanceof Error ? error.message : "视频源删除失败";
-      toast.danger(message);
+      msg.error(message);
     } finally {
       setOperationSourceKey(null);
     }
   };
 
   const addSource = () => {
-    setEditingSource(defaultDraft);
-    editSourceModal.open();
+    const draft = { ...defaultDraft };
+    sourceForm.setFieldsValue(createFormValuesFromDraft(draft));
+    setEditingSource(draft);
+    setIsEditModalOpen(true);
   };
 
   const openValidityCheck = () => {
-    setValidityKeyword(defaultValidityKeyword);
-    validityCheckModal.open();
+    validityForm.setFieldsValue({ validityKeyword: defaultValidityKeyword });
+    setIsValidityModalOpen(true);
   };
 
   const closeValidityCheck = () => {
@@ -652,27 +608,32 @@ export function VideoSourcePanel() {
       return;
     }
 
-    setValidityKeyword("");
-    validityCheckModal.close();
+    validityForm.setFieldsValue({ validityKeyword: "" });
+    setIsValidityModalOpen(false);
   };
 
-  const runValidityCheck = async () => {
-    const keyword = validityKeyword.trim();
+  const runValidityCheck = async (values: ValidityCheckFormValues) => {
+    const keyword = values.validityKeyword.trim();
 
     if (!keyword) {
-      toast.danger("请输入检测关键词。");
+      msg.error("请输入检测关键词。");
       return;
     }
 
     setIsValidityChecking(true);
-    setSources((current) => current.map((source) => ({ ...source, validity: "checking" })));
-    validityCheckModal.close();
+    setSources((current) =>
+      current.map((source) => ({ ...source, validity: "checking" })),
+    );
+    setIsValidityModalOpen(false);
 
     try {
-      const response = await fetch(`/api/admin/source-check?keyword=${encodeURIComponent(keyword)}`, {
-        headers: { Accept: "text/event-stream" },
-        method: "GET",
-      });
+      const response = await fetch(
+        `/api/admin/video-source/validity-check?keyword=${encodeURIComponent(keyword)}`,
+        {
+          headers: { Accept: "text/event-stream" },
+          method: "GET",
+        },
+      );
 
       if (!response.ok || !response.body) {
         throw new Error("视频源有效性检测失败");
@@ -705,15 +666,24 @@ export function VideoSourcePanel() {
 
             if (result) {
               setSources((current) =>
-                current.map((source) => (source.key === result.key ? { ...source, validity: result.validity } : source)),
+                current.map((source) =>
+                  source.key === result.key
+                    ? { ...source, validity: result.validity }
+                    : source,
+                ),
               );
             }
           } else if (message.event === "complete") {
-            updateSourcesFromCollection(normalizeVideoSourceCollection(message.data));
+            updateSourcesFromCollection(
+              normalizeVideoSourceCollection(message.data),
+            );
           } else if (message.event === "error") {
             const raw = message.data;
             const messageText =
-              raw && typeof raw === "object" && !Array.isArray(raw) && typeof (raw as Record<string, unknown>).message === "string"
+              raw &&
+              typeof raw === "object" &&
+              !Array.isArray(raw) &&
+              typeof (raw as Record<string, unknown>).message === "string"
                 ? String((raw as Record<string, unknown>).message)
                 : "视频源有效性检测失败";
             throw new Error(messageText);
@@ -721,34 +691,36 @@ export function VideoSourcePanel() {
         }
       }
 
-      toast.success("视频源有效性检测完成");
+      msg.success("视频源有效性检测完成");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "视频源有效性检测失败";
-      toast.danger(message);
+      const message =
+        error instanceof Error ? error.message : "视频源有效性检测失败";
+      msg.error(message);
     } finally {
       setIsValidityChecking(false);
     }
   };
 
-  const saveEditingSource = async () => {
+  const saveEditingSource = async (values: VideoSourceFormValues) => {
     if (!editingSource) {
       return;
     }
 
-    const validationMessage = validateDraft(editingSource);
+    const draft = createDraftFromFormValues(values, editingSource.originalKey);
+    const validationMessage = validateDraft(draft);
 
     if (validationMessage) {
-      toast.danger(validationMessage);
+      msg.error(validationMessage);
       return;
     }
 
-    const payload = createSourcePayload(editingSource);
+    const payload = createSourcePayload(draft);
     setIsSaving(true);
 
     try {
-      if (editingSource.originalKey) {
+      if (draft.originalKey) {
         const data = await requestJson(
-          `/api/admin/video-sources/${encodeURIComponent(editingSource.originalKey)}`,
+          `/api/admin/video-sources/${encodeURIComponent(draft.originalKey)}`,
           {
             body: JSON.stringify(payload),
             headers: { "Content-Type": "application/json" },
@@ -758,7 +730,7 @@ export function VideoSourcePanel() {
           normalizeVideoSourceCollection,
         );
         updateSourcesFromCollection(data);
-        toast.success("视频源已保存");
+        msg.success("视频源已保存");
       } else {
         const created = await requestJson(
           "/api/admin/video-source",
@@ -779,20 +751,24 @@ export function VideoSourcePanel() {
           },
         );
         setSources((current) => [...current, created]);
-        toast.success("视频源已添加");
+        msg.success("视频源已添加");
       }
 
+      sourceForm.setFieldsValue(createFormValuesFromDraft(defaultDraft));
       setEditingSource(null);
-      editSourceModal.close();
+      setIsEditModalOpen(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : "视频源保存失败";
-      toast.danger(message);
+      msg.error(message);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const updateSelectedSources = async (action: VideoSourceBatchAction, successMessage: string) => {
+  const updateSelectedSources = async (
+    action: VideoSourceBatchAction,
+    successMessage: string,
+  ) => {
     if (selectedCount === 0) {
       return;
     }
@@ -803,7 +779,10 @@ export function VideoSourcePanel() {
       const data = await requestJson(
         "/api/admin/video-source/batch",
         {
-          body: JSON.stringify({ action, keys: Array.from(selectedSourceKeySet) }),
+          body: JSON.stringify({
+            action,
+            keys: Array.from(selectedSourceKeySet),
+          }),
           headers: { "Content-Type": "application/json" },
           method: "PUT",
         },
@@ -811,10 +790,10 @@ export function VideoSourcePanel() {
         normalizeVideoSourceCollection,
       );
       updateSourcesFromCollection(data);
-      toast.success(successMessage);
+      msg.success(successMessage);
     } catch (error) {
       const message = error instanceof Error ? error.message : "批量操作失败";
-      toast.danger(message);
+      msg.error(message);
     } finally {
       setIsBatchSaving(false);
     }
@@ -842,289 +821,535 @@ export function VideoSourcePanel() {
 
       setSources(latestSources);
       setSelectedSourceKeys([]);
-      toast.success("视频源已批量删除");
+      msg.success("视频源已批量删除");
     } catch (error) {
       const message = error instanceof Error ? error.message : "批量删除失败";
-      toast.danger(message);
+      msg.error(message);
     } finally {
       setIsBatchSaving(false);
     }
   };
 
-  const handleTableSelectionChange = (selection: Selection) => {
-    if (selection === "all") {
-      setSelectedSourceKeys(sources.map((source) => source.key));
-      return;
-    }
-
-    setSelectedSourceKeys(Array.from(selection).map(String));
+  const handleTableSelectionChange = (keys: string[]) => {
+    setSelectedSourceKeys(keys);
   };
 
   const openEditSource = (source: VideoSourceItem) => {
-    setEditingSource(createDraftFromSource(source));
-    editSourceModal.open();
+    const draft = createDraftFromSource(source);
+    sourceForm.setFieldsValue(createFormValuesFromDraft(draft));
+    setEditingSource(draft);
+    setIsEditModalOpen(true);
   };
 
   const closeEditSource = () => {
+    sourceForm.setFieldsValue(createFormValuesFromDraft(defaultDraft));
     setEditingSource(null);
-    editSourceModal.close();
+    setIsEditModalOpen(false);
   };
+
+  const allSelected =
+    sources.length > 0 && selectedSourceKeySet.size === sources.length;
+  const isIndeterminate = selectedSourceKeySet.size > 0 && !allSelected;
+  const columns: ColumnsType<VideoSourceItem> = [
+    {
+      key: "selection",
+      title: (
+        <input
+          aria-label="选择全部视频源"
+          checked={allSelected}
+          ref={(element) => {
+            if (element) {
+              element.indeterminate = isIndeterminate;
+            }
+          }}
+          type="checkbox"
+          onChange={() =>
+            handleTableSelectionChange(
+              allSelected ? [] : sources.map((source) => source.key),
+            )
+          }
+        />
+      ),
+      render: (_, source) => (
+        <input
+          aria-label={`选择${source.name}`}
+          checked={selectedSourceKeySet.has(source.key)}
+          type="checkbox"
+          onChange={() => {
+            const nextKeys = new Set(selectedSourceKeySet);
+
+            if (nextKeys.has(source.key)) {
+              nextKeys.delete(source.key);
+            } else {
+              nextKeys.add(source.key);
+            }
+
+            handleTableSelectionChange(Array.from(nextKeys));
+          }}
+        />
+      ),
+    },
+    {
+      dataIndex: "name",
+      title: "名称",
+      render: (name: VideoSourceItem["name"]) => (
+        <span className="font-medium text-foreground">{name}</span>
+      ),
+    },
+    {
+      dataIndex: "key",
+      title: "KEY",
+      render: (key: VideoSourceItem["key"]) => (
+        <span className="font-mono text-xs text-default-600">{key}</span>
+      ),
+    },
+    {
+      dataIndex: "status",
+      title: "状态",
+      render: (status: VideoSourceStatus) => (
+        <Tag color={status === "enabled" ? "success" : "default"}>
+          {sourceStatusLabelMap[status]}
+        </Tag>
+      ),
+    },
+    {
+      dataIndex: "adult",
+      title: "成人资源",
+      render: (adult: boolean, source) => (
+        <Switch
+          aria-label={`切换${source.name}成人资源`}
+          checked={adult}
+          disabled={operationSourceKey === source.key}
+          onChange={() =>
+            saveSourcePatch(source.key, { adult: !adult }, "视频源已保存")
+          }
+        />
+      ),
+    },
+    {
+      dataIndex: "type",
+      title: "源类型",
+      render: (type: VideoSourceType) => (
+        <Tag color={type === "short-drama" ? "processing" : "default"}>
+          {sourceTypeLabelMap[type]}
+        </Tag>
+      ),
+    },
+    {
+      dataIndex: "weight",
+      title: "权重",
+      render: (weight: VideoSourceItem["weight"]) => (
+        <Tag color="processing">{weight}</Tag>
+      ),
+    },
+    {
+      dataIndex: "validity",
+      title: "有效性",
+      render: (validity: VideoSourceValidity) => {
+        const Icon = sourceValidityIconMap[validity];
+
+        return (
+          <Tag color={sourceValidityColorMap[validity]}>
+            <span className="inline-flex items-center gap-1.5">
+              <Icon spin={validity === "checking"} />
+              {sourceValidityLabelMap[validity]}
+            </span>
+          </Tag>
+        );
+      },
+    },
+    {
+      align: "right",
+      key: "actions",
+      title: "操作",
+      render: (_, source) => (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            disabled={operationSourceKey === source.key}
+            size="small"
+            type={source.status === "enabled" ? "default" : "primary"}
+            danger={source.status === "enabled"}
+            onClick={() =>
+              saveSourcePatch(
+                source.key,
+                {
+                  status: source.status === "enabled" ? "disabled" : "enabled",
+                },
+                source.status === "enabled" ? "视频源已禁用" : "视频源已启用",
+              )
+            }
+          >
+            {source.status === "enabled" ? "禁用" : "启用"}
+          </Button>
+          <Button
+            disabled={operationSourceKey === source.key}
+            size="small"
+            onClick={() => openEditSource(source)}
+          >
+            编辑
+          </Button>
+          <Button
+            danger
+            disabled={operationSourceKey === source.key}
+            size="small"
+            onClick={() => deleteSource(source.key)}
+          >
+            删除
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <>
-      <Card>
-        <Card.Header className="flex flex-col gap-4 p-6 pb-0 md:p-8 md:pb-0">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <Card loading={isLoading}>
+        <div className="flex flex-col">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <i aria-hidden="true" className="bi bi-broadcast text-2xl text-accent" />
-                <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">视频源配置</h2>
+                <GlobalOutlined className="text-2xl text-accent" />
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+                    视频源配置
+                  </h2>
+                </div>
               </div>
               <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
                 管理视频源基础信息、启用状态、成人资源标记、权重和检测结果。
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Chip color="accent" variant="soft">
-                {isLoading ? "加载中" : `共 ${sources.length} 个源`}
-              </Chip>
-              <Chip color="success" variant="soft">
-                启用 {enabledCount} 个
-              </Chip>
+            <Tag color={isLoading ? "processing" : "success"}>
+              {isLoading ? "加载中" : `视频源 ${sources.length} 个`}
+            </Tag>
+          </div>
+        </div>
+
+        <div
+          className="mb-6 overflow-hidden rounded-lg border border-(--admin-stat-border) bg-(--surface)"
+          aria-live="polite"
+          style={
+            {
+              "--admin-stat-active": "var(--accent)",
+              "--admin-stat-border": token.colorBorderSecondary,
+              "--admin-stat-danger": token.colorError,
+              "--admin-stat-split": token.colorSplit,
+            } as CSSProperties
+          }
+        >
+          <div className="flex flex-col gap-4 border-b border-(--admin-stat-split) px-4 py-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                <BarChartOutlined className="text-xl" />
+              </span>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  视频源统计
+                </p>
+                <p className="mt-1 text-xs leading-5 text-default-500">
+                  当前视频源启用状态和接口有效性概览。
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-default-500 md:text-sm">
+              最后更新时间 {formatLastUpdated(lastUpdated)}
+            </p>
+          </div>
+
+          <div className="grid gap-0 lg:grid-cols-[minmax(15rem,0.95fr)_minmax(0,2fr)]">
+            <div className="border-b border-(--admin-stat-split) p-4 lg:border-b-0 lg:border-r">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-medium uppercase text-default-500">
+                    Source total
+                  </p>
+                  <p className="mt-2 text-4xl font-semibold text-foreground">
+                    {sourceTotal}
+                  </p>
+                  <p className="mt-2 text-sm text-default-500">视频源总数</p>
+                </div>
+                <span
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-accent"
+                  style={{
+                    background:
+                      "color-mix(in srgb, var(--accent) 12%, transparent)",
+                  }}
+                >
+                  <ApiOutlined className="text-lg" />
+                </span>
+              </div>
+
+              <div
+                className="mt-5 flex h-2 overflow-hidden rounded-full bg-(--surface-secondary)"
+                aria-label={`启用视频源 ${enabledPercent}%，禁用视频源 ${disabledPercent}%`}
+              >
+                <div
+                  style={{
+                    background: "var(--admin-stat-active)",
+                    width: `${enabledPercent}%`,
+                  }}
+                />
+                <div
+                  style={{
+                    background: "var(--admin-stat-danger)",
+                    width: `${invalidPercent}%`,
+                  }}
+                />
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-default-500">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-(--admin-stat-active)" />
+                  启用 {enabledPercent}%
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-(--admin-stat-danger)" />
+                  异常 {invalidPercent}%
+                </span>
+              </div>
+            </div>
+
+            <div className="grid divide-y divide-(--admin-stat-split) text-sm md:grid-cols-3 md:divide-x md:divide-y-0">
+              {statItems.map((item) => (
+                <div key={item.label} className="p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <span
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                      style={{
+                        background: `color-mix(in srgb, ${item.iconColor} 12%, transparent)`,
+                        color: item.iconColor,
+                      }}
+                    >
+                      {item.icon}
+                    </span>
+                    <span className="text-xs font-medium text-default-500">
+                      {item.width}%
+                    </span>
+                  </div>
+                  <div className="mt-4 flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {item.label}
+                      </p>
+                      <p className="mt-1 text-xs text-default-500">
+                        {item.helper}
+                      </p>
+                    </div>
+                    <span className="text-2xl font-semibold text-foreground">
+                      {item.value}
+                    </span>
+                  </div>
+                  <div
+                    className="mt-4 h-1.5 overflow-hidden rounded-full bg-(--surface-secondary)"
+                    aria-label={`${item.label}占比 ${item.width}%`}
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        background: item.tone,
+                        width: `${item.width}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        </Card.Header>
+        </div>
 
-        <Card.Content className="space-y-5 p-6 pt-5 md:p-8 md:pt-5">
-          <div className="flex flex-col gap-3 rounded-2xl border border-default-200/80 bg-background/60 p-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-wrap items-center gap-2 text-sm text-default-600">
-              <span className="font-medium text-foreground">批量操作</span>
-              <span>已选择 {selectedCount} 项</span>
+        <div className="space-y-4">
+          <div className="flex flex-col gap-4 pb-0 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <GlobalOutlined className="text-xl text-accent" />
+              <p className="mb-0! text-sm font-medium text-foreground">
+                视频源列表
+              </p>
+              <span className="text-sm text-default-500">
+                已选择 {selectedCount} 项
+              </span>
             </div>
 
             <div className="flex flex-wrap gap-2">
               {selectedCount > 0 ? (
                 <>
                   <Button
-                    size="sm"
-                    variant="secondary"
-                    isDisabled={isBatchSaving}
-                    onPress={() => updateSelectedSources("enable", "视频源已批量启用")}
+                    disabled={isBatchSaving}
+                    size="small"
+                    onClick={() =>
+                      updateSelectedSources("enable", "视频源已批量启用")
+                    }
                   >
                     批量启用
                   </Button>
                   <Button
-                    size="sm"
-                    variant="secondary"
-                    isDisabled={isBatchSaving}
-                    onPress={() => updateSelectedSources("disable", "视频源已批量禁用")}
+                    disabled={isBatchSaving}
+                    size="small"
+                    onClick={() =>
+                      updateSelectedSources("disable", "视频源已批量禁用")
+                    }
                   >
                     批量禁用
                   </Button>
-                  <Button size="sm" variant="danger" isDisabled={isBatchSaving} onPress={deleteSelectedSources}>
+                  <Button
+                    danger
+                    disabled={isBatchSaving}
+                    size="small"
+                    onClick={deleteSelectedSources}
+                  >
                     批量删除
                   </Button>
                 </>
               ) : null}
               <Button
-                size="sm"
-                variant="secondary"
-                isDisabled={isLoading || sources.length === 0 || isValidityChecking}
-                onPress={openValidityCheck}
+                disabled={
+                  isLoading || sources.length === 0 || isValidityChecking
+                }
+                size="small"
+                onClick={openValidityCheck}
               >
                 {isValidityChecking ? "检测中" : "有效性检测"}
               </Button>
-              <Button size="sm" variant="primary" isDisabled={isLoading} onPress={addSource}>
+              <Button
+                disabled={isLoading}
+                size="small"
+                type="primary"
+                onClick={addSource}
+              >
+                <PlusOutlined />
                 添加
               </Button>
             </div>
           </div>
 
-          <VideoSourceTable
-            operationSourceKey={operationSourceKey}
-            selectedSourceKeySet={selectedSourceKeySet}
-            sources={sources}
-            onDeleteSource={deleteSource}
-            onOpenEditSource={openEditSource}
-            onSaveSourcePatch={saveSourcePatch}
-            onSelectionChange={handleTableSelectionChange}
+          <Table<VideoSourceItem>
+            bordered
+            columns={columns}
+            dataSource={sources}
+            pagination={false}
+            rowKey="key"
+            onRow={(source) =>
+              ({
+                "data-source-key": source.key,
+              }) as HTMLAttributes<HTMLTableRowElement>
+            }
           />
-        </Card.Content>
+        </div>
       </Card>
 
-      <Modal state={editSourceModal}>
-        <Modal.Backdrop isDismissable={!isSaving}>
-          <Modal.Container placement="center" size="lg">
-            <Modal.Dialog>
-              <Modal.Header>
-                <Modal.Heading>{editingSource?.originalKey ? "编辑视频源" : "添加视频源"}</Modal.Heading>
-              </Modal.Header>
-              <Modal.Body className="p-6">
-                {editingSource ? (
-                  <Form
-                    id="edit-video-source-form"
-                    className="space-y-5"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      void saveEditingSource();
-                    }}
-                  >
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <TextField fullWidth name="sourceName">
-                        <Label>名称</Label>
-                        <Input
-                          variant="secondary"
-                          value={editingSource.name}
-                          onChange={(event) =>
-                            setEditingSource((current) =>
-                              current ? { ...current, name: event.target.value } : current,
-                            )
-                          }
-                        />
-                      </TextField>
+      <Modal
+        open={isEditModalOpen}
+        title={editingSource?.originalKey ? "编辑视频源" : "添加视频源"}
+        onCancel={closeEditSource}
+        onOk={sourceForm.submit}
+        confirmLoading={isSaving}
+      >
+        <Divider />
+        {editingSource ? (
+          <Form<VideoSourceFormValues>
+            form={sourceForm}
+            layout="vertical"
+            onFinish={(values) => {
+              void saveEditingSource(values);
+            }}
+          >
+            <Form.Item label="名称" name="name" rules={[{ required: true }]}>
+              <Input placeholder="请输入视频源名称" />
+            </Form.Item>
 
-                      <TextField fullWidth name="sourceKey">
-                        <Label>KEY</Label>
-                        <Input
-                          disabled={Boolean(editingSource.originalKey)}
-                          name="sourceKey"
-                          variant="secondary"
-                          value={editingSource.key}
-                          onChange={(event) =>
-                            setEditingSource((current) =>
-                              current ? { ...current, key: event.target.value } : current,
-                            )
-                          }
-                        />
-                      </TextField>
+            <Form.Item
+              label="KEY"
+              name="sourceKey"
+              rules={[{ required: true }]}
+            >
+              <Input
+                placeholder="请输入视频源 KEY"
+                readOnly={Boolean(editingSource.originalKey)}
+              />
+            </Form.Item>
 
-                      <TextField fullWidth name="apiUrl" className="md:col-span-2">
-                        <Label>API 地址</Label>
-                        <Input
-                          variant="secondary"
-                          value={editingSource.apiUrl}
-                          onChange={(event) =>
-                            setEditingSource((current) =>
-                              current ? { ...current, apiUrl: event.target.value } : current,
-                            )
-                          }
-                        />
-                      </TextField>
+            <Form.Item
+              label="API 地址"
+              name="apiUrl"
+              rules={[{ required: true, type: "url" }]}
+            >
+              <Input placeholder="https://example.com/api.php" />
+            </Form.Item>
 
-                      <VideoSourceSelect
-                        label="状态"
-                        selectedKey={editingSource.status}
-                        options={[
-                          { value: "enabled", label: "启用" },
-                          { value: "disabled", label: "禁用" },
-                        ]}
-                        onSelectionChange={(status) =>
-                          setEditingSource((current) => (current ? { ...current, status } : current))
-                        }
-                      />
+            <Row gutter={[10, 10]}>
+              <Col span={24} md={{ span: 12 }}>
+                <Form.Item label="状态" name="status">
+                  <Select
+                    options={[
+                      { label: "启用", value: "enabled" },
+                      { label: "禁用", value: "disabled" },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
 
-                      <VideoSourceSelect
-                        label="源类型"
-                        selectedKey={editingSource.type}
-                        options={[
-                          { value: "normal", label: "普通" },
-                          { value: "short-drama", label: "短剧" },
-                        ]}
-                        onSelectionChange={(type) =>
-                          setEditingSource((current) => (current ? { ...current, type } : current))
-                        }
-                      />
+              <Col span={24} md={{ span: 12 }}>
+                <Form.Item label="源类型" name="type">
+                  <Select
+                    options={[
+                      { label: "普通", value: "normal" },
+                      { label: "短剧", value: "short-drama" },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
 
-                      <VideoSourceSelect
-                        label="成人资源"
-                        selectedKey={editingSource.adult ? "yes" : "no"}
-                        options={[
-                          { value: "no", label: "否" },
-                          { value: "yes", label: "是" },
-                        ]}
-                        onSelectionChange={(value) =>
-                          setEditingSource((current) => (current ? { ...current, adult: value === "yes" } : current))
-                        }
-                      />
+            <Row gutter={[10, 10]}>
+              <Col span={24} md={{ span: 12 }}>
+                <Form.Item label="成人资源" name="adult">
+                  <Select
+                    options={[
+                      { label: "是", value: true },
+                      { label: "否", value: false },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
 
-                      <TextField fullWidth name="sourceWeight">
-                        <Label>权重</Label>
-                        <Input
-                          inputMode="numeric"
-                          max={99}
-                          min={1}
-                          type="number"
-                          variant="secondary"
-                          value={String(editingSource.weight)}
-                          onChange={(event) =>
-                            setEditingSource((current) =>
-                              current ? { ...current, weight: normalizeSourceWeight(event.target.value) } : current,
-                            )
-                          }
-                        />
-                      </TextField>
-                    </div>
-                  </Form>
-                ) : null}
-              </Modal.Body>
-              <Modal.Footer className="flex items-center justify-end gap-2">
-                <Button variant="outline" isDisabled={isSaving} onPress={closeEditSource}>
-                  取消
-                </Button>
-                <Button variant="primary" type="submit" form="edit-video-source-form" isDisabled={isSaving}>
-                  {isSaving ? "保存中" : "保存"}
-                </Button>
-              </Modal.Footer>
-            </Modal.Dialog>
-          </Modal.Container>
-        </Modal.Backdrop>
+              <Col span={24} md={{ span: 12 }}>
+                <Form.Item label="权重" name="weight">
+                  <InputNumber
+                    max={99}
+                    min={1}
+                    controls={false}
+                    style={{ width: "100%" }}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Form>
+        ) : null}
       </Modal>
 
-      <Modal state={validityCheckModal}>
-        <Modal.Backdrop isDismissable={!isValidityChecking}>
-          <Modal.Container placement="center" size="sm">
-            <Modal.Dialog>
-              <Modal.Header>
-                <Modal.Heading>有效性检测</Modal.Heading>
-              </Modal.Header>
-              <Modal.Body className="p-6">
-                <Form
-                  id="validity-check-form"
-                  className="space-y-5"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void runValidityCheck();
-                  }}
-                >
-                  <TextField fullWidth name="validityKeyword">
-                    <Label>关键词</Label>
-                    <Input
-                      aria-label="关键词"
-                      name="validityKeyword"
-                      variant="secondary"
-                      value={validityKeyword}
-                      onChange={(event) => setValidityKeyword(event.target.value)}
-                    />
-                  </TextField>
-                </Form>
-              </Modal.Body>
-              <Modal.Footer className="flex items-center justify-end gap-2">
-                <Button variant="outline" isDisabled={isValidityChecking} onPress={closeValidityCheck}>
-                  取消
-                </Button>
-                <Button
-                  variant="primary"
-                  type="submit"
-                  form="validity-check-form"
-                  isDisabled={isValidityChecking}
-                >
-                  确定
-                </Button>
-              </Modal.Footer>
-            </Modal.Dialog>
-          </Modal.Container>
-        </Modal.Backdrop>
+      <Modal
+        open={isValidityModalOpen}
+        title="有效性检测"
+        onCancel={closeValidityCheck}
+        onOk={validityForm.submit}
+        confirmLoading={isValidityChecking}
+      >
+        <Divider />
+        <Form<ValidityCheckFormValues>
+          form={validityForm}
+          layout="vertical"
+          onFinish={(values) => {
+            void runValidityCheck(values);
+          }}
+        >
+          <Form.Item
+            label="关键词"
+            name="validityKeyword"
+            rules={[{ required: true }]}
+          >
+            <Input placeholder="请输入用于检测的视频关键词" />
+          </Form.Item>
+        </Form>
       </Modal>
     </>
   );

@@ -1,24 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { z } from "zod";
 import {
-  Alert,
+  BarChartOutlined,
+  BarsOutlined,
+  CheckCircleOutlined,
+  CrownOutlined,
+  PlusOutlined,
+  StopOutlined,
+  TeamOutlined,
+  UserOutlined,
+} from "@ant-design/icons";
+import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
+import {
+  App,
   Button,
   Card,
-  Chip,
-  ErrorMessage,
+  Divider,
   Form,
   Input,
-  Label,
-  ListBox,
   Modal,
   Select,
   Table,
-  TextField,
-  toast,
-  useOverlayState,
-} from "@heroui/react";
+  Tag,
+  theme,
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
 import {
   usernamePattern,
   usernamePatternMessage,
@@ -42,28 +49,19 @@ type UserCollectionResponse = {
   updatedAt: string | null;
 };
 
-const addUserSchema = z
-  .object({
-    password: z.string().trim().regex(userPasswordPattern, userPasswordPatternMessage),
-    passwordConfirm: z.string().min(1, "请再次输入初始密码。"),
-    role: z.enum(["owner", "user"]),
-    status: z.enum(["active", "banned"]),
-    username: z.string().trim().regex(usernamePattern, usernamePatternMessage),
-  })
-  .refine((value) => value.password === value.passwordConfirm, {
-    message: "两次输入的密码不一致。",
-    path: ["passwordConfirm"],
-  });
+type AddUserFormValues = {
+  password: string;
+  passwordConfirm: string;
+  role: UserRole;
+  status: UserStatus;
+  username: string;
+};
 
-const passwordSchema = z
-  .object({
-    password: z.string().trim().regex(userPasswordPattern, userPasswordPatternMessage),
-    passwordConfirm: z.string().min(1, "请再次输入新密码。"),
-  })
-  .refine((value) => value.password === value.passwordConfirm, {
-    message: "两次输入的密码不一致。",
-    path: ["passwordConfirm"],
-  });
+type PasswordFormValues = {
+  username: string;
+  password: string;
+  passwordConfirm: string;
+};
 
 const roleLabelMap: Record<UserRole, string> = {
   owner: "站长",
@@ -74,18 +72,6 @@ const statusLabelMap: Record<UserStatus, string> = {
   active: "正常",
   banned: "封禁",
 };
-
-const roleChipColorMap: Record<UserRole, "accent" | "default"> = {
-  owner: "accent",
-  user: "default",
-};
-
-const statusChipColorMap: Record<UserStatus, "danger" | "success"> = {
-  active: "success",
-  banned: "danger",
-};
-
-const tableActionButtonClassName = "h-7 px-2 text-xs";
 
 const defaultUsers: UserItem[] = [
   { username: "admin", role: "owner", status: "active" },
@@ -108,7 +94,11 @@ function normalizeUserItem(payload: unknown): UserItem | null {
 
   const raw = payload as Record<string, unknown>;
 
-  if (typeof raw.username !== "string" || !isUserRole(raw.role) || !isUserStatus(raw.status)) {
+  if (
+    typeof raw.username !== "string" ||
+    !isUserRole(raw.role) ||
+    !isUserStatus(raw.status)
+  ) {
     return null;
   }
 
@@ -116,26 +106,56 @@ function normalizeUserItem(payload: unknown): UserItem | null {
     createdAt: typeof raw.createdAt === "string" ? raw.createdAt : undefined,
     role: raw.role,
     status: raw.status,
-    updatedAt: typeof raw.updatedAt === "string" || raw.updatedAt === null ? raw.updatedAt : undefined,
+    updatedAt:
+      typeof raw.updatedAt === "string" || raw.updatedAt === null
+        ? raw.updatedAt
+        : undefined,
     username: raw.username,
   };
 }
 
-function normalizeUserCollectionResponse(payload: unknown): UserCollectionResponse {
-  const raw = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
-  const parsedUsers = Array.isArray(raw.users) ? raw.users.map(normalizeUserItem).filter((user) => user !== null) : null;
+function normalizeUserCollectionResponse(
+  payload: unknown,
+): UserCollectionResponse {
+  const raw =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : {};
+  const parsedUsers = Array.isArray(raw.users)
+    ? raw.users.map(normalizeUserItem).filter((user) => user !== null)
+    : null;
 
   return {
-    updatedAt: typeof raw.updatedAt === "string" || raw.updatedAt === null ? raw.updatedAt : null,
+    updatedAt:
+      typeof raw.updatedAt === "string" || raw.updatedAt === null
+        ? raw.updatedAt
+        : null,
     users: parsedUsers ?? defaultUsers,
   };
 }
 
-function getZodErrorMessage(error: z.ZodError) {
-  return error.issues[0]?.message ?? "表单校验失败。";
+function formatLastUpdated(value: string | null) {
+  if (!value) {
+    return "未保存";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "未保存";
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium",
+    timeStyle: "medium",
+  }).format(date);
 }
 
 let usersLoadRequest: Promise<UserCollectionResponse> | null = null;
+
+export function resetUserConfigPanelState() {
+  usersLoadRequest = null;
+}
 
 async function fetchUsers() {
   const response = await fetch("/api/admin/users");
@@ -193,24 +213,59 @@ function getUserApiPath(username: string) {
 }
 
 export function UserConfigPanel() {
-  const addUserModal = useOverlayState();
-  const passwordModal = useOverlayState();
+  const { message: msg } = App.useApp();
+  const { token } = theme.useToken();
+  const [addUserForm] = Form.useForm<AddUserFormValues>();
+  const [passwordForm] = Form.useForm<PasswordFormValues>();
   const [users, setUsers] = useState<UserItem[]>(defaultUsers);
   const [isLoading, setIsLoading] = useState(true);
   const [savingUsername, setSavingUsername] = useState<string | null>(null);
-  const [newUsername, setNewUsername] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
-  const [newRole, setNewRole] = useState<UserRole>("user");
-  const [newStatus, setNewStatus] = useState<UserStatus>("active");
-  const [formError, setFormError] = useState("");
-  const [passwordUsername, setPasswordUsername] = useState("");
-  const [passwordValue, setPasswordValue] = useState("");
-  const [passwordConfirmValue, setPasswordConfirmValue] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-  const activeUserCount = users.filter((user) => user.status === "active").length;
-  const bannedUserCount = users.filter((user) => user.status === "banned").length;
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [isPasswordOpen, setIsPasswordOpen] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const activeUserCount = users.filter(
+    (user) => user.status === "active",
+  ).length;
+  const bannedUserCount = users.filter(
+    (user) => user.status === "banned",
+  ).length;
   const ownerCount = users.filter((user) => user.role === "owner").length;
+  const userTotal = users.length;
+  const activeUserPercent =
+    userTotal > 0 ? Math.round((activeUserCount / userTotal) * 100) : 0;
+  const bannedUserPercent =
+    userTotal > 0 ? Math.round((bannedUserCount / userTotal) * 100) : 0;
+  const ownerPercent =
+    userTotal > 0 ? Math.round((ownerCount / userTotal) * 100) : 0;
+  const statItems = [
+    {
+      icon: <CheckCircleOutlined />,
+      label: "正常",
+      helper: "可正常访问",
+      iconColor: "var(--accent)",
+      tone: "var(--accent)",
+      value: activeUserCount,
+      width: activeUserPercent,
+    },
+    {
+      icon: <StopOutlined />,
+      label: "封禁",
+      helper: "已限制访问",
+      iconColor: token.colorError,
+      tone: token.colorError,
+      value: bannedUserCount,
+      width: bannedUserPercent,
+    },
+    {
+      icon: <CrownOutlined />,
+      label: "站长",
+      helper: "拥有管理权限",
+      iconColor: token.colorWarning,
+      value: ownerCount,
+      tone: token.colorWarning,
+      width: ownerPercent,
+    },
+  ];
 
   useEffect(() => {
     let cancelled = false;
@@ -223,12 +278,14 @@ export function UserConfigPanel() {
 
         if (!cancelled) {
           setUsers(data.users);
-          toast.success("用户配置已加载");
+          setLastUpdated(data.updatedAt);
+          msg.success("用户配置已加载");
         }
       } catch (error) {
         if (!cancelled) {
-          const message = error instanceof Error ? error.message : "用户配置读取失败";
-          toast.danger(message);
+          const message =
+            error instanceof Error ? error.message : "用户配置读取失败";
+          msg.error(message);
         }
       } finally {
         if (!cancelled) {
@@ -242,71 +299,61 @@ export function UserConfigPanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [msg]);
 
   const resetForm = () => {
-    setNewUsername("");
-    setNewPassword("");
-    setNewPasswordConfirm("");
-    setNewRole("user");
-    setNewStatus("active");
-    setFormError("");
+    addUserForm.setFieldsValue({
+      password: "",
+      passwordConfirm: "",
+      role: "user",
+      status: "active",
+      username: "",
+    });
   };
 
   const openAddUserModal = () => {
     resetForm();
-    addUserModal.open();
+    setIsAddUserOpen(true);
   };
 
   const closeAddUserModal = () => {
     resetForm();
-    addUserModal.close();
+    setIsAddUserOpen(false);
   };
 
-  const resetPasswordForm = () => {
-    setPasswordUsername("");
-    setPasswordValue("");
-    setPasswordConfirmValue("");
-    setPasswordError("");
+  const resetPasswordForm = (username?: string) => {
+    passwordForm.setFieldsValue({
+      username,
+      password: "",
+      passwordConfirm: "",
+    });
   };
 
   const openPasswordModal = (username: string) => {
-    setPasswordUsername(username);
-    setPasswordValue("");
-    setPasswordConfirmValue("");
-    setPasswordError("");
-    passwordModal.open();
+    passwordForm.setFieldsValue({
+      username: username,
+      password: "",
+      passwordConfirm: "",
+    });
+    setIsPasswordOpen(true);
   };
 
   const closePasswordModal = () => {
     resetPasswordForm();
-    passwordModal.close();
+    setIsPasswordOpen(false);
   };
 
-  const handleAddUser = async () => {
-    const parsed = addUserSchema.safeParse({
-      password: newPassword,
-      passwordConfirm: newPasswordConfirm,
-      role: newRole,
-      status: newStatus,
-      username: newUsername,
-    });
-
-    if (!parsed.success) {
-      setFormError(getZodErrorMessage(parsed.error));
-      return false;
-    }
-
-    setFormError("");
-    setSavingUsername(parsed.data.username);
+  const handleAddUser = async (values: AddUserFormValues) => {
+    const username = values.username.trim();
+    const password = values.password.trim();
 
     try {
       const response = await fetch("/api/admin/user", {
         body: JSON.stringify({
-          password: parsed.data.password,
-          role: parsed.data.role,
-          status: parsed.data.status,
-          username: parsed.data.username,
+          password,
+          role: values.role,
+          status: values.status,
+          username,
         }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -322,13 +369,16 @@ export function UserConfigPanel() {
         throw new Error("用户创建响应无效");
       }
 
-      setUsers((current) => [...current.filter((user) => user.username !== created.username), created]);
-      toast.success("用户已添加");
+      setUsers((current) => [
+        ...current.filter((user) => user.username !== created.username),
+        created,
+      ]);
+      msg.success("用户已添加");
       resetForm();
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "用户创建失败";
-      toast.danger(message);
+      msg.error(message);
       return false;
     } finally {
       setSavingUsername(null);
@@ -338,7 +388,11 @@ export function UserConfigPanel() {
   const updateUser = async (username: string, patch: Partial<UserItem>) => {
     const previousUsers = users;
 
-    setUsers((current) => current.map((user) => (user.username === username ? { ...user, ...patch } : user)));
+    setUsers((current) =>
+      current.map((user) =>
+        user.username === username ? { ...user, ...patch } : user,
+      ),
+    );
     setSavingUsername(username);
 
     try {
@@ -349,53 +403,49 @@ export function UserConfigPanel() {
       });
 
       if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, "用户配置保存失败"));
+        throw new Error(
+          await readApiErrorMessage(response, "用户配置保存失败"),
+        );
       }
 
-      setUsers(normalizeUserCollectionResponse(await response.json()).users);
-      toast.success("用户配置已保存");
+      const data = normalizeUserCollectionResponse(await response.json());
+      setUsers(data.users);
+      setLastUpdated(data.updatedAt);
+      msg.success("用户配置已保存");
     } catch (error) {
       setUsers(previousUsers);
-      const message = error instanceof Error ? error.message : "用户配置保存失败";
-      toast.danger(message);
+      const message =
+        error instanceof Error ? error.message : "用户配置保存失败";
+      msg.error(message);
     } finally {
       setSavingUsername(null);
     }
   };
 
-  const updatePassword = async () => {
-    const parsed = passwordSchema.safeParse({
-      password: passwordValue,
-      passwordConfirm: passwordConfirmValue,
-    });
-
-    if (!parsed.success) {
-      setPasswordError(getZodErrorMessage(parsed.error));
-      return false;
-    }
-
-    setPasswordError("");
-    setSavingUsername(passwordUsername);
+  const updatePassword = async (values: PasswordFormValues) => {
+    const password = values.password.trim();
+    const username = values.username.trim();
 
     try {
-      const response = await fetch(getUserApiPath(passwordUsername), {
-        body: JSON.stringify({ password: parsed.data.password }),
+      const response = await fetch(getUserApiPath(username), {
+        body: JSON.stringify({ password }),
         headers: { "Content-Type": "application/json" },
         method: "PUT",
       });
 
       if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, "用户密码修改失败"));
+        throw new Error(
+          await readApiErrorMessage(response, "用户密码修改失败"),
+        );
       }
 
-      setUsers(normalizeUserCollectionResponse(await response.json()).users);
-      toast.success("用户密码已修改");
+      msg.success("用户密码已修改");
       resetPasswordForm();
       return true;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "用户密码修改失败";
-      setPasswordError(message);
-      toast.danger(message);
+      const message =
+        error instanceof Error ? error.message : "用户密码修改失败";
+      msg.error(message);
       return false;
     } finally {
       setSavingUsername(null);
@@ -421,361 +471,425 @@ export function UserConfigPanel() {
         throw new Error(await readApiErrorMessage(response, "用户删除失败"));
       }
 
-      setUsers(normalizeUserCollectionResponse(await response.json()).users);
-      toast.success("用户已删除");
+      const data = normalizeUserCollectionResponse(await response.json());
+      setUsers(data.users);
+      setLastUpdated(data.updatedAt);
+      msg.success("用户已删除");
     } catch (error) {
       setUsers(previousUsers);
       const message = error instanceof Error ? error.message : "用户删除失败";
-      toast.danger(message);
+      msg.error(message);
     } finally {
       setSavingUsername(null);
     }
   };
 
+  const columns: ColumnsType<UserItem> = [
+    {
+      dataIndex: "username",
+      title: "用户名",
+    },
+    {
+      dataIndex: "role",
+      title: "角色",
+      render: (role: UserRole) => (
+        <Tag color={role === "owner" ? "processing" : "default"}>
+          {roleLabelMap[role]}
+        </Tag>
+      ),
+    },
+    {
+      dataIndex: "status",
+      title: "状态",
+      render: (status: UserStatus) => (
+        <Tag color={status === "active" ? "success" : "error"}>
+          {statusLabelMap[status]}
+        </Tag>
+      ),
+    },
+    {
+      align: "right",
+      key: "actions",
+      title: "操作",
+      render: (_, user) => (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            disabled={savingUsername === user.username}
+            size="small"
+            onClick={() => openPasswordModal(user.username)}
+          >
+            修改密码
+          </Button>
+          <Button
+            disabled={savingUsername === user.username}
+            size="small"
+            type="default"
+            onClick={() =>
+              void updateUser(user.username, {
+                role: user.role === "owner" ? "user" : "owner",
+              })
+            }
+          >
+            {user.role === "owner" ? "设为普通" : "设为管理"}
+          </Button>
+          <Button
+            disabled={savingUsername === user.username}
+            size="small"
+            danger={user.status === "active"}
+            onClick={() =>
+              void updateUser(user.username, {
+                status: user.status === "active" ? "banned" : "active",
+              })
+            }
+          >
+            {user.status === "active" ? "封禁" : "解封"}
+          </Button>
+          <Button
+            danger
+            disabled={savingUsername === user.username}
+            size="small"
+            onClick={() => void deleteUser(user.username)}
+          >
+            删除
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <>
-      <Card>
-        <Card.Header className="p-6 pb-0 md:p-8 md:pb-0">
-          <div className="flex items-center gap-3">
-            <i aria-hidden="true" className="bi bi-people text-2xl text-accent" />
-            <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">用户配置</h2>
-          </div>
-        </Card.Header>
-
-        <Card.Content className="space-y-6 pb-0 md:p-8">
-          <Card variant="transparent" className="p-1">
-            <Card.Header className="p-0">
-              <div className="flex items-center gap-3">
-                <i aria-hidden="true" className="bi bi-bar-chart text-xl text-accent" />
-                <h3 className="text-lg font-semibold tracking-tight text-foreground">用户统计</h3>
-              </div>
-            </Card.Header>
-            <Card.Content>
-              <Alert status="accent">
-                <Alert.Indicator />
-                <Alert.Content className="gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="relative">
+        <Card loading={isLoading}>
+          <div className="flex flex-col">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <TeamOutlined className="text-2xl text-accent" />
                   <div>
-                    <Alert.Title className="text-2xl font-semibold tracking-tight">{users.length}</Alert.Title>
-                    <Alert.Description>{isLoading ? "正在同步用户配置" : "用户总数"}</Alert.Description>
+                    <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+                      用户配置
+                    </h2>
                   </div>
-                  <div className="grid grid-cols-3 gap-3 text-sm sm:min-w-80">
-                    <div>
-                      <p className="font-semibold text-foreground">{activeUserCount}</p>
-                      <p className="text-default-500">正常</p>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-foreground">{bannedUserCount}</p>
-                      <p className="text-default-500">封禁</p>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-foreground">{ownerCount}</p>
-                      <p className="text-default-500">站长</p>
-                    </div>
-                  </div>
-                </Alert.Content>
-              </Alert>
-            </Card.Content>
-          </Card>
-
-          <Card variant="transparent" className="p-1">
-            <Card.Header className="flex flex-col gap-4 pb-0 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center gap-3">
-                <i aria-hidden="true" className="bi bi-list-ul text-xl text-accent" />
-                <h3 className="text-lg font-semibold tracking-tight text-foreground">用户列表</h3>
+                </div>
+                <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
+                  管理用户账号、角色、状态和密码，列表操作会立即写入用户配置接口。
+                </p>
               </div>
 
-              <Button variant="primary" onPress={openAddUserModal}>
-                <i aria-hidden="true" className="bi bi-plus-lg" />
+              <Tag color={isLoading ? "processing" : "success"}>
+                {isLoading ? "加载中" : `用户 ${users.length} 位`}
+              </Tag>
+            </div>
+          </div>
+
+          <div
+            className="mb-6 overflow-hidden rounded-lg border border-(--admin-stat-border) bg-(--surface)"
+            aria-live="polite"
+            style={
+              {
+                "--admin-stat-active": "var(--accent)",
+                "--admin-stat-border": token.colorBorderSecondary,
+                "--admin-stat-danger": token.colorError,
+                "--admin-stat-split": token.colorSplit,
+              } as CSSProperties
+            }
+          >
+            <div className="flex flex-col gap-4 border-b border-(--admin-stat-split) px-4 py-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                  <BarChartOutlined className="text-xl" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    用户统计
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-default-500">
+                    当前账号、角色和访问状态概览。
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-default-500 md:text-sm">
+                最后更新时间 {formatLastUpdated(lastUpdated)}
+              </p>
+            </div>
+
+            <div className="grid gap-0 lg:grid-cols-[minmax(15rem,0.95fr)_minmax(0,2fr)]">
+              <div className="border-b border-(--admin-stat-split) p-4 lg:border-b-0 lg:border-r">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-medium uppercase text-default-500">
+                      Total users
+                    </p>
+                    <p className="mt-2 text-4xl font-semibold text-foreground">
+                      {userTotal}
+                    </p>
+                    <p className="mt-2 text-sm text-default-500">用户总数</p>
+                  </div>
+                  <span
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-accent"
+                    style={{
+                      background:
+                        "color-mix(in srgb, var(--accent) 12%, transparent)",
+                    }}
+                  >
+                    <UserOutlined className="text-lg" />
+                  </span>
+                </div>
+
+                <div
+                  className="mt-5 flex h-2 overflow-hidden rounded-full bg-(--surface-secondary)"
+                  aria-label={`正常用户 ${activeUserPercent}%，封禁用户 ${bannedUserPercent}%`}
+                >
+                  <div
+                    style={{
+                      background: "var(--admin-stat-active)",
+                      width: `${activeUserPercent}%`,
+                    }}
+                  />
+                  <div
+                    style={{
+                      background: "var(--admin-stat-danger)",
+                      width: `${bannedUserPercent}%`,
+                    }}
+                  />
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-default-500">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-(--admin-stat-active)" />
+                    正常 {activeUserPercent}%
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-(--admin-stat-danger)" />
+                    封禁 {bannedUserPercent}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid divide-y divide-(--admin-stat-split) text-sm md:grid-cols-3 md:divide-x md:divide-y-0">
+                {statItems.map((item) => (
+                  <div key={item.label} className="p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <span
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                        style={{
+                          background: `color-mix(in srgb, ${item.iconColor} 12%, transparent)`,
+                          color: item.iconColor,
+                        }}
+                      >
+                        {item.icon}
+                      </span>
+                      <span className="text-xs font-medium text-default-500">
+                        {item.width}%
+                      </span>
+                    </div>
+                    <div className="mt-4 flex items-end justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          {item.label}
+                        </p>
+                        <p className="mt-1 text-xs text-default-500">
+                          {item.helper}
+                        </p>
+                      </div>
+                      <span className="text-2xl font-semibold text-foreground">
+                        {item.value}
+                      </span>
+                    </div>
+                    <div
+                      className="mt-4 h-1.5 overflow-hidden rounded-full bg-(--surface-secondary)"
+                      aria-label={`${item.label}占比 ${item.width}%`}
+                    >
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          background: item.tone,
+                          width: `${item.width}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex flex-col gap-4 pb-0 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-3">
+                <BarsOutlined className="text-xl text-accent" />
+                <p className="text-sm font-medium text-foreground mb-0!">
+                  用户列表
+                </p>
+              </div>
+
+              <Button type="primary" onClick={openAddUserModal}>
+                <PlusOutlined />
                 添加用户
               </Button>
-            </Card.Header>
+            </div>
 
-            <Card.Content>
-              <Table>
-                <Table.ScrollContainer className="rounded-xl">
-                  <Table.Content aria-label="用户列表" className="min-w-full text-sm">
-                    <Table.Header>
-                      <Table.Column isRowHeader>用户名</Table.Column>
-                      <Table.Column>角色</Table.Column>
-                      <Table.Column>状态</Table.Column>
-                      <Table.Column className="text-end">操作</Table.Column>
-                    </Table.Header>
-                    <Table.Body>
-                      {users.map((user) => (
-                        <Table.Row key={user.username} id={user.username}>
-                          <Table.Cell className="text-foreground">{user.username}</Table.Cell>
-                          <Table.Cell>
-                            <Chip color={roleChipColorMap[user.role]} size="sm" variant="soft">
-                              {roleLabelMap[user.role]}
-                            </Chip>
-                          </Table.Cell>
-                          <Table.Cell>
-                            <Chip color={statusChipColorMap[user.status]} size="sm" variant="soft">
-                              {statusLabelMap[user.status]}
-                            </Chip>
-                          </Table.Cell>
-                          <Table.Cell className="text-end">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                className={tableActionButtonClassName}
-                                isDisabled={savingUsername === user.username}
-                                size="sm"
-                                variant="secondary"
-                                onPress={() => openPasswordModal(user.username)}
-                              >
-                                修改密码
-                              </Button>
-                              <Button
-                                className={tableActionButtonClassName}
-                                isDisabled={savingUsername === user.username}
-                                size="sm"
-                                variant={user.role === "owner" ? "secondary" : "danger-soft"}
-                                onPress={() =>
-                                  void updateUser(user.username, { role: user.role === "owner" ? "user" : "owner" })
-                                }
-                              >
-                                {user.role === "owner" ? "设为普通" : "设为管理"}
-                              </Button>
-                              <Button
-                                className={tableActionButtonClassName}
-                                isDisabled={savingUsername === user.username}
-                                size="sm"
-                                variant={user.status === "active" ? "danger-soft" : "secondary"}
-                                onPress={() =>
-                                  void updateUser(user.username, {
-                                    status: user.status === "active" ? "banned" : "active",
-                                  })
-                                }
-                              >
-                                {user.status === "active" ? "封禁" : "解封"}
-                              </Button>
-                              <Button
-                                className={tableActionButtonClassName}
-                                isDisabled={savingUsername === user.username}
-                                size="sm"
-                                variant="danger"
-                                onPress={() => void deleteUser(user.username)}
-                              >
-                                删除
-                              </Button>
-                            </div>
-                          </Table.Cell>
-                        </Table.Row>
-                      ))}
-                    </Table.Body>
-                  </Table.Content>
-                </Table.ScrollContainer>
-              </Table>
-            </Card.Content>
-          </Card>
-        </Card.Content>
-      </Card>
-      <Modal state={addUserModal}>
-        <Modal.Backdrop isDismissable={false}>
-          <Modal.Container placement="center" size="lg">
-            <Modal.Dialog>
-              <Modal.Header>
-                <Modal.Heading>添加用户</Modal.Heading>
-              </Modal.Header>
-              <Modal.Body className="p-6">
-                <Form
-                  id="add-user-form"
-                  className="space-y-5"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void handleAddUser().then((saved) => {
-                      if (saved) {
-                        addUserModal.close();
-                      }
-                    });
-                  }}
-                >
-                  <div className="space-y-4">
-                    <TextField fullWidth name="username">
-                      <Label>用户名</Label>
-                      <Input
-                        autoComplete="username"
-                        placeholder="请输入用户名"
-                        variant="secondary"
-                        value={newUsername}
-                        onChange={(event) => {
-                          setNewUsername(event.target.value);
-                          setFormError("");
-                        }}
-                      />
-                    </TextField>
+            <div>
+              <Table<UserItem>
+                columns={columns}
+                dataSource={users}
+                pagination={false}
+                rowKey="username"
+                bordered
+              />
+            </div>
+          </div>
+        </Card>
+      </div>
+      <Modal
+        title="添加用户"
+        open={isAddUserOpen}
+        onCancel={closeAddUserModal}
+        onOk={addUserForm.submit}
+      >
+        <Divider />
+        <Form<AddUserFormValues>
+          form={addUserForm}
+          layout="vertical"
+          onFinish={(values) => {
+            void handleAddUser(values).then((saved) => {
+              if (saved) {
+                closeAddUserModal();
+              }
+            });
+          }}
+        >
+          <Form.Item
+            label="用户名"
+            name="username"
+            rules={[
+              {
+                validator: async (_, value: string) => {
+                  if (!usernamePattern.test(value)) {
+                    throw new Error(usernamePatternMessage);
+                  }
+                },
+              },
+            ]}
+          >
+            <Input placeholder="请输入用户名" />
+          </Form.Item>
+          <Form.Item
+            label="初始密码"
+            name="password"
+            rules={[
+              {
+                validator: async (_, value: string) => {
+                  if (!userPasswordPattern.test(value)) {
+                    throw new Error(userPasswordPatternMessage);
+                  }
+                },
+              },
+            ]}
+          >
+            <Input.Password placeholder="请输入初始密码" />
+          </Form.Item>
+          <Form.Item
+            label="确认密码"
+            name="passwordConfirm"
+            rules={[
+              {
+                validator: async (_, value: string) => {
+                  const passwordConfirm = value;
+                  const password = addUserForm.getFieldValue("password");
 
-                    <TextField fullWidth name="password">
-                      <Label>初始密码</Label>
-                      <Input
-                        autoComplete="new-password"
-                        placeholder="请输入初始密码"
-                        type="password"
-                        variant="secondary"
-                        value={newPassword}
-                        onChange={(event) => {
-                          setNewPassword(event.target.value);
-                          setFormError("");
-                        }}
-                      />
-                    </TextField>
+                  if (!passwordConfirm) {
+                    throw new Error("请再次输入初始密码。");
+                  }
 
-                    <TextField fullWidth name="passwordConfirm">
-                      <Label>确认密码</Label>
-                      <Input
-                        autoComplete="new-password"
-                        placeholder="请再次输入初始密码"
-                        type="password"
-                        variant="secondary"
-                        value={newPasswordConfirm}
-                        onChange={(event) => {
-                          setNewPasswordConfirm(event.target.value);
-                          setFormError("");
-                        }}
-                      />
-                    </TextField>
-
-                    <Select
-                      fullWidth
-                      variant="secondary"
-                      selectedKey={newRole}
-                      onSelectionChange={(key) => {
-                        if (key != null) {
-                          setNewRole(String(key) as UserRole);
-                        }
-                      }}
-                    >
-                      <Label>角色</Label>
-                      <Select.Trigger>
-                        <Select.Value />
-                        <Select.Indicator />
-                      </Select.Trigger>
-                      <Select.Popover>
-                        <ListBox className="bg-[var(--surface)]">
-                          <ListBox.Item id="owner" key="owner" textValue="站长">
-                            站长
-                          </ListBox.Item>
-                          <ListBox.Item id="user" key="user" textValue="普通用户">
-                            普通用户
-                          </ListBox.Item>
-                        </ListBox>
-                      </Select.Popover>
-                    </Select>
-
-                    <Select
-                      fullWidth
-                      variant="secondary"
-                      selectedKey={newStatus}
-                      onSelectionChange={(key) => {
-                        if (key != null) {
-                          setNewStatus(String(key) as UserStatus);
-                        }
-                      }}
-                    >
-                      <Label>状态</Label>
-                      <Select.Trigger>
-                        <Select.Value />
-                        <Select.Indicator />
-                      </Select.Trigger>
-                      <Select.Popover>
-                        <ListBox className="bg-[var(--surface)]">
-                          <ListBox.Item id="active" key="active" textValue="正常">
-                            正常
-                          </ListBox.Item>
-                          <ListBox.Item id="banned" key="banned" textValue="封禁">
-                            封禁
-                          </ListBox.Item>
-                        </ListBox>
-                      </Select.Popover>
-                    </Select>
-
-                    {formError ? <ErrorMessage>{formError}</ErrorMessage> : null}
-                  </div>
-                </Form>
-              </Modal.Body>
-              <Modal.Footer className="flex items-center justify-end gap-2">
-                <Button variant="outline" isDisabled={savingUsername !== null} onPress={closeAddUserModal}>
-                  取消
-                </Button>
-                <Button variant="primary" type="submit" form="add-user-form" isDisabled={savingUsername !== null}>
-                  添加
-                </Button>
-              </Modal.Footer>
-            </Modal.Dialog>
-          </Modal.Container>
-        </Modal.Backdrop>
+                  if (passwordConfirm !== password) {
+                    throw new Error("两次输入的密码不一致。");
+                  }
+                },
+              },
+            ]}
+          >
+            <Input.Password placeholder="请再次输入初始密码" />
+          </Form.Item>
+          <Form.Item label="角色" name="role">
+            <Select
+              style={{ width: "100%" }}
+              options={[
+                { label: "站长", value: "owner" },
+                { label: "普通用户", value: "user" },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item label="状态" name="status">
+            <Select
+              style={{ width: "100%" }}
+              options={[
+                { label: "正常", value: "active" },
+                { label: "封禁", value: "banned" },
+              ]}
+            />
+          </Form.Item>
+        </Form>
       </Modal>
-      <Modal state={passwordModal}>
-        <Modal.Backdrop isDismissable={false}>
-          <Modal.Container placement="center" size="lg">
-            <Modal.Dialog>
-              <Modal.Header>
-                <Modal.Heading>修改密码</Modal.Heading>
-              </Modal.Header>
-              <Modal.Body className="p-6">
-                <Form
-                  id="change-password-form"
-                  className="space-y-5"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void updatePassword().then((saved) => {
-                      if (saved) {
-                        passwordModal.close();
-                      }
-                    });
-                  }}
-                >
-                  <div className="space-y-4">
-                    <TextField fullWidth name="passwordUsername">
-                      <Label>用户名</Label>
-                      <Input readOnly variant="secondary" value={passwordUsername} />
-                    </TextField>
+      <Modal
+        title="修改密码"
+        open={isPasswordOpen}
+        onCancel={closePasswordModal}
+        onOk={passwordForm.submit}
+      >
+        <Divider />
+        <Form<PasswordFormValues>
+          form={passwordForm}
+          layout="vertical"
+          onFinish={(values) => {
+            void updatePassword(values).then((saved) => {
+              if (saved) {
+                closePasswordModal();
+              }
+            });
+          }}
+        >
+          <Form.Item label="用户名" name="username">
+            <Input disabled />
+          </Form.Item>
+          <Form.Item
+            label="新密码"
+            name="password"
+            rules={[
+              {
+                validator: async (_, value: string) => {
+                  if (!userPasswordPattern.test(value)) {
+                    throw new Error(userPasswordPatternMessage);
+                  }
+                },
+              },
+            ]}
+          >
+            <Input.Password placeholder="请输入新密码" />
+          </Form.Item>
+          <Form.Item
+            label="确认新密码"
+            name="passwordConfirm"
+            rules={[
+              {
+                validator: async (_, value: string) => {
+                  const password = passwordForm.getFieldValue("password");
 
-                    <TextField fullWidth name="password">
-                      <Label>新密码</Label>
-                      <Input
-                        autoComplete="new-password"
-                        placeholder="请输入新密码"
-                        type="password"
-                        variant="secondary"
-                        value={passwordValue}
-                        onChange={(event) => {
-                          setPasswordValue(event.target.value);
-                          setPasswordError("");
-                        }}
-                      />
-                    </TextField>
+                  if (!value) {
+                    throw new Error("请再次输入新密码。");
+                  }
 
-                    <TextField fullWidth name="passwordConfirm">
-                      <Label>确认新密码</Label>
-                      <Input
-                        autoComplete="new-password"
-                        placeholder="请再次输入新密码"
-                        type="password"
-                        variant="secondary"
-                        value={passwordConfirmValue}
-                        onChange={(event) => {
-                          setPasswordConfirmValue(event.target.value);
-                          setPasswordError("");
-                        }}
-                      />
-                    </TextField>
-
-                    {passwordError ? <ErrorMessage>{passwordError}</ErrorMessage> : null}
-                  </div>
-                </Form>
-              </Modal.Body>
-              <Modal.Footer className="flex items-center justify-end gap-2">
-                <Button variant="outline" isDisabled={savingUsername !== null} onPress={closePasswordModal}>
-                  取消
-                </Button>
-                <Button variant="primary" type="submit" form="change-password-form" isDisabled={savingUsername !== null}>
-                  保存
-                </Button>
-              </Modal.Footer>
-            </Modal.Dialog>
-          </Modal.Container>
-        </Modal.Backdrop>
+                  if (value !== password) {
+                    throw new Error("两次输入的密码不一致。");
+                  }
+                },
+              },
+            ]}
+          >
+            <Input.Password placeholder="请再次输入新密码" />
+          </Form.Item>
+        </Form>
       </Modal>
     </>
   );

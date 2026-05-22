@@ -69,7 +69,7 @@ export async function getPerformanceMetrics() {
   const metrics: PerformanceMetric[] = [
     {
       key: "process-cpu",
-      icon: "bi-cpu",
+      icon: "cpu",
       title: "进程 CPU",
       value: formatPercent(cpuPercent),
       detail: `${cpuCount} 核 · ${getCpuModel()}`,
@@ -77,7 +77,7 @@ export async function getPerformanceMetrics() {
     },
     {
       key: "process-memory",
-      icon: "bi-memory",
+      icon: "memory",
       title: "进程内存",
       value: formatBytes(memory.rss),
       detail: `RSS: ${formatBytes(memory.rss)}`,
@@ -86,7 +86,7 @@ export async function getPerformanceMetrics() {
     },
     {
       key: "system-memory",
-      icon: "bi-pc-display-horizontal",
+      icon: "pc-display-horizontal",
       title: "系统内存",
       value: formatBytes(usedMemory),
       detail: `总共 ${formatBytes(totalMemory)} · 可用 ${formatBytes(freeMemory)}`,
@@ -95,7 +95,7 @@ export async function getPerformanceMetrics() {
     },
     {
       key: "page-traffic",
-      icon: "bi-arrow-left-right",
+      icon: "arrow-left-right",
       title: "页面访问/分钟",
       value: `${trafficSnapshot.page.count.toFixed(0)} 次`,
       detail: `平均停留 ${formatDurationMs(trafficSnapshot.page.averageDurationMs)}`,
@@ -104,7 +104,7 @@ export async function getPerformanceMetrics() {
     },
     {
       key: "api-traffic",
-      icon: "bi-activity",
+      icon: "activity",
       title: "API 流量/分钟",
       value: `${trafficSnapshot.api.count.toFixed(0)} 次`,
       detail: `成功 ${trafficSnapshot.api.successCount.toFixed(0)} · 失败 ${trafficSnapshot.api.failCount.toFixed(0)}`,
@@ -113,7 +113,7 @@ export async function getPerformanceMetrics() {
     },
     {
       key: "third-party-traffic",
-      icon: "bi-cloud-arrow-down",
+      icon: "cloud-arrow-down",
       title: "第三方请求/分钟",
       value: `${trafficSnapshot.thirdParty.count.toFixed(0)} 次`,
       detail: `成功 ${trafficSnapshot.thirdParty.successCount.toFixed(0)} · 失败 ${trafficSnapshot.thirdParty.failCount.toFixed(0)}`,

@@ -1,98 +1,17 @@
 // @vitest-environment happy-dom
 
 import { act, StrictMode } from "react";
-import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CloudSearchPanel } from "./cloud-search-panel";
+import { createAntdMock } from "@/test/antd-mock";
+import { CloudSearchPanel, resetCloudSearchPanelState } from "./cloud-search-panel";
 
 const toastState = vi.hoisted(() => ({
-  danger: vi.fn(),
+  error: vi.fn(),
   success: vi.fn(),
 }));
 
-vi.mock("@heroui/react", () => ({
-  Alert: Object.assign(({ children }: { children?: ReactNode }) => <div>{children}</div>, {
-    Content: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Description: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
-    Indicator: () => <span />,
-    Title: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
-  }),
-  Button: ({
-    children,
-    onPress,
-    type,
-  }: {
-    children?: ReactNode;
-    onPress?: () => void;
-    type?: "button" | "submit" | "reset";
-  }) => (
-    <button onClick={onPress} type={type ?? "button"}>
-      {children}
-    </button>
-  ),
-  Card: Object.assign(({ children }: { children?: ReactNode }) => <section>{children}</section>, {
-    Content: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Header: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  }),
-  Checkbox: ({
-    children,
-    value,
-  }: {
-    children?: ReactNode | ((state: { isFocusVisible: boolean; isSelected: boolean }) => ReactNode);
-    value?: string;
-  }) => (
-    <label>
-      <input type="checkbox" value={value} />
-      {typeof children === "function" ? children({ isFocusVisible: false, isSelected: false }) : children}
-    </label>
-  ),
-  CheckboxGroup: ({
-    "aria-label": ariaLabel,
-    children,
-  }: {
-    "aria-label"?: string;
-    children?: ReactNode;
-  }) => <div aria-label={ariaLabel}>{children}</div>,
-  Chip: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  Description: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
-  Form: ({
-    children,
-    onSubmit,
-  }: {
-    children?: ReactNode;
-    onSubmit?: React.FormEventHandler<HTMLFormElement>;
-  }) => <form onSubmit={onSubmit}>{children}</form>,
-  Input: ({ onChange, value }: { onChange?: React.ChangeEventHandler<HTMLInputElement>; value?: string }) => (
-    <input onChange={onChange} value={value} />
-  ),
-  Label: ({ children }: { children?: ReactNode }) => <label>{children}</label>,
-  Switch: Object.assign(
-    ({
-      "aria-label": ariaLabel,
-      isSelected,
-      onChange,
-    }: {
-      "aria-label"?: string;
-      children?: ReactNode;
-      isSelected?: boolean;
-      onChange?: (selected: boolean) => void;
-    }) => (
-      <input
-        aria-label={ariaLabel}
-        checked={Boolean(isSelected)}
-        onChange={(event) => onChange?.(event.currentTarget.checked)}
-        type="checkbox"
-      />
-    ),
-    {
-      Control: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-      Thumb: () => <span />,
-    },
-  ),
-  TextField: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  toast: toastState,
-}));
+vi.mock("antd", () => createAntdMock({ message: toastState }));
 
 function renderCloudSearchPanel() {
   const host = document.createElement("div");
@@ -112,7 +31,8 @@ function renderCloudSearchPanel() {
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn());
-  toastState.danger.mockReset();
+  resetCloudSearchPanelState();
+  toastState.error.mockReset();
   toastState.success.mockReset();
 });
 
@@ -145,6 +65,8 @@ describe("CloudSearchPanel", () => {
     const { root } = renderCloudSearchPanel();
 
     await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await Promise.resolve();
       await Promise.resolve();
     });
 
@@ -199,16 +121,19 @@ describe("CloudSearchPanel", () => {
     const { host, root } = renderCloudSearchPanel();
 
     await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await Promise.resolve();
       await Promise.resolve();
     });
 
-    const saveButton = host.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+    const configForm = host.querySelector("#cloud-search-config-form") as HTMLFormElement | null;
     const testButton = Array.from(host.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("测试链接"),
     ) as HTMLButtonElement | undefined;
 
     await act(async () => {
-      saveButton?.click();
+      configForm?.dispatchEvent(new SubmitEvent("submit", { bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
       await Promise.resolve();
     });
 
@@ -235,6 +160,78 @@ describe("CloudSearchPanel", () => {
       method: "POST",
     });
     expect(toastState.success).toHaveBeenLastCalledWith("网盘连接测试成功");
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("renders supported drive types as selectable option cards", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce({
+        json: async () => ({
+          enabled: true,
+          panSouUrl: "https://so.252035.xyz",
+          requestTimeoutSeconds: 30,
+          supportedDriveTypes: ["baidu"],
+          updatedAt: null,
+        }),
+        ok: true,
+      } as Response)
+      .mockResolvedValueOnce({
+        json: async () => [
+          { key: "baidu", label: "百度网盘" },
+          { key: "quark", label: "夸克网盘" },
+        ],
+        ok: true,
+      } as Response);
+
+    const { host, root } = renderCloudSearchPanel();
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const options = host.querySelectorAll("[data-drive-type-option]");
+    const selectedOption = host.querySelector('[data-drive-type-option="baidu"]');
+    const unselectedOption = host.querySelector('[data-drive-type-option="quark"]');
+
+    expect(options).toHaveLength(2);
+    expect(selectedOption?.getAttribute("data-selected")).toBe("true");
+    expect(unselectedOption?.getAttribute("data-selected")).toBe("false");
+    expect(selectedOption?.textContent).toContain("百度网盘");
+    expect(unselectedOption?.textContent).toContain("夸克网盘");
+
+    await act(async () => {
+      (selectedOption as HTMLButtonElement | null)?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await Promise.resolve();
+    });
+
+    expect(
+      host
+        .querySelector('[data-drive-type-option="baidu"]')
+        ?.getAttribute("data-selected"),
+    ).toBe("false");
+
+    const currentUnselectedOption = host.querySelector(
+      '[data-drive-type-option="quark"]',
+    );
+
+    await act(async () => {
+      (currentUnselectedOption as HTMLButtonElement | null)?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await Promise.resolve();
+    });
+
+    expect(
+      host
+        .querySelector('[data-drive-type-option="quark"]')
+        ?.getAttribute("data-selected"),
+    ).toBe("true");
 
     act(() => {
       root.unmount();
@@ -284,12 +281,13 @@ describe("CloudSearchPanel", () => {
 
     await act(async () => {
       await Promise.resolve();
+      await Promise.resolve();
     });
 
     const panSouUrlInput = Array.from(host.querySelectorAll("input")).find(
       (input) => input.value === "https://so.252035.xyz",
     ) as HTMLInputElement | undefined;
-    const saveButton = host.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+    const configForm = host.querySelector("#cloud-search-config-form") as HTMLFormElement | null;
     const testButton = Array.from(host.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("测试链接"),
     ) as HTMLButtonElement | undefined;
@@ -299,7 +297,8 @@ describe("CloudSearchPanel", () => {
         panSouUrlInput.value = "   ";
         panSouUrlInput.dispatchEvent(new Event("input", { bubbles: true }));
       }
-      saveButton?.click();
+      configForm?.dispatchEvent(new SubmitEvent("submit", { bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
       await Promise.resolve();
     });
 
@@ -351,11 +350,27 @@ describe("CloudSearchPanel", () => {
 
     const { root } = renderCloudSearchPanel();
 
-    await act(async () => {
-      await Promise.resolve();
-    });
+    for (let index = 0; index < 5 && toastState.error.mock.calls.length === 0; index += 1) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    }
 
-    expect(toastState.danger).toHaveBeenCalledWith("支持的网盘类型读取失败");
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/admin/cloud-search/types");
+    expect(toastState.error).toHaveBeenCalledWith("支持的网盘类型读取失败");
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("keeps the config form mounted while cloud search settings load", () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockReturnValue(new Promise<Response>(() => undefined));
+
+    const { root } = renderCloudSearchPanel();
+
+    expect(document.querySelector("#cloud-search-config-form")).not.toBeNull();
 
     act(() => {
       root.unmount();

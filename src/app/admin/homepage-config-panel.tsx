@@ -1,8 +1,8 @@
 "use client";
 
+import { LayoutOutlined } from "@ant-design/icons";
 import { useEffect, useState } from "react";
-import { z } from "zod";
-import { Card, Chip, ListBox, Switch, toast } from "@heroui/react";
+import { Alert, App, Card, Switch, Tag } from "antd";
 
 type HomepageModuleKey =
   | "carousel"
@@ -38,34 +38,80 @@ const homepageModuleKeys = [
   "trending-short-dramas",
 ] as const;
 
-const homepageSwitchSchema = z.object({
-  key: z.enum(homepageModuleKeys),
-  value: z.boolean(),
-});
-
 const homepageModuleItems: HomepageModuleItem[] = [
-  { key: "welcome-announcement", label: "欢迎公告", description: "展示首页欢迎语或站点公告入口。" },
+  {
+    key: "welcome-announcement",
+    label: "欢迎公告",
+    description: "展示首页欢迎语或站点公告入口。",
+  },
   { key: "carousel", label: "焦点轮播", description: "首页顶部轮播推荐内容。" },
-  { key: "continue-watching", label: "继续观看", description: "展示用户最近播放进度。" },
+  {
+    key: "continue-watching",
+    label: "继续观看",
+    description: "展示用户最近播放进度。",
+  },
   { key: "coming-soon", label: "即将上映", description: "展示近期上线内容。" },
-  { key: "trending-movies", label: "热门电影", description: "展示当前热门电影列表。" },
-  { key: "trending-series", label: "热门剧集", description: "展示当前热门剧集列表。" },
+  {
+    key: "trending-movies",
+    label: "热门电影",
+    description: "展示当前热门电影列表。",
+  },
+  {
+    key: "trending-series",
+    label: "热门剧集",
+    description: "展示当前热门剧集列表。",
+  },
   { key: "new-anime", label: "新番放送", description: "展示新番更新与热播。" },
-  { key: "trending-variety", label: "热门综艺", description: "展示热门综艺节目。" },
-  { key: "trending-short-dramas", label: "热门短剧", description: "展示热门短剧推荐。" },
+  {
+    key: "trending-variety",
+    label: "热门综艺",
+    description: "展示热门综艺节目。",
+  },
+  {
+    key: "trending-short-dramas",
+    label: "热门短剧",
+    description: "展示热门短剧推荐。",
+  },
 ];
 
 function buildDefaultStates() {
-  return homepageModuleItems.reduce<Record<HomepageModuleKey, boolean>>((acc, item) => {
-    acc[item.key] = true;
-    return acc;
-  }, {} as Record<HomepageModuleKey, boolean>);
+  return homepageModuleItems.reduce<Record<HomepageModuleKey, boolean>>(
+    (acc, item) => {
+      acc[item.key] = true;
+      return acc;
+    },
+    {} as Record<HomepageModuleKey, boolean>,
+  );
 }
 
-function normalizeHomepageConfigResponse(payload: unknown): HomepageConfigResponse {
-  const raw = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+function formatLastUpdated(value: string | null) {
+  if (!value) {
+    return "未保存";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "未保存";
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium",
+    timeStyle: "medium",
+  }).format(date);
+}
+
+function normalizeHomepageConfigResponse(
+  payload: unknown,
+): HomepageConfigResponse {
+  const raw =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : {};
   const modulesPayload =
-    raw.modules && typeof raw.modules === "object" && !Array.isArray(raw.modules)
+    raw.modules &&
+    typeof raw.modules === "object" &&
+    !Array.isArray(raw.modules)
       ? (raw.modules as Record<string, unknown>)
       : {};
   const modules = buildDefaultStates();
@@ -79,11 +125,18 @@ function normalizeHomepageConfigResponse(payload: unknown): HomepageConfigRespon
 
   return {
     modules,
-    updatedAt: typeof raw.updatedAt === "string" || raw.updatedAt === null ? raw.updatedAt : null,
+    updatedAt:
+      typeof raw.updatedAt === "string" || raw.updatedAt === null
+        ? raw.updatedAt
+        : null,
   };
 }
 
 let homepageConfigLoadRequest: Promise<HomepageConfigResponse> | null = null;
+
+export function resetHomepageConfigPanelState() {
+  homepageConfigLoadRequest = null;
+}
 
 async function fetchHomepageConfig() {
   const response = await fetch("/api/admin/homepage");
@@ -117,8 +170,23 @@ async function readApiErrorMessage(response: Response, fallback: string) {
   return fallback;
 }
 
-function getZodErrorMessage(error: z.ZodError) {
-  return error.issues[0]?.message ?? "表单校验失败。";
+function isHomepageModuleKey(value: unknown): value is HomepageModuleKey {
+  return (
+    typeof value === "string" &&
+    homepageModuleKeys.includes(value as HomepageModuleKey)
+  );
+}
+
+function parseHomepageSwitchPayload(key: HomepageModuleKey, value: boolean) {
+  if (!isHomepageModuleKey(key)) {
+    return { message: "表单校验失败。" };
+  }
+
+  if (typeof value !== "boolean") {
+    return { message: "表单校验失败。" };
+  }
+
+  return { data: { key, value } };
 }
 
 function loadHomepageConfigOnce() {
@@ -141,10 +209,17 @@ function loadHomepageConfigOnce() {
 }
 
 export function HomepageConfigPanel() {
-  const [moduleStates, setModuleStates] = useState<Record<HomepageModuleKey, boolean>>(() => buildDefaultStates());
+  const { message: msg } = App.useApp();
+  const [moduleStates, setModuleStates] = useState<
+    Record<HomepageModuleKey, boolean>
+  >(() => buildDefaultStates());
   const [isLoading, setIsLoading] = useState(true);
-  const [savingModuleKey, setSavingModuleKey] = useState<HomepageModuleKey | null>(null);
-  const enabledCount = homepageModuleItems.filter((item) => moduleStates[item.key]).length;
+  const [savingModuleKey, setSavingModuleKey] =
+    useState<HomepageModuleKey | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const enabledCount = homepageModuleItems.filter(
+    (item) => moduleStates[item.key],
+  ).length;
 
   useEffect(() => {
     let cancelled = false;
@@ -157,12 +232,14 @@ export function HomepageConfigPanel() {
 
         if (!cancelled) {
           setModuleStates(data.modules);
-          toast.success("首页配置已加载");
+          setLastUpdated(data.updatedAt);
+          msg.success("首页配置已加载");
         }
       } catch (error) {
         if (!cancelled) {
-          const message = error instanceof Error ? error.message : "首页配置读取失败";
-          toast.danger(message);
+          const message =
+            error instanceof Error ? error.message : "首页配置读取失败";
+          msg.error(message);
         }
       } finally {
         if (!cancelled) {
@@ -176,13 +253,13 @@ export function HomepageConfigPanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [msg]);
 
   const saveSwitch = async (key: HomepageModuleKey, value: boolean) => {
-    const parsedSwitch = homepageSwitchSchema.safeParse({ key, value });
+    const parsedSwitch = parseHomepageSwitchPayload(key, value);
 
-    if (!parsedSwitch.success) {
-      toast.danger(getZodErrorMessage(parsedSwitch.error));
+    if ("message" in parsedSwitch) {
+      msg.error(parsedSwitch.message);
       return;
     }
 
@@ -199,73 +276,81 @@ export function HomepageConfigPanel() {
       });
 
       if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, "首页模块配置保存失败"));
+        throw new Error(
+          await readApiErrorMessage(response, "首页模块配置保存失败"),
+        );
       }
 
       const data = normalizeHomepageConfigResponse(await response.json());
       setModuleStates(data.modules);
-      toast.success("首页模块配置已保存");
+      setLastUpdated(data.updatedAt);
+      msg.success("首页模块配置已保存");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "首页模块配置保存失败";
+      const message =
+        error instanceof Error ? error.message : "首页模块配置保存失败";
       setModuleStates((current) => ({ ...current, [key]: previousValue }));
-      toast.danger(message);
+      msg.error(message);
     } finally {
       setSavingModuleKey(null);
     }
   };
 
   return (
-    <Card>
-      <Card.Header className="flex flex-col gap-3 p-6 pb-0 md:p-8 md:pb-0">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <i aria-hidden="true" className="bi bi-layout-text-window-reverse text-2xl text-accent" />
-              <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">首页模块配置</h2>
+    <div className="relative">
+      <Card loading={isLoading}>
+        <div className="flex flex-col">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <LayoutOutlined className="text-2xl text-accent" />
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+                    首页模块配置
+                  </h2>
+                </div>
+              </div>
+              <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
+                通过首页模块开关控制各分区显示状态，开关调整后会立即写入配置接口。
+              </p>
             </div>
-            <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
-              通过首页模块开关控制各分区显示状态，开关调整后会立即写入配置接口。
-            </p>
-          </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Chip color="accent" variant="soft">
-              已启用 {enabledCount} / {homepageModuleItems.length}
-            </Chip>
+            <div className="flex flex-wrap gap-2">
+              <Tag color="processing">
+                {isLoading
+                  ? "加载中"
+                  : `已启用 ${enabledCount} / ${homepageModuleItems.length}`}
+              </Tag>
+            </div>
           </div>
         </div>
-      </Card.Header>
 
-      <Card.Content className="grid gap-6 p-6 pt-5 md:p-8 md:pt-5">
-        <ListBox aria-label="Homepage modules" className="space-y-3 rounded-3xl p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-medium text-foreground">首页模块</p>
+          <p className="text-sm text-default-500">
+            最后更新时间 {formatLastUpdated(lastUpdated)}
+          </p>
+        </div>
+
+        <div className="grid gap-3">
           {homepageModuleItems.map((item) => (
-            <ListBox.Item
+            <Alert
               key={item.key}
-              id={item.key}
-              textValue={item.label}
-              className="w-full rounded-2xl border px-4 py-3"
-            >
-              <div className="flex w-full items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-foreground">{item.label}</p>
-                  <p className="text-xs text-default-500">{item.description}</p>
-                </div>
+              title={item.label}
+              description={item.description}
+              type={moduleStates[item.key] ? "success" : "info"}
+              action={
                 <Switch
-                  className="ml-auto shrink-0"
-                  isDisabled={isLoading || savingModuleKey === item.key}
-                  isSelected={moduleStates[item.key]}
-                  onChange={(enabled) => void saveSwitch(item.key, enabled)}
+                  checked={moduleStates[item.key]}
+                  disabled={isLoading}
+                  loading={savingModuleKey === item.key}
                   aria-label={`切换${item.label}`}
-                >
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
-                </Switch>
-              </div>
-            </ListBox.Item>
+                  onChange={(enabled) => void saveSwitch(item.key, enabled)}
+                />
+              }
+            />
           ))}
-        </ListBox>
-      </Card.Content>
-    </Card>
+        </div>
+      </Card>
+    </div>
   );
 }

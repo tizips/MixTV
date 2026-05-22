@@ -1,39 +1,9 @@
 // @vitest-environment happy-dom
 
 import { act, StrictMode } from "react";
-import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PerformanceMonitoringPanel } from "./performance-monitoring-panel";
-
-vi.mock("@heroui/react", () => ({
-  Alert: Object.assign(({ children }: { children?: ReactNode }) => <div>{children}</div>, {
-    Content: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Description: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
-    Indicator: () => <span />,
-    Title: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
-  }),
-  Button: ({
-    children,
-    isDisabled,
-    onPress,
-    type,
-  }: {
-    children?: ReactNode;
-    isDisabled?: boolean;
-    onPress?: () => void;
-    type?: "button" | "submit" | "reset";
-  }) => (
-    <button disabled={isDisabled} onClick={onPress} type={type ?? "button"}>
-      {children}
-    </button>
-  ),
-  Card: Object.assign(({ children }: { children?: ReactNode }) => <section>{children}</section>, {
-    Content: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Header: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  }),
-  Chip: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-}));
 
 function renderPerformanceMonitoringPanel() {
   const host = document.createElement("div");
@@ -69,7 +39,7 @@ describe("PerformanceMonitoringPanel", () => {
         metrics: [
           {
             detail: "4 核 · Apple M4",
-            icon: "bi-cpu",
+            icon: "cpu",
             key: "process-cpu",
             title: "进程 CPU",
             tone: "text-accent",
@@ -78,7 +48,7 @@ describe("PerformanceMonitoringPanel", () => {
           {
             detail: "RSS: 124 MB",
             detailAccent: "堆内存: 72 MB / 96 MB",
-            icon: "bi-memory",
+            icon: "memory",
             key: "process-memory",
             title: "进程内存",
             tone: "text-accent",
@@ -115,7 +85,7 @@ describe("PerformanceMonitoringPanel", () => {
           metrics: [
             {
               detail: "请求吞吐统计暂未接入",
-              icon: "bi-arrow-left-right",
+              icon: "arrow-left-right",
               key: "request",
               title: "请求/分钟",
               tone: "text-default-500",

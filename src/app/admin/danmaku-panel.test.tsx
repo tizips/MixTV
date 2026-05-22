@@ -1,89 +1,17 @@
 // @vitest-environment happy-dom
 
 import { act, StrictMode } from "react";
-import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DanmakuPanel } from "./danmaku-panel";
+import { createAntdMock } from "@/test/antd-mock";
+import { DanmakuPanel, resetDanmakuPanelState } from "./danmaku-panel";
 
 const toastState = vi.hoisted(() => ({
-  danger: vi.fn(),
+  error: vi.fn(),
   success: vi.fn(),
 }));
 
-vi.mock("@heroui/react", () => ({
-  Alert: Object.assign(({ children }: { children?: ReactNode }) => <div>{children}</div>, {
-    Content: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Description: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
-    Indicator: () => <span />,
-    Title: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
-  }),
-  Button: ({
-    children,
-    isDisabled,
-    onPress,
-    type,
-  }: {
-    children?: ReactNode;
-    isDisabled?: boolean;
-    onPress?: () => void;
-    type?: "button" | "submit" | "reset";
-  }) => (
-    <button disabled={isDisabled} onClick={onPress} type={type ?? "button"}>
-      {children}
-    </button>
-  ),
-  Card: Object.assign(({ children }: { children?: ReactNode }) => <section>{children}</section>, {
-    Content: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Header: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  }),
-  Chip: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  Description: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
-  Form: ({
-    children,
-    onSubmit,
-  }: {
-    children?: ReactNode;
-    onSubmit?: React.FormEventHandler<HTMLFormElement>;
-  }) => <form onSubmit={onSubmit}>{children}</form>,
-  Input: ({
-    onChange,
-    type,
-    value,
-  }: {
-    onChange?: React.ChangeEventHandler<HTMLInputElement>;
-    type?: string;
-    value?: string;
-  }) => <input onChange={onChange} type={type} value={value} />,
-  Label: ({ children }: { children?: ReactNode }) => <label>{children}</label>,
-  Switch: Object.assign(
-    ({
-      "aria-label": ariaLabel,
-      isDisabled,
-      isSelected,
-      onChange,
-    }: {
-      "aria-label"?: string;
-      isDisabled?: boolean;
-      isSelected?: boolean;
-      onChange?: (selected: boolean) => void;
-    }) => (
-      <input
-        aria-label={ariaLabel}
-        checked={Boolean(isSelected)}
-        disabled={isDisabled}
-        onChange={(event) => onChange?.(event.currentTarget.checked)}
-        type="checkbox"
-      />
-    ),
-    {
-      Control: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-      Thumb: () => <span />,
-    },
-  ),
-  TextField: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  toast: toastState,
-}));
+vi.mock("antd", () => createAntdMock({ message: toastState }));
 
 function renderDanmakuPanel() {
   const host = document.createElement("div");
@@ -103,7 +31,8 @@ function renderDanmakuPanel() {
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn());
-  toastState.danger.mockReset();
+  resetDanmakuPanelState();
+  toastState.error.mockReset();
   toastState.success.mockReset();
 });
 
@@ -129,6 +58,8 @@ describe("DanmakuPanel", () => {
     const { root } = renderDanmakuPanel();
 
     await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await Promise.resolve();
       await Promise.resolve();
     });
 
@@ -176,16 +107,19 @@ describe("DanmakuPanel", () => {
     const { host, root } = renderDanmakuPanel();
 
     await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await Promise.resolve();
       await Promise.resolve();
     });
 
-    const saveButton = host.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+    const configForm = host.querySelector("#danmaku-config-form") as HTMLFormElement | null;
     const testButton = Array.from(host.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("测试链接"),
     ) as HTMLButtonElement | undefined;
 
     await act(async () => {
-      saveButton?.click();
+      configForm?.dispatchEvent(new SubmitEvent("submit", { bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
       await Promise.resolve();
     });
 
@@ -221,6 +155,19 @@ describe("DanmakuPanel", () => {
       apiUrl: "https://danmaku.test",
     });
     expect(toastState.success).toHaveBeenLastCalledWith("弹幕连接测试成功");
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("keeps the config form mounted while danmaku settings load", () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockReturnValue(new Promise<Response>(() => undefined));
+
+    const { root } = renderDanmakuPanel();
+
+    expect(document.querySelector("#danmaku-config-form")).not.toBeNull();
 
     act(() => {
       root.unmount();

@@ -1,8 +1,18 @@
 "use client";
 
+import { FolderOpenOutlined } from "@ant-design/icons";
 import { useEffect, useState } from "react";
-import { z } from "zod";
-import { Button, Card, Chip, Input, Label, Switch, TextArea, toast } from "@heroui/react";
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Form,
+  Input,
+  Space,
+  Switch,
+  Tag,
+} from "antd";
 
 function formatLastUpdated(date: Date | null) {
   if (!date) {
@@ -31,39 +41,38 @@ type ConfigFilesResponse = {
   subscription: SubscriptionResponse;
 };
 
-const subscriptionUrlSchema = z
-  .string()
-  .trim()
-  .min(1, "请输入订阅链接。")
-  .refine((value) => {
-    try {
-      const url = new URL(value);
-      return url.protocol === "http:" || url.protocol === "https:";
-    } catch {
-      return false;
-    }
-  }, "请输入有效的订阅链接。");
+type SubscriptionFormValues = {
+  url?: string;
+};
 
-const configContentSchema = z
-  .string()
-  .refine((value) => value.trim().length > 0, "请输入配置内容。")
-  .refine((value) => {
-    try {
-      JSON.parse(value);
-      return true;
-    } catch {
-      return false;
-    }
-  }, "配置内容必须是有效 JSON。");
+type ConfigContentFormValues = {
+  content?: string;
+};
 
-function getZodErrorMessage(error: z.ZodError) {
-  return error.issues[0]?.message ?? "表单校验失败。";
+function validateConfigContent(value: unknown) {
+  const contentValue = typeof value === "string" ? value : "";
+
+  if (!contentValue.trim()) {
+    return "请输入配置内容。";
+  }
+
+  try {
+    JSON.parse(contentValue);
+    return null;
+  } catch {
+    return "配置内容必须是有效 JSON。";
+  }
 }
 
 function normalizeConfigFilesResponse(payload: unknown): ConfigFilesResponse {
-  const raw = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const raw =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : {};
   const rawContent =
-    raw.content && typeof raw.content === "object" ? (raw.content as Record<string, unknown>) : {};
+    raw.content && typeof raw.content === "object"
+      ? (raw.content as Record<string, unknown>)
+      : {};
   const rawSubscription =
     raw.subscription && typeof raw.subscription === "object"
       ? (raw.subscription as Record<string, unknown>)
@@ -72,12 +81,17 @@ function normalizeConfigFilesResponse(payload: unknown): ConfigFilesResponse {
   return {
     content: {
       content: typeof rawContent.content === "string" ? rawContent.content : "",
-      updatedAt: typeof rawContent.updatedAt === "string" || rawContent.updatedAt === null ? rawContent.updatedAt : null,
+      updatedAt:
+        typeof rawContent.updatedAt === "string" ||
+        rawContent.updatedAt === null
+          ? rawContent.updatedAt
+          : null,
     },
     subscription: {
       autoUpdate: rawSubscription.autoUpdate === true,
       updatedAt:
-        typeof rawSubscription.updatedAt === "string" || rawSubscription.updatedAt === null
+        typeof rawSubscription.updatedAt === "string" ||
+        rawSubscription.updatedAt === null
           ? rawSubscription.updatedAt
           : null,
       url: typeof rawSubscription.url === "string" ? rawSubscription.url : "",
@@ -108,6 +122,10 @@ function getLatestUpdatedAt(...values: Array<string | null>) {
 }
 
 let configFilesLoadRequest: Promise<ConfigFilesResponse> | null = null;
+
+export function resetConfigFilesPanelState() {
+  configFilesLoadRequest = null;
+}
 
 async function fetchConfigFiles() {
   const response = await fetch("/api/admin/files");
@@ -161,8 +179,9 @@ function loadConfigFilesOnce() {
 }
 
 export function ConfigFilesPanel() {
-  const [subscriptionUrl, setSubscriptionUrl] = useState("");
-  const [configText, setConfigText] = useState("");
+  const { message: msg } = App.useApp();
+  const [subscriptionForm] = Form.useForm<SubscriptionFormValues>();
+  const [contentForm] = Form.useForm<ConfigContentFormValues>();
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -180,16 +199,22 @@ export function ConfigFilesPanel() {
         const data = await loadConfigFilesOnce();
 
         if (!cancelled) {
-          setSubscriptionUrl(data.subscription.url ?? "");
+          subscriptionForm.setFieldsValue({ url: data.subscription.url ?? "" });
           setAutoUpdate(data.subscription.autoUpdate);
-          setConfigText(data.content.content);
-          setLastUpdated(getLatestUpdatedAt(data.subscription.updatedAt, data.content.updatedAt));
-          toast.success("配置已加载");
+          contentForm.setFieldsValue({ content: data.content.content });
+          setLastUpdated(
+            getLatestUpdatedAt(
+              data.subscription.updatedAt,
+              data.content.updatedAt,
+            ),
+          );
+          msg.success("配置已加载");
         }
       } catch (error) {
         if (!cancelled) {
-          const message = error instanceof Error ? error.message : "配置读取失败";
-          toast.danger(message);
+          const errorMessage =
+            error instanceof Error ? error.message : "配置读取失败";
+          msg.error(errorMessage);
         }
       } finally {
         if (!cancelled) {
@@ -203,42 +228,45 @@ export function ConfigFilesPanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [contentForm, msg, subscriptionForm]);
 
-  const pullConfig = async () => {
-    const parsedUrl = subscriptionUrlSchema.safeParse(subscriptionUrl);
-
-    if (!parsedUrl.success) {
-      toast.danger(getZodErrorMessage(parsedUrl.error));
-      return;
-    }
+  const pullConfig = async (values: SubscriptionFormValues) => {
+    const subscriptionUrlValue = values.url?.trim() ?? "";
 
     setIsLoading(true);
     setIsSavingSubscription(true);
 
     try {
       const response = await fetch("/api/admin/files/subscription/pull", {
-        body: JSON.stringify({ url: parsedUrl.data }),
+        body: JSON.stringify({ url: subscriptionUrlValue }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
 
       if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, "订阅配置保存失败"));
+        throw new Error(
+          await readApiErrorMessage(response, "订阅配置保存失败"),
+        );
       }
 
       const data = (await response.json()) as SubscriptionResponse;
-      setSubscriptionUrl(data.url ?? "");
+      subscriptionForm.setFieldsValue({ url: data.url ?? "" });
       setAutoUpdate(data.autoUpdate);
       setLastUpdated(parseUpdatedAt(data.updatedAt));
 
       const configFiles = await fetchConfigFiles();
-      setConfigText(configFiles.content.content);
-      setLastUpdated(getLatestUpdatedAt(configFiles.subscription.updatedAt, configFiles.content.updatedAt));
-      toast.success("配置已拉取并保存");
+      contentForm.setFieldsValue({ content: configFiles.content.content });
+      setLastUpdated(
+        getLatestUpdatedAt(
+          configFiles.subscription.updatedAt,
+          configFiles.content.updatedAt,
+        ),
+      );
+      msg.success("配置已拉取并保存");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "配置拉取保存失败";
-      toast.danger(message);
+      const errorMessage =
+        error instanceof Error ? error.message : "配置拉取保存失败";
+      msg.error(errorMessage);
     } finally {
       setIsLoading(false);
       setIsSavingSubscription(false);
@@ -251,57 +279,61 @@ export function ConfigFilesPanel() {
     setIsSavingAutoUpdate(true);
 
     try {
-      const response = await fetch("/api/admin/files/subscription/auto-update", {
-        body: JSON.stringify({ autoUpdate: nextAutoUpdate }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
+      const response = await fetch(
+        "/api/admin/files/subscription/auto-update",
+        {
+          body: JSON.stringify({ autoUpdate: nextAutoUpdate }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        },
+      );
 
       if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, "自动更新配置保存失败"));
+        throw new Error(
+          await readApiErrorMessage(response, "自动更新配置保存失败"),
+        );
       }
 
       const data = (await response.json()) as SubscriptionResponse;
       setAutoUpdate(data.autoUpdate);
       setLastUpdated(parseUpdatedAt(data.updatedAt));
-      toast.success(data.autoUpdate ? "自动更新已开启" : "自动更新已关闭");
+      msg.success(data.autoUpdate ? "自动更新已开启" : "自动更新已关闭");
     } catch (error) {
       setAutoUpdate(previousAutoUpdate);
-      const message = error instanceof Error ? error.message : "自动更新配置保存失败";
-      toast.danger(message);
+      const errorMessage =
+        error instanceof Error ? error.message : "自动更新配置保存失败";
+      msg.error(errorMessage);
     } finally {
       setIsSavingAutoUpdate(false);
     }
   };
 
-  const saveConfig = async () => {
-    const parsedContent = configContentSchema.safeParse(configText);
-
-    if (!parsedContent.success) {
-      toast.danger(getZodErrorMessage(parsedContent.error));
-      return;
-    }
+  const saveConfig = async (values: ConfigContentFormValues) => {
+    const contentValue = values.content ?? "";
 
     setIsSavingContent(true);
 
     try {
       const response = await fetch("/api/admin/files/subscriptions", {
-        body: JSON.stringify({ content: parsedContent.data }),
+        body: JSON.stringify({ content: contentValue }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
 
       if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, "配置内容保存失败"));
+        throw new Error(
+          await readApiErrorMessage(response, "配置内容保存失败"),
+        );
       }
 
       const data = (await response.json()) as ConfigContentResponse;
-      setConfigText(data.content);
+      contentForm.setFieldsValue({ content: data.content });
       setLastUpdated(parseUpdatedAt(data.updatedAt));
-      toast.success("配置内容已保存");
+      msg.success("配置内容已保存");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "配置内容保存失败";
-      toast.danger(message);
+      const errorMessage =
+        error instanceof Error ? error.message : "配置内容保存失败";
+      msg.error(errorMessage);
     } finally {
       setIsSavingContent(false);
     }
@@ -310,14 +342,15 @@ export function ConfigFilesPanel() {
   return (
     <div className="relative">
       <Card>
-        <Card.Header className="flex flex-col gap-4 p-6 pb-0 md:p-8 md:pb-0">
+        <div className="flex flex-col">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <i aria-hidden="true" className="bi bi-folder2-open text-2xl text-accent" />
+                <FolderOpenOutlined className="text-2xl text-accent" />
                 <div>
-                  {/* <p className="text-sm font-medium uppercase tracking-[0.24em] text-default-500">配置文件</p> */}
-                  <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">配置文件</h2>
+                  <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+                    配置文件
+                  </h2>
                 </div>
               </div>
               <p className="max-w-3xl text-sm leading-7 text-default-600 md:text-base">
@@ -325,77 +358,88 @@ export function ConfigFilesPanel() {
               </p>
             </div>
 
-            <Chip color={autoUpdate ? "success" : "warning"}>
-              {isLoading ? "加载中" : autoUpdate ? "自动更新开启" : "自动更新关闭"}
-            </Chip>
+            <Tag color={autoUpdate ? "success" : "warning"}>
+              {isLoading
+                ? "加载中"
+                : autoUpdate
+                  ? "自动更新开启"
+                  : "自动更新关闭"}
+            </Tag>
           </div>
-        </Card.Header>
+        </div>
 
-        <Card.Content className="gap-5 p-6 pt-5 md:p-8 md:pt-5">
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <Label htmlFor="subscription-url">订阅链接</Label>
-              <p className="text-sm text-default-500">最后更新时间 {formatLastUpdated(lastUpdated)}</p>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Input
-                id="subscription-url"
-                className="min-w-0 flex-1"
-                value={subscriptionUrl}
-                variant="secondary"
-                onChange={(event) => setSubscriptionUrl(event.target.value)}
-                placeholder="输入订阅链接"
-              />
-              <Button
-                variant="primary"
-                onPress={pullConfig}
-                isDisabled={!subscriptionUrl.trim() || isLoading || isSavingAutoUpdate}
-              >
-                <i aria-hidden="true" className="bi bi-save" />
-                {isSavingSubscription ? "拉取中" : "拉取配置"}
-              </Button>
-            </div>
-            <p className="text-xs leading-5 text-default-500">
-              输入配置文件的订阅地址，要求 JSON 格式，且使用 Base58 编码。
+        <Alert
+          // styles={{ root: { marginBottom: "10px" } }}
+          // classNames={{ root: "mb-10" }}
+          title="自动更新"
+          description="开启后可自动同步订阅内容。"
+          type="info"
+          action={
+            <Switch
+              loading={isSavingAutoUpdate}
+              checked={autoUpdate}
+              onChange={saveAutoUpdate}
+              aria-label="自动更新"
+            />
+          }
+        />
+
+        <Form form={subscriptionForm} layout="vertical" onFinish={pullConfig}>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-0 pt-10">
+            <p className="text-sm font-medium text-foreground">订阅链接</p>
+            <p className="text-sm text-default-500">
+              最后更新时间 {formatLastUpdated(lastUpdated)}
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-default-200/80 bg-background/60 px-4 py-3">
-            <div>
-              <p className="text-sm font-medium text-foreground">自动更新</p>
-              <p className="text-xs text-default-500">开启后可自动同步订阅内容。</p>
-            </div>
-            <Switch
-              isSelected={autoUpdate}
-              onChange={saveAutoUpdate}
-              aria-label="自动更新"
-              isDisabled={isLoading || isSavingAutoUpdate || isSavingSubscription}
-            >
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
-            </Switch>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <Label htmlFor="config-content">配置内容</Label>
-              <Button variant="outline" onPress={saveConfig} isDisabled={isLoading || isSavingContent}>
-                {isSavingContent ? "保存中" : "保存"}
+          <Form.Item help="输入配置文件的订阅地址，要求 JSON 格式，且使用 Base58 编码。">
+            <Space.Compact block>
+              <Form.Item
+                label="订阅链接"
+                name="url"
+                rules={[{ required: true, type: "url" }]}
+                noStyle
+              >
+                <Input placeholder="输入订阅链接" />
+              </Form.Item>
+              <Button
+                loading={isSavingSubscription}
+                type="primary"
+                htmlType="submit"
+              >
+                拉取配置
               </Button>
-            </div>
-            <TextArea
-              id="config-content"
-              className="w-full"
-              variant="secondary"
-              value={configText}
-              onChange={(event) => setConfigText(event.target.value)}
-              placeholder="配置内容将显示在这里"
-              rows={11}
-            />
-            <p className="text-sm text-default-500">支持 JSON 格式，用于配置视频源。</p>
+            </Space.Compact>
+          </Form.Item>
+        </Form>
+
+        <Form form={contentForm} layout="vertical" onFinish={saveConfig}>
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-10 pb-3">
+            <span className="text-sm font-medium text-foreground">
+              配置内容
+            </span>
+            <Button htmlType="submit" loading={isSavingContent}>
+              保存
+            </Button>
           </div>
-        </Card.Content>
+          <Form.Item
+            name="content"
+            help="支持 JSON 格式，用于配置视频源。"
+            rules={[
+              {
+                validator: async (_, value: unknown) => {
+                  const errorMessage = validateConfigContent(value);
+
+                  if (errorMessage) {
+                    throw new Error(errorMessage);
+                  }
+                },
+              },
+            ]}
+          >
+            <Input.TextArea placeholder="配置内容将显示在这里" rows={11} />
+          </Form.Item>
+        </Form>
       </Card>
     </div>
   );
