@@ -1,12 +1,23 @@
 "use client";
 
+import {
+  CalendarFilled,
+  LaptopOutlined,
+  MobileFilled,
+  PlayCircleFilled,
+  PlaySquareFilled,
+  RightOutlined,
+  StarFilled,
+  VideoCameraOutlined,
+} from "@ant-design/icons";
 import Link from "next/link";
 import type { ContentItem } from "../domain/content-types";
+import type { HomepageSectionIcon } from "../application/homepage-service";
 import { ContentCard } from "./content-card";
 
 type ContentCarouselProps = {
   title: string;
-  icon: string;
+  icon: HomepageSectionIcon;
   iconClass: string;
   items: ContentItem[];
   moreLink?: string;
@@ -15,6 +26,16 @@ type ContentCarouselProps = {
   onFavorite?: (itemId: string) => void;
   onDelete?: (itemId: string) => void;
 };
+
+const sectionIconMap = {
+  "calendar-event-fill": CalendarFilled,
+  film: VideoCameraOutlined,
+  "phone-fill": MobileFilled,
+  "play-btn-fill": PlaySquareFilled,
+  "play-circle-fill": PlayCircleFilled,
+  stars: StarFilled,
+  "tv-fill": LaptopOutlined,
+} satisfies Record<HomepageSectionIcon, typeof PlayCircleFilled>;
 
 export function ContentCarousel({
   title,
@@ -27,11 +48,13 @@ export function ContentCarousel({
   onFavorite,
   onDelete,
 }: ContentCarouselProps) {
+  const Icon = sectionIconMap[icon];
+
   return (
     <section className="pb-8">
       <div className="flex items-center justify-between">
         <h2 className="inline-flex items-center gap-2 text-2xl font-bold text-foreground">
-          <i aria-hidden="true" className={`bi ${icon} text-[1.15em] ${iconClass}`} />
+          <Icon className={`text-[1.15em] ${iconClass}`} />
           <span>{title}</span>
         </h2>
         {moreLink && (
@@ -41,11 +64,7 @@ export function ContentCarousel({
             prefetch={false}
           >
             <span>查看更多</span>
-            <i
-              aria-hidden="true"
-              className="bi bi-chevron-right text-[0.95em]"
-              style={{ WebkitTextStroke: "0.7px currentColor" }}
-            />
+            <RightOutlined className="text-[0.95em]" />
           </Link>
         )}
       </div>

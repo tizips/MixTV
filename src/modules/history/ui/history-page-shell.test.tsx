@@ -34,30 +34,6 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-vi.mock("@heroui/react", () => ({
-  Button: ({
-    children,
-    isDisabled,
-    onPress,
-    type,
-    variant,
-    ...props
-  }: {
-    [key: string]: unknown;
-    children: ReactNode;
-    isDisabled?: boolean;
-    onPress?: () => void;
-    type?: "button" | "submit" | "reset";
-    variant?: string;
-  }) => (
-    <button {...props} data-variant={variant} disabled={isDisabled} type={type ?? "button"} onClick={onPress}>
-      {children}
-    </button>
-  ),
-  Chip: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  ProgressBar: ({ value }: { value?: number }) => <div data-progress={value} />,
-}));
-
 function renderHistoryPageShell() {
   const host = document.createElement("div");
   document.body.append(host);

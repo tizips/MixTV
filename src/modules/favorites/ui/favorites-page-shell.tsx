@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  HeartFilled,
+  HeartOutlined,
+  PlayCircleFilled,
+  SearchOutlined,
+  SyncOutlined,
+  WarningOutlined,
+} from "@ant-design/icons";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -96,7 +104,7 @@ function FavoritePoster({
     <div className="relative grid w-full">
       <Link
         aria-label={`播放 ${favorite.title}`}
-        className="relative block aspect-[2/3] overflow-hidden bg-surface-secondary outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+        className="relative block aspect-2/3 overflow-hidden bg-surface-secondary outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
         href={createPlayHref(favorite)}
         prefetch={false}
       >
@@ -109,9 +117,9 @@ function FavoritePoster({
           onError={() => setImageError(true)}
         />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.22)_0%,transparent_34%,rgba(0,0,0,0.84)_100%)] opacity-85 transition-opacity group-hover:opacity-100" />
-        <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/45 to-transparent" />
+        <div className="absolute inset-x-0 top-0 h-16 bg-linear-to-b from-black/45 to-transparent" />
         <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/18 text-xl text-white opacity-0 shadow-[0_18px_50px_rgba(0,0,0,0.32)] ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover:scale-105 group-hover:opacity-100">
-          <i aria-hidden="true" className="bi bi-play-fill translate-x-px" />
+          <PlayCircleFilled className="translate-x-px" />
         </span>
       </Link>
       <div className="absolute bottom-2.5 right-2.5 z-20 flex gap-1 opacity-0 transition duration-200 group-hover:opacity-100 focus-within:opacity-100">
@@ -125,7 +133,11 @@ function FavoritePoster({
             onRemove(favorite);
           }}
         >
-          <i aria-hidden="true" className={isRemoving ? "bi bi-arrow-repeat animate-spin" : "bi bi-heart-fill text-danger"} />
+          {isRemoving ? (
+            <SyncOutlined spin />
+          ) : (
+            <HeartFilled className="text-danger" />
+          )}
         </button>
       </div>
     </div>
@@ -142,8 +154,12 @@ function FavoriteCard({
   onRemove: (favorite: FavoriteItem) => void;
 }) {
   return (
-    <article className="group grid w-full flex-shrink-0 content-start overflow-hidden rounded-[1.15rem] bg-surface/78 text-left transition duration-300 hover:-translate-y-1 hover:bg-surface hover:shadow-[0_6px_12px_rgba(15,23,42,0.14)]">
-      <FavoritePoster favorite={favorite} isRemoving={isRemoving} onRemove={onRemove} />
+    <article className="group grid w-full shrink-0 content-start overflow-hidden rounded-[1.15rem] bg-surface/78 text-left transition duration-300 hover:-translate-y-1 hover:bg-surface hover:shadow-[0_6px_12px_rgba(15,23,42,0.14)]">
+      <FavoritePoster
+        favorite={favorite}
+        isRemoving={isRemoving}
+        onRemove={onRemove}
+      />
       <div className="grid gap-1.5 p-3.5">
         <Link
           aria-label={`播放 ${favorite.title}`}
@@ -155,8 +171,12 @@ function FavoriteCard({
             {favorite.title}
           </h2>
           <div className="flex min-w-0 items-center justify-between gap-2 text-xs text-muted">
-            <span className="min-w-0 truncate">{favorite.year || "未知年份"}</span>
-            <span className="min-w-0 truncate text-right text-foreground/80">{favorite.source_name}</span>
+            <span className="min-w-0 truncate">
+              {favorite.year || "未知年份"}
+            </span>
+            <span className="min-w-0 truncate text-right text-foreground/80">
+              {favorite.source_name}
+            </span>
           </div>
         </Link>
       </div>
@@ -170,13 +190,15 @@ function createFavoriteResourceKey(favorite: FavoriteItem) {
 
 function FavoritesEmptyState() {
   return (
-    <div className="grid min-h-[22rem] place-items-center rounded-md border border-dashed border-foreground/16 bg-surface/54 px-6 text-center">
+    <div className="grid min-h-88 place-items-center rounded-md border border-dashed border-foreground/16 bg-surface/54 px-6 text-center">
       <div className="grid max-w-md gap-4">
         <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-accent/12 text-2xl text-accent">
-          <i aria-hidden="true" className="bi bi-heart" />
+          <HeartOutlined />
         </span>
         <div className="grid gap-2">
-          <h2 className="text-xl font-semibold text-foreground">还没有收藏内容</h2>
+          <h2 className="text-xl font-semibold text-foreground">
+            还没有收藏内容
+          </h2>
           <p className="text-sm leading-6 text-muted">
             从搜索结果里点亮爱心后，影片会出现在这里，方便下次继续播放。
           </p>
@@ -186,7 +208,7 @@ function FavoritesEmptyState() {
           href="/search"
           prefetch={false}
         >
-          <i aria-hidden="true" className="bi bi-search" />
+          <SearchOutlined />
           去搜索
         </Link>
       </div>
@@ -198,7 +220,9 @@ export function FavoritesPageShell() {
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
-  const [removingKeys, setRemovingKeys] = useState<Set<string>>(() => new Set());
+  const [removingKeys, setRemovingKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -213,7 +237,9 @@ export function FavoritesPageShell() {
       .catch((error) => {
         if (isMounted) {
           setLoadState("error");
-          setErrorMessage(error instanceof Error ? error.message : "收藏加载失败。");
+          setErrorMessage(
+            error instanceof Error ? error.message : "收藏加载失败。",
+          );
         }
       });
 
@@ -233,10 +259,13 @@ export function FavoritesPageShell() {
     setErrorMessage("");
 
     try {
-      const response = await fetch(`/api/favorites/${encodeURIComponent(favorite.source)}/${encodeURIComponent(favorite.id)}`, {
-        headers: { Accept: "application/json" },
-        method: "DELETE",
-      });
+      const response = await fetch(
+        `/api/favorites/${encodeURIComponent(favorite.source)}/${encodeURIComponent(favorite.id)}`,
+        {
+          headers: { Accept: "application/json" },
+          method: "DELETE",
+        },
+      );
       const data = (await response.json()) as FavoritesApiResponse;
 
       if (!response.ok) {
@@ -245,7 +274,9 @@ export function FavoritesPageShell() {
 
       setFavorites(readFavoritesFromApi(data));
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "取消收藏失败。");
+      setErrorMessage(
+        error instanceof Error ? error.message : "取消收藏失败。",
+      );
     } finally {
       setRemovingKeys((currentKeys) => {
         const nextKeys = new Set(currentKeys);
@@ -261,11 +292,13 @@ export function FavoritesPageShell() {
         <header className="grid gap-5">
           <div className="grid gap-3">
             <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase text-accent">
-              <i aria-hidden="true" className="bi bi-bookmark-heart" />
+              <HeartOutlined />
               {env.NEXT_PUBLIC_SITE_NAME}
             </p>
             <div className="grid gap-2">
-              <h1 className="text-3xl font-semibold tracking-tight md:text-5xl">我的收藏</h1>
+              <h1 className="text-3xl font-semibold tracking-tight md:text-5xl">
+                我的收藏
+              </h1>
               <p className="max-w-2xl text-sm leading-6 text-muted md:text-base">
                 保存常看的剧集和电影，按最近更新顺序快速回到播放入口。
               </p>
@@ -275,30 +308,36 @@ export function FavoritesPageShell() {
 
         {errorMessage && (
           <div className="flex items-center gap-3 rounded-md border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger">
-            <i aria-hidden="true" className="bi bi-exclamation-triangle" />
+            <WarningOutlined />
             <span>{errorMessage}</span>
           </div>
         )}
 
         {loadState === "loading" && (
-          <div className="grid min-h-[22rem] place-items-center rounded-md bg-surface/54 text-muted">
+          <div className="grid min-h-88 place-items-center rounded-md bg-surface/54 text-muted">
             <div className="inline-flex items-center gap-3 text-sm">
-              <i aria-hidden="true" className="bi bi-arrow-repeat animate-spin" />
+              <SyncOutlined className="animate-spin" />
               正在加载收藏
             </div>
           </div>
         )}
 
         {loadState === "error" && (
-          <div className="grid min-h-[22rem] place-items-center rounded-md bg-surface/54 px-6 text-center">
+          <div className="grid min-h-88 place-items-center rounded-md bg-surface/54 px-6 text-center">
             <div className="grid max-w-md gap-3">
-              <h2 className="text-xl font-semibold text-foreground">收藏暂时不可用</h2>
-              <p className="text-sm leading-6 text-muted">请稍后刷新页面重试。</p>
+              <h2 className="text-xl font-semibold text-foreground">
+                收藏暂时不可用
+              </h2>
+              <p className="text-sm leading-6 text-muted">
+                请稍后刷新页面重试。
+              </p>
             </div>
           </div>
         )}
 
-        {loadState === "ready" && favorites.length === 0 && <FavoritesEmptyState />}
+        {loadState === "ready" && favorites.length === 0 && (
+          <FavoritesEmptyState />
+        )}
 
         {loadState === "ready" && favorites.length > 0 && (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
@@ -306,7 +345,9 @@ export function FavoritesPageShell() {
               <FavoriteCard
                 key={createFavoriteResourceKey(favorite)}
                 favorite={favorite}
-                isRemoving={removingKeys.has(createFavoriteResourceKey(favorite))}
+                isRemoving={removingKeys.has(
+                  createFavoriteResourceKey(favorite),
+                )}
                 onRemove={removeFavorite}
               />
             ))}

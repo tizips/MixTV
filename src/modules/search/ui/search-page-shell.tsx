@@ -1,6 +1,20 @@
 "use client";
 
-import { Button, Chip } from "@heroui/react";
+import {
+  ClockCircleOutlined,
+  CloudDownloadOutlined,
+  DeleteOutlined,
+  HeartFilled,
+  HeartOutlined,
+  TableOutlined,
+  BarsOutlined,
+  PlayCircleFilled,
+  SearchOutlined,
+  VideoCameraOutlined,
+  WarningOutlined,
+  CloseCircleOutlined,
+} from "@ant-design/icons";
+import { Button, Space, Tag } from "antd";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import Image from "next/image";
 import Link from "next/link";
@@ -52,9 +66,13 @@ type SearchResult = {
   sourceTotal: number;
 };
 
-const searchTypes: Array<{ key: SearchType; label: string; icon: string }> = [
-  { key: "media", label: "影视资源", icon: "bi-film" },
-  { key: "cloud", label: "网盘资源", icon: "bi-cloud-arrow-down" },
+const searchTypes: Array<{
+  key: SearchType;
+  label: string;
+  Icon: typeof VideoCameraOutlined;
+}> = [
+  { key: "media", label: "影视资源", Icon: VideoCameraOutlined },
+  { key: "cloud", label: "网盘资源", Icon: CloudDownloadOutlined },
 ];
 
 function isSearchType(value: string | null): value is SearchType {
@@ -89,7 +107,9 @@ function readMediaCategory(resource: AggregatedMediaResource) {
   return "电影";
 }
 
-function mapMediaResourceToSearchResult(resource: AggregatedMediaResource): SearchResult {
+function mapMediaResourceToSearchResult(
+  resource: AggregatedMediaResource,
+): SearchResult {
   const category = readMediaCategory(resource);
   const year = Number(resource.year);
   const episodeCount = Math.max(resource.total_episodes, 1);
@@ -105,11 +125,13 @@ function mapMediaResourceToSearchResult(resource: AggregatedMediaResource): Sear
     source: resource.source_name,
     sourceNames: [resource.source_name],
     category,
-    coverUrl: resource.cover || createPlaceholderImageUrl({
-      variant: "poster",
-      fileStem: resource.title,
-      seed: resource.idx,
-    }),
+    coverUrl:
+      resource.cover ||
+      createPlaceholderImageUrl({
+        variant: "poster",
+        fileStem: resource.title,
+        seed: resource.idx,
+      }),
     episodeCount,
     quality: resource.quality,
     sourceTotal: resource.source_total ?? 1,
@@ -140,7 +162,12 @@ function parseSseBlock(block: string): MediaSearchSseEvent | null {
   try {
     const data = JSON.parse(dataLines.join("\n")) as unknown;
 
-    if (event === "start" || event === "result" || event === "complete" || event === "error") {
+    if (
+      event === "start" ||
+      event === "result" ||
+      event === "complete" ||
+      event === "error"
+    ) {
       return { event, data } as MediaSearchSseEvent;
     }
   } catch {
@@ -175,7 +202,9 @@ function readSearchHistoryFromApi(data: SearchHistoryApiResponse) {
     return [];
   }
 
-  return data.history.filter((keyword): keyword is string => typeof keyword === "string");
+  return data.history.filter(
+    (keyword): keyword is string => typeof keyword === "string",
+  );
 }
 
 let searchHistoryLoadPromise: Promise<string[]> | null = null;
@@ -189,7 +218,7 @@ function loadSearchHistory() {
         return [];
       }
 
-      const data = await response.json() as SearchHistoryApiResponse;
+      const data = (await response.json()) as SearchHistoryApiResponse;
 
       return readSearchHistoryFromApi(data);
     })
@@ -220,12 +249,22 @@ function FavoriteButton({
       type="button"
       onClick={() => onToggle(result)}
     >
-      <i aria-hidden="true" className={`bi ${isFavorited ? "bi-heart-fill text-danger" : "bi-heart"}`} />
+      {isFavorited ? (
+        <HeartFilled className="text-danger" />
+      ) : (
+        <HeartOutlined />
+      )}
     </button>
   );
 }
 
-function ResultCover({ result, priority = false }: { result: SearchResult; priority?: boolean }) {
+function ResultCover({
+  result,
+  priority = false,
+}: {
+  result: SearchResult;
+  priority?: boolean;
+}) {
   const [imageError, setImageError] = useState(false);
   const fallbackCoverUrl = createPlaceholderImageUrl({
     variant: "poster",
@@ -300,10 +339,10 @@ function SearchResultItem({
   if (viewMode === "grid") {
     return (
       <article className="group grid min-w-0 content-start overflow-hidden rounded-[1.15rem] bg-surface/78 text-left shadow-[0_14px_40px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:bg-surface hover:shadow-[0_22px_60px_rgba(15,23,42,0.16)]">
-        <div className="relative aspect-[2/3] overflow-hidden bg-surface-secondary">
+        <div className="relative aspect-2/3 overflow-hidden bg-surface-secondary">
           <Link
             aria-label={`播放 ${result.title}`}
-            className="relative block h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+            className="relative block h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--ant-color-primary)"
             href={createPlayHref(result)}
             rel="noreferrer"
             target="_blank"
@@ -311,30 +350,20 @@ function SearchResultItem({
           >
             <ResultCover result={result} />
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.26)_0%,transparent_34%,rgba(0,0,0,0.84)_100%)] opacity-85 transition-opacity group-hover:opacity-100" />
-            <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/45 to-transparent" />
+            <div className="absolute inset-x-0 top-0 h-16 bg-linear-to-b from-black/45 to-transparent" />
             <div className="absolute left-2.5 top-2.5 z-10">
-              <Chip className="h-6 rounded-full bg-white/14 px-2.5 text-[11px] font-semibold text-white ring-1 ring-white/20 backdrop-blur-md" size="sm" variant="soft">
-                {result.year}
-              </Chip>
+              <Tag color="default">{result.year}</Tag>
             </div>
             {result.episodeCount > 1 ? (
-              <Chip
-                className="absolute right-2.5 top-2.5 z-10 h-6 rounded-full bg-white/14 px-2.5 text-[11px] font-semibold text-white ring-1 ring-white/20 backdrop-blur-md"
-                size="sm"
-                variant="soft"
-              >
+              <Tag color="default" className="absolute! top-2.5 right-2.5">
                 {result.episodeCount}集
-              </Chip>
+              </Tag>
             ) : null}
-            <Chip
-              className="absolute bottom-2.5 left-2.5 z-10 h-6 rounded-full bg-white/14 px-2.5 text-[11px] font-semibold text-white ring-1 ring-white/20 backdrop-blur-md"
-              size="sm"
-              variant="soft"
-            >
+            <Tag color="default" className="absolute! bottom-2.5 left-2.5">
               {result.sourceTotal}源
-            </Chip>
+            </Tag>
             <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/18 text-xl text-white opacity-0 shadow-[0_18px_50px_rgba(0,0,0,0.32)] ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover:scale-105 group-hover:opacity-100">
-              <i aria-hidden="true" className="bi bi-play-fill translate-x-px" />
+              <PlayCircleFilled className="translate-x-px" />
             </span>
           </Link>
           <FavoriteButton
@@ -346,13 +375,13 @@ function SearchResultItem({
         </div>
         <Link
           aria-label={`播放 ${result.title}`}
-          className="grid gap-2.5 p-3.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+          className="grid gap-2.5 p-3.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--ant-color-primary)"
           href={createPlayHref(result)}
           rel="noreferrer"
           target="_blank"
           prefetch={false}
         >
-          <h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground transition-colors group-hover:text-accent">
+          <h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-(--ant-color-text-base) transition-colors group-hover:text-(--ant-color-primary)">
             {result.title}
           </h3>
         </Link>
@@ -361,8 +390,8 @@ function SearchResultItem({
   }
 
   return (
-    <article className="group grid w-full grid-cols-[5.25rem_minmax(0,1fr)] items-start gap-3 rounded-[1rem] bg-surface/78 p-3 text-left shadow-[0_12px_36px_rgba(15,23,42,0.07)] transition duration-300 hover:-translate-y-0.5 hover:bg-surface hover:shadow-[0_20px_54px_rgba(15,23,42,0.13)] sm:grid-cols-[6rem_minmax(0,1fr)_3rem] sm:items-center">
-      <div className="relative h-32 w-[5.25rem] overflow-hidden rounded-xl bg-surface-secondary ring-1 ring-default-200/80 sm:h-36 sm:w-24">
+    <article className="group grid w-full grid-cols-[5.25rem_minmax(0,1fr)] items-start gap-3 rounded-2xl bg-surface/78 p-3 text-left shadow-[0_12px_36px_rgba(15,23,42,0.07)] transition duration-300 hover:-translate-y-0.5 hover:bg-surface hover:shadow-[0_20px_54px_rgba(15,23,42,0.13)] sm:grid-cols-[6rem_minmax(0,1fr)_3rem] sm:items-center">
+      <div className="relative h-32 w-21 overflow-hidden rounded-xl bg-surface-secondary ring-1 ring-default-200/80 sm:h-36 sm:w-24">
         <Link
           aria-label={`播放 ${result.title}`}
           className="block h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
@@ -372,18 +401,16 @@ function SearchResultItem({
           prefetch={false}
         >
           <ResultCover result={result} />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/30" />
-          <Chip className="absolute left-1.5 top-1.5 z-10 h-5 rounded-full bg-white/14 px-2 text-[10px] font-semibold text-white ring-1 ring-white/20 backdrop-blur-md" size="sm" variant="soft">
-            {result.year}
-          </Chip>
+          <div className="absolute inset-0 bg-linear-to-t from-black/55 via-transparent to-black/30" />
+          <Tag color="default">{result.year}</Tag>
           {result.episodeCount > 1 ? (
-            <Chip className="absolute right-1.5 top-1.5 z-10 h-5 rounded-full bg-white/14 px-2 text-[10px] font-semibold text-white ring-1 ring-white/20 backdrop-blur-md" size="sm" variant="soft">
+            <Tag color="default" className="absolute right-2.5">
               {result.episodeCount}集
-            </Chip>
+            </Tag>
           ) : null}
-          <Chip className="absolute bottom-1.5 left-1.5 z-10 h-5 rounded-full bg-white/14 px-2 text-[10px] font-semibold text-white ring-1 ring-white/20 backdrop-blur-md" size="sm" variant="soft">
+          <Tag color="default" className="absolute bottom-2.5">
             {result.sourceTotal}源
-          </Chip>
+          </Tag>
         </Link>
         <FavoriteButton
           isFavorited={isFavorited}
@@ -404,15 +431,9 @@ function SearchResultItem({
           {result.title}
         </span>
         <span className="flex flex-wrap gap-1.5">
-          <Chip className="rounded-full bg-default-100 px-2.5 text-default-600 ring-1 ring-default-200" size="sm" variant="soft">
-            {result.year}
-          </Chip>
-          <Chip className="rounded-full bg-accent/12 px-2.5 text-accent ring-1 ring-accent/25" size="sm" variant="soft">
-            {result.category}
-          </Chip>
-          <Chip className="rounded-full bg-amber-500/12 px-2.5 text-amber-700 ring-1 ring-amber-500/20 dark:text-amber-300" size="sm" variant="soft">
-            {result.remarks}
-          </Chip>
+          <Tag color="default">{result.year}</Tag>
+          <Tag color="processing">{result.category}</Tag>
+          <Tag color="warning">{result.remarks}</Tag>
         </span>
       </Link>
       <Link
@@ -423,7 +444,7 @@ function SearchResultItem({
         target="_blank"
         prefetch={false}
       >
-        <i aria-hidden="true" className="bi bi-play-fill translate-x-px" />
+        <PlayCircleFilled className="translate-x-px" />
       </Link>
     </article>
   );
@@ -439,10 +460,12 @@ function SearchHistoryPanel({
   onSearch: (keyword: string) => void;
 }) {
   return (
-    <div className="grid gap-4 rounded-[1.2rem] bg-[var(--surface)] p-4 shadow-[0_18px_58px_rgba(15,23,42,0.07)] backdrop-blur-xl md:p-5">
+    <div className="grid gap-4 rounded-[1.2rem] bg-(--surface) p-4 shadow-[0_18px_58px_rgba(15,23,42,0.07)] backdrop-blur-xl md:p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-normal text-foreground">搜索历史</h1>
+          <h1 className="text-2xl font-semibold tracking-normal text-foreground">
+            搜索历史
+          </h1>
           <p className="mt-1 text-sm text-default-600">点击关键词直接搜索。</p>
         </div>
         <span className="rounded-full bg-default-100 px-3 py-1 text-xs font-medium text-default-600">
@@ -463,7 +486,7 @@ function SearchHistoryPanel({
                 type="button"
                 onClick={() => onSearch(keyword)}
               >
-                <i aria-hidden="true" className="bi bi-clock-history" />
+                <ClockCircleOutlined />
               </button>
               <button
                 className="min-w-0 cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -480,20 +503,22 @@ function SearchHistoryPanel({
                 type="button"
                 onClick={() => onDelete(keyword)}
               >
-                <i aria-hidden="true" className="bi bi-trash3" />
+                <DeleteOutlined />
               </button>
             </article>
           ))}
         </div>
       ) : (
-        <div className="grid min-h-44 place-items-center rounded-[1rem] border border-dashed border-default-200 bg-background/50 p-8 text-center">
+        <div className="grid min-h-44 place-items-center rounded-2xl border border-dashed border-default-200 bg-background/50 p-8 text-center">
           <div className="grid justify-items-center gap-3">
             <span className="grid h-12 w-12 place-items-center rounded-full bg-default-100 text-xl text-default-500">
-              <i aria-hidden="true" className="bi bi-clock-history" />
+              <ClockCircleOutlined />
             </span>
             <div>
               <p className="font-medium text-foreground">暂无搜索历史</p>
-              <p className="mt-1 text-sm text-default-600">搜索后会自动记录关键词。</p>
+              <p className="mt-1 text-sm text-default-600">
+                搜索后会自动记录关键词。
+              </p>
             </div>
           </div>
         </div>
@@ -520,7 +545,8 @@ function VirtualizedResults({
   const listRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
   const columns = useResponsiveColumns(viewMode);
-  const rowHeight = viewMode === "list" ? 172 : columns <= 2 ? 520 : columns <= 4 ? 500 : 460;
+  const rowHeight =
+    viewMode === "list" ? 172 : columns <= 2 ? 520 : columns <= 4 ? 500 : 460;
   const rowCount = Math.ceil(results.length / columns);
   useLayoutEffect(() => {
     function updateScrollMargin() {
@@ -553,10 +579,16 @@ function VirtualizedResults({
 
   return (
     <div ref={listRef} className="pr-1" role="list">
-      <div className="relative" style={{ height: rowVirtualizer.getTotalSize() }}>
+      <div
+        className="relative"
+        style={{ height: rowVirtualizer.getTotalSize() }}
+      >
         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
           const rowIndex = virtualRow.index;
-          const rowItems = results.slice(rowIndex * columns, rowIndex * columns + columns);
+          const rowItems = results.slice(
+            rowIndex * columns,
+            rowIndex * columns + columns,
+          );
 
           return (
             <div
@@ -602,8 +634,12 @@ export function SearchPageShell() {
   const [totalSources, setTotalSources] = useState(0);
   const [streamError, setStreamError] = useState("");
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
-  const [favoritedKeys, setFavoritedKeys] = useState<Set<string>>(() => new Set());
-  const [pendingFavoriteKeys, setPendingFavoriteKeys] = useState<Set<string>>(() => new Set());
+  const [favoritedKeys, setFavoritedKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [pendingFavoriteKeys, setPendingFavoriteKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const view = getUrlSearchParams().get("view");
     return isViewMode(view) ? view : "grid";
@@ -659,10 +695,13 @@ export function SearchPageShell() {
         setTotalSources(0);
         setStreamError("");
 
-        const response = await fetch(`/api/search/media?q=${encodeURIComponent(normalizedQuery)}`, {
-          headers: { Accept: "text/event-stream" },
-          signal: controller.signal,
-        });
+        const response = await fetch(
+          `/api/search/media?q=${encodeURIComponent(normalizedQuery)}`,
+          {
+            headers: { Accept: "text/event-stream" },
+            signal: controller.signal,
+          },
+        );
 
         if (!response.ok || !response.body) {
           throw new Error("搜索接口请求失败");
@@ -692,9 +731,13 @@ export function SearchPageShell() {
             if (event.event === "result") {
               setCompletedSources((current) => current + 1);
               setStreamedResults((current) => {
-                const nextById = new Map(current.map((result) => [result.id, result]));
+                const nextById = new Map(
+                  current.map((result) => [result.id, result]),
+                );
 
-                for (const result of event.data.map(mapMediaResourceToSearchResult)) {
+                for (const result of event.data.map(
+                  mapMediaResourceToSearchResult,
+                )) {
                   nextById.set(result.id, result);
                 }
 
@@ -716,14 +759,18 @@ export function SearchPageShell() {
           }
         }
 
-        setStreamStatus((current) => (current === "searching" ? "complete" : current));
+        setStreamStatus((current) =>
+          current === "searching" ? "complete" : current,
+        );
       } catch (error) {
         if (controller.signal.aborted) {
           return;
         }
 
         setStreamStatus("complete");
-        setStreamError(error instanceof Error ? error.message : "搜索失败，请稍后重试");
+        setStreamError(
+          error instanceof Error ? error.message : "搜索失败，请稍后重试",
+        );
       }
     }
 
@@ -763,22 +810,27 @@ export function SearchPageShell() {
 
   async function deleteHistoryKeyword(keyword: string) {
     try {
-      const response = await fetch(`/api/search/histories/${encodeURIComponent(keyword)}`, {
-        headers: {
-          Accept: "application/json",
+      const response = await fetch(
+        `/api/search/histories/${encodeURIComponent(keyword)}`,
+        {
+          headers: {
+            Accept: "application/json",
+          },
+          method: "DELETE",
         },
-        method: "DELETE",
-      });
+      );
 
       if (!response.ok) {
         return;
       }
 
-      const data = await response.json() as SearchHistoryApiResponse;
+      const data = (await response.json()) as SearchHistoryApiResponse;
 
       setSearchHistory(readSearchHistoryFromApi(data));
     } catch {
-      setSearchHistory((currentHistory) => currentHistory.filter((currentKeyword) => currentKeyword !== keyword));
+      setSearchHistory((currentHistory) =>
+        currentHistory.filter((currentKeyword) => currentKeyword !== keyword),
+      );
     }
   }
 
@@ -788,20 +840,28 @@ export function SearchPageShell() {
     }
 
     const isFavorited = favoritedKeys.has(result.favoriteKey);
-    setPendingFavoriteKeys((currentKeys) => new Set(currentKeys).add(result.favoriteKey));
+    setPendingFavoriteKeys((currentKeys) =>
+      new Set(currentKeys).add(result.favoriteKey),
+    );
 
     try {
       const response = isFavorited
-        ? await fetch(`/api/favorites/${encodeURIComponent(result.resourceKey)}/${encodeURIComponent(result.resourceId)}`, {
-            headers: { Accept: "application/json" },
-            method: "DELETE",
-          })
-        : await fetch(`/api/favorites/${encodeURIComponent(result.resourceKey)}/${encodeURIComponent(result.resourceId)}`, {
-            headers: {
-              Accept: "application/json",
+        ? await fetch(
+            `/api/favorites/${encodeURIComponent(result.resourceKey)}/${encodeURIComponent(result.resourceId)}`,
+            {
+              headers: { Accept: "application/json" },
+              method: "DELETE",
             },
-            method: "POST",
-          });
+          )
+        : await fetch(
+            `/api/favorites/${encodeURIComponent(result.resourceKey)}/${encodeURIComponent(result.resourceId)}`,
+            {
+              headers: {
+                Accept: "application/json",
+              },
+              method: "POST",
+            },
+          );
 
       if (!response.ok) {
         return;
@@ -831,7 +891,7 @@ export function SearchPageShell() {
 
   return (
     <section className="min-h-screen w-full px-4 py-6 text-foreground md:px-6 lg:px-8">
-      <div className="mx-auto grid w-full max-w-[100rem] content-start gap-8">
+      <div className="mx-auto grid w-full max-w-400 content-start gap-8">
         <form
           className="mx-auto grid w-full max-w-4xl gap-4 md:mt-2"
           onSubmit={(event) => {
@@ -840,23 +900,26 @@ export function SearchPageShell() {
           }}
         >
           <div className="mx-auto flex w-fit flex-wrap justify-center gap-2 rounded-xl bg-surface/80 px-4 py-2 shadow-[0_14px_44px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-            {searchTypes.map((type) => (
-              <Button
-                key={type.key}
-                aria-pressed={searchType === type.key}
-                className="h-11 rounded-full px-5 text-base font-medium shadow-none data-[pressed=true]:scale-100"
-                type="button"
-                variant={searchType === type.key ? "primary" : "outline"}
-                onPress={() => setSearchType(type.key)}
-              >
-                <i aria-hidden="true" className={`bi ${type.icon}`} />
-                {type.label}
-              </Button>
-            ))}
+            {searchTypes.map((type) => {
+              const Icon = type.Icon;
+
+              return (
+                <Button
+                  className="shadow-none!"
+                  key={type.key}
+                  aria-pressed={searchType === type.key}
+                  type={searchType === type.key ? "primary" : "default"}
+                  onClick={() => setSearchType(type.key)}
+                  icon={<Icon />}
+                >
+                  {type.label}
+                </Button>
+              );
+            })}
           </div>
           <label className="mx-auto grid w-full max-w-3xl">
             <span className="sr-only">搜索关键词</span>
-            <span className="grid grid-cols-[minmax(0,1fr)_auto_auto] overflow-hidden rounded-[1rem] bg-[var(--surface)] shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_14px_36px_rgba(15,23,42,0.10)] transition focus-within:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_18px_46px_rgba(15,23,42,0.14)]">
+            <span className="grid grid-cols-[minmax(0,1fr)_auto_auto] overflow-hidden rounded-2xl bg-(--surface) shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_14px_36px_rgba(15,23,42,0.10)] transition focus-within:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_18px_46px_rgba(15,23,42,0.14)]">
               <input
                 className="h-14 min-w-0 bg-transparent px-5 text-base text-foreground outline-none placeholder:text-default-400"
                 autoComplete="off"
@@ -872,11 +935,15 @@ export function SearchPageShell() {
                   type="button"
                   onClick={clearSearch}
                 >
-                  <i aria-hidden="true" className="bi bi-x-circle-fill" />
+                  <CloseCircleOutlined />
                 </button>
               ) : null}
-              <Button className="h-14 rounded-none px-5 font-semibold md:px-7" type="submit" variant="primary">
-                <i aria-hidden="true" className="bi bi-search" />
+              <Button
+                className="w-28 h-14!"
+                htmlType="submit"
+                type="primary"
+                icon={<SearchOutlined />}
+              >
                 搜索
               </Button>
             </span>
@@ -887,42 +954,52 @@ export function SearchPageShell() {
           {hasSearched ? (
             <div className="grid gap-5">
               <div className="relative overflow-hidden rounded-[1.25rem] bg-surface/75 p-4 shadow-[0_18px_58px_rgba(15,23,42,0.08)] backdrop-blur-xl md:p-5">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/45 to-transparent" />
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-accent/45 to-transparent" />
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="flex min-w-0 flex-wrap items-end gap-2" role="status" aria-live="polite">
+                    <div
+                      className="flex min-w-0 flex-wrap items-end gap-2"
+                      role="status"
+                      aria-live="polite"
+                    >
                       <h1 className="truncate text-2xl font-semibold tracking-normal text-foreground">
                         {activeQuery}
                       </h1>
                       {totalSources > 0 ? (
                         <span className="pb-0.5 text-xs text-default-400">
-                          {isStreaming ? `正在搜索 ${completedSources}/${totalSources}` : `已完成 ${completedSources}/${totalSources}`}
+                          {isStreaming
+                            ? `正在搜索 ${completedSources}/${totalSources}`
+                            : `已完成 ${completedSources}/${totalSources}`}
                         </span>
                       ) : null}
                     </div>
                   </div>
-                  <div aria-label="结果视图" className="flex items-center rounded-full border border-default-200/80 bg-background/70 p-1 shadow-inner" role="group">
+                  <Space.Compact>
                     {(["grid", "list"] as const).map((mode) => (
                       <Button
                         key={mode}
-                        aria-label={mode === "grid" ? "切换为卡片视图" : "切换为列表视图"}
+                        className="shadow-none!"
+                        aria-label={
+                          mode === "grid" ? "切换为卡片视图" : "切换为列表视图"
+                        }
                         aria-pressed={viewMode === mode}
-                        className="h-8 min-w-0 rounded-full px-3"
-                        size="sm"
-                        type="button"
-                        variant={viewMode === mode ? "primary" : "ghost"}
-                        onPress={() => setViewMode(mode)}
+                        size="small"
+                        type={viewMode === mode ? "primary" : "default"}
+                        onClick={() => setViewMode(mode)}
                       >
-                        <i aria-hidden="true" className={`bi ${mode === "grid" ? "bi-grid-3x3-gap" : "bi-list-ul"}`} />
+                        {mode === "grid" ? <TableOutlined /> : <BarsOutlined />}
                       </Button>
                     ))}
-                  </div>
+                  </Space.Compact>
                 </div>
               </div>
 
               {streamError ? (
-                <div className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger" role="alert">
-                  <i aria-hidden="true" className="bi bi-exclamation-triangle" />
+                <div
+                  className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger"
+                  role="alert"
+                >
+                  <WarningOutlined />
                   <span>{streamError}</span>
                 </div>
               ) : null}
@@ -937,12 +1014,20 @@ export function SearchPageShell() {
                   onToggleFavorite={toggleFavorite}
                 />
               ) : isStreaming ? (
-                <div className="grid min-h-64 place-items-center rounded-lg border border-default-200 bg-surface/60 p-8 text-center" role="status" aria-live="polite">
+                <div
+                  className="grid min-h-64 place-items-center rounded-lg border border-default-200 bg-surface/60 p-8 text-center"
+                  role="status"
+                  aria-live="polite"
+                >
                   <div className="grid justify-items-center gap-3">
                     <span className="h-8 w-8 animate-spin rounded-full border-2 border-default-300 border-t-accent" />
                     <div>
-                      <p className="font-medium text-foreground">正在连接搜索源</p>
-                      <p className="mt-1 text-sm text-default-500">首批结果马上显示。</p>
+                      <p className="font-medium text-foreground">
+                        正在连接搜索源
+                      </p>
+                      <p className="mt-1 text-sm text-default-500">
+                        首批结果马上显示。
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -950,25 +1035,37 @@ export function SearchPageShell() {
                 <div className="grid min-h-64 place-items-center rounded-lg border border-default-200 bg-surface/60 p-8 text-center">
                   <div className="grid max-w-sm justify-items-center gap-3">
                     <span className="grid h-12 w-12 place-items-center rounded-full bg-default-100 text-xl text-default-500">
-                      <i aria-hidden="true" className="bi bi-search" />
+                      <SearchOutlined />
                     </span>
                     <div>
-                      <p className="font-medium text-foreground">没有符合筛选的结果</p>
-                      <p className="mt-1 text-sm text-default-500">尝试切换分类、年份或重新搜索关键词。</p>
+                      <p className="font-medium text-foreground">
+                        没有符合筛选的结果
+                      </p>
+                      <p className="mt-1 text-sm text-default-500">
+                        尝试切换分类、年份或重新搜索关键词。
+                      </p>
                     </div>
                   </div>
                 </div>
               )}
 
               {isStreaming && visibleResults.length > 0 ? (
-                <div className="sticky bottom-3 z-10 mx-auto inline-flex items-center gap-2 rounded-full border border-default-200 bg-background/92 px-4 py-2 text-sm text-default-600 shadow-lg backdrop-blur" role="status" aria-live="polite">
+                <div
+                  className="sticky bottom-3 z-10 mx-auto inline-flex items-center gap-2 rounded-full border border-default-200 bg-background/92 px-4 py-2 text-sm text-default-600 shadow-lg backdrop-blur"
+                  role="status"
+                  aria-live="polite"
+                >
                   <span className="h-3 w-3 animate-spin rounded-full border-2 border-default-300 border-t-accent" />
                   正在搜索更多结果…
                 </div>
               ) : null}
             </div>
           ) : (
-            <SearchHistoryPanel keywords={searchHistory} onDelete={deleteHistoryKeyword} onSearch={runSearch} />
+            <SearchHistoryPanel
+              keywords={searchHistory}
+              onDelete={deleteHistoryKeyword}
+              onSearch={runSearch}
+            />
           )}
         </div>
       </div>

@@ -86,18 +86,16 @@ describe("media search service", () => {
     const searcher = vi.fn(async (source) => [createResource(source.key)]);
     const onStart = vi.fn();
     const onResult = vi.fn();
-    const cacheStore = { script: vi.fn(async () => undefined) };
 
     const summary = await searchMediaSources(
       { query: "movie" },
       {
         onResult,
         onStart,
-        cacheStore,
         searcher,
         siteConfigStore: createSiteConfigStore(false),
         videoSourceStore: createVideoSourceStore(),
-      } as any,
+      },
     );
 
     expect(onStart).toHaveBeenCalledWith({ total: 1 });
@@ -127,7 +125,6 @@ describe("media search service", () => {
       }),
     );
     expect(summary).toEqual({ completed: 1, total: 1 });
-    expect(cacheStore.script).not.toHaveBeenCalled();
   });
 
   it("includes enabled adult sources when the site config allows adult content", async () => {

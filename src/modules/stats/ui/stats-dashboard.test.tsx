@@ -1,5 +1,4 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { StatsDashboard } from "./stats-dashboard";
 import type { TrafficOverview } from "../server/stats-service";
@@ -10,19 +9,6 @@ const routerState = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => routerState,
-}));
-
-vi.mock("@heroui/react", () => ({
-  Button: ({ children }: { children: ReactNode }) => <button>{children}</button>,
-  Card: Object.assign(
-    ({ children }: { children: ReactNode }) => <section>{children}</section>,
-    {
-      Content: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-      Header: ({ children }: { children: ReactNode }) => <header>{children}</header>,
-    },
-  ),
-  Chip: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  Separator: () => <hr />,
 }));
 
 function createMetric(count: number) {

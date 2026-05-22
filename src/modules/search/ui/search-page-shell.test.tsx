@@ -32,25 +32,6 @@ vi.mock("next/link", () => ({
   }) => <a data-prefetch={String(prefetch ?? true)} href={href} rel={rel} target={target}>{children}</a>,
 }));
 
-vi.mock("@heroui/react", () => ({
-  Button: ({
-    children,
-    onPress,
-    type,
-    variant,
-  }: {
-    children: ReactNode;
-    onPress?: () => void;
-    type?: "button" | "submit" | "reset";
-    variant?: string;
-  }) => (
-    <button data-variant={variant} type={type ?? "button"} onClick={onPress}>
-      {children}
-    </button>
-  ),
-  Chip: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-}));
-
 vi.mock("@tanstack/react-virtual", () => ({
   useWindowVirtualizer: () => ({
     getTotalSize: () => 480,

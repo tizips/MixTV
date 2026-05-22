@@ -4,13 +4,22 @@ import type { ContentItem, HeroItem } from "../domain/content-types";
 import type { HomepageSectionKey } from "../domain/section-types";
 import { getMockHomepageData, type MockHomepageData } from "./mock-data-provider";
 
+export type HomepageSectionIcon =
+  | "calendar-event-fill"
+  | "film"
+  | "phone-fill"
+  | "play-btn-fill"
+  | "play-circle-fill"
+  | "stars"
+  | "tv-fill";
+
 export type HomepageData = {
   heroBanner: HeroItem[];
   showWelcomeBanner: boolean;
   sections: Array<{
     key: HomepageSectionKey;
     title: string;
-    icon: string;
+    icon: HomepageSectionIcon;
     iconClass: string;
     moreLink?: string;
     items: ContentItem[];
@@ -20,7 +29,7 @@ export type HomepageData = {
 type SectionConfig = {
   key: HomepageSectionKey;
   title: string;
-  icon: string;
+  icon: HomepageSectionIcon;
   iconClass: string;
   moreLink?: string;
   configKey: keyof HomepageConfig;
@@ -30,14 +39,14 @@ export const sectionConfigs: SectionConfig[] = [
   {
     key: "continueWatching",
     title: "继续观看",
-    icon: "bi-play-circle-fill",
+    icon: "play-circle-fill",
     iconClass: "text-danger",
     configKey: "showContinueWatching",
   },
   {
     key: "upcomingReleases",
     title: "即将上线",
-    icon: "bi-calendar-event-fill",
+    icon: "calendar-event-fill",
     iconClass: "text-warning",
     moreLink: "/upcoming",
     configKey: "showUpcomingReleases",
@@ -45,7 +54,7 @@ export const sectionConfigs: SectionConfig[] = [
   {
     key: "hotMovies",
     title: "热门电影",
-    icon: "bi-film",
+    icon: "film",
     iconClass: "text-accent",
     moreLink: "/movies",
     configKey: "showHotMovies",
@@ -53,7 +62,7 @@ export const sectionConfigs: SectionConfig[] = [
   {
     key: "hotTvShows",
     title: "热门剧集",
-    icon: "bi-tv-fill",
+    icon: "tv-fill",
     iconClass: "text-accent",
     moreLink: "/tv",
     configKey: "showHotTvShows",
@@ -61,7 +70,7 @@ export const sectionConfigs: SectionConfig[] = [
   {
     key: "newAnime",
     title: "新番动漫",
-    icon: "bi-play-btn-fill",
+    icon: "play-btn-fill",
     iconClass: "text-accent",
     moreLink: "/anime",
     configKey: "showNewAnime",
@@ -69,7 +78,7 @@ export const sectionConfigs: SectionConfig[] = [
   {
     key: "hotVariety",
     title: "热门综艺",
-    icon: "bi-stars",
+    icon: "stars",
     iconClass: "text-success",
     moreLink: "/variety",
     configKey: "showHotVariety",
@@ -77,7 +86,7 @@ export const sectionConfigs: SectionConfig[] = [
   {
     key: "hotShortDramas",
     title: "热门短剧",
-    icon: "bi-phone-fill",
+    icon: "phone-fill",
     iconClass: "text-warning",
     moreLink: "/shortdramas",
     configKey: "showHotShortDramas",

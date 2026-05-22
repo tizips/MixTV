@@ -22,7 +22,7 @@ describe("ContentCarousel", () => {
     const html = renderToStaticMarkup(
       <ContentCarousel
         title="继续观看"
-        icon="bi-play-circle-fill"
+        icon="play-circle-fill"
         iconClass="text-danger"
         items={[continueWatchingItem]}
         moreLink="/updates"
@@ -32,10 +32,10 @@ describe("ContentCarousel", () => {
 
     expect(html).toContain("继续观看");
     expect(html).toContain(continueWatchingItem.title);
-    expect(html).toContain("bi-play-circle-fill");
+    expect(html).toContain('data-icon="play-circle"');
     expect(html).toContain("text-danger");
     expect(html).toContain("查看更多");
-    expect(html).toContain("bi-chevron-right");
+    expect(html).toContain('data-icon="right"');
     expect(html).toContain("EP.12");
     expect(html).toContain("16");
     expect(html).toContain("腾讯视频");

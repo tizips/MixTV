@@ -1,8 +1,16 @@
 "use client";
 
+import {
+  AppstoreOutlined,
+  BarChartOutlined,
+  CloudDownloadOutlined,
+  RedoOutlined,
+  SyncOutlined,
+  ThunderboltOutlined,
+} from "@ant-design/icons";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, Chip, Separator } from "@heroui/react";
+import { Button, Card, Divider, Tag } from "antd";
 import type { TrafficDaySummary, TrafficMinuteMetric, TrafficOverview, TrafficTimelinePoint } from "../server/stats-service";
 
 type StatsDashboardProps = {
@@ -167,13 +175,15 @@ function totalMetric(days: TrafficDaySummary[]): TrafficTotals {
       accumulator.page.totalDurationMs += day.page.totalDurationMs;
       accumulator.page.successCount += day.page.successCount;
       accumulator.page.failCount += day.page.failCount;
-      accumulator.page.averageDurationMs = accumulator.page.count > 0 ? Math.round(accumulator.page.totalDurationMs / accumulator.page.count) : 0;
+      accumulator.page.averageDurationMs =
+        accumulator.page.count > 0 ? Math.round(accumulator.page.totalDurationMs / accumulator.page.count) : 0;
 
       accumulator.api.count += day.api.count;
       accumulator.api.totalDurationMs += day.api.totalDurationMs;
       accumulator.api.successCount += day.api.successCount;
       accumulator.api.failCount += day.api.failCount;
-      accumulator.api.averageDurationMs = accumulator.api.count > 0 ? Math.round(accumulator.api.totalDurationMs / accumulator.api.count) : 0;
+      accumulator.api.averageDurationMs =
+        accumulator.api.count > 0 ? Math.round(accumulator.api.totalDurationMs / accumulator.api.count) : 0;
 
       accumulator.thirdParty.count += day.thirdParty.count;
       accumulator.thirdParty.totalDurationMs += day.thirdParty.totalDurationMs;
@@ -186,7 +196,8 @@ function totalMetric(days: TrafficDaySummary[]): TrafficTotals {
       accumulator.all.totalDurationMs += day.page.totalDurationMs + day.api.totalDurationMs + day.thirdParty.totalDurationMs;
       accumulator.all.successCount += day.page.successCount + day.api.successCount + day.thirdParty.successCount;
       accumulator.all.failCount += day.page.failCount + day.api.failCount + day.thirdParty.failCount;
-      accumulator.all.averageDurationMs = accumulator.all.count > 0 ? Math.round(accumulator.all.totalDurationMs / accumulator.all.count) : 0;
+      accumulator.all.averageDurationMs =
+        accumulator.all.count > 0 ? Math.round(accumulator.all.totalDurationMs / accumulator.all.count) : 0;
       return accumulator;
     },
     {
@@ -199,37 +210,42 @@ function totalMetric(days: TrafficDaySummary[]): TrafficTotals {
 }
 
 function MetricCard({
+  Icon,
   accent,
   description,
-  icon,
   title,
   value,
 }: {
   accent: string;
   description: string;
-  icon: string;
+  Icon: typeof BarChartOutlined;
   title: string;
   value: string;
 }) {
   return (
-    <Card className="overflow-hidden border border-default-200/80 bg-background/80 shadow-[0_18px_60px_color-mix(in_oklab,var(--foreground)_8%,transparent)]">
-      <Card.Header className="grid grid-cols-[2.8rem_minmax(0,1fr)] items-start gap-3 px-5 pb-3 pt-5">
-        <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${accent} bg-current/10`}>
-          <i aria-hidden="true" className={`bi ${icon} text-lg`} />
-        </span>
-        <div className="grid min-w-0 gap-1">
-          <p className="text-sm font-medium text-default-500">{title}</p>
-          <p className="text-xs leading-5 text-default-500">{description}</p>
+    <Card
+      style={{
+        background: "color-mix(in oklab, var(--background) 80%, transparent)",
+        border: "1px solid color-mix(in oklab, var(--foreground) 8%, transparent)",
+        boxShadow: "0 18px 60px color-mix(in oklab, var(--foreground) 8%, transparent)",
+      }}
+      styles={{ body: { padding: 20 } }}
+      title={
+        <div className="grid grid-cols-[2.8rem_minmax(0,1fr)] items-start gap-3">
+          <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${accent} bg-current/10`}>
+            <Icon className="text-lg" />
+          </span>
+          <div className="grid min-w-0 gap-1">
+            <p className="text-sm font-medium text-default-500">{title}</p>
+            <p className="text-xs leading-5 text-default-500">{description}</p>
+          </div>
         </div>
-      </Card.Header>
-      <Card.Content className="px-5 pb-5 pt-0">
-        <div className="flex items-end justify-between gap-3">
-          <p className="text-3xl font-semibold tracking-tight text-foreground">{value}</p>
-          <Chip color="accent" size="sm" variant="soft">
-            KPI
-          </Chip>
-        </div>
-      </Card.Content>
+      }
+      extra={<Tag color="processing">KPI</Tag>}
+    >
+      <div className="flex items-end justify-between gap-3">
+        <p className="text-3xl font-semibold tracking-tight text-foreground">{value}</p>
+      </div>
     </Card>
   );
 }
@@ -256,12 +272,8 @@ function MinuteSummary({
         成功率 {formatPercent(successRate)} · 平均 {metric.averageDurationMs > 0 ? `${Math.round(metric.averageDurationMs)}ms` : "0ms"}
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Chip color="accent" size="sm" variant="soft">
-          成功 {formatCount(metric.successCount)}
-        </Chip>
-        <Chip color="danger" size="sm" variant="soft">
-          失败 {formatCount(metric.failCount)}
-        </Chip>
+        <Tag color="processing">成功 {formatCount(metric.successCount)}</Tag>
+        <Tag color="error">失败 {formatCount(metric.failCount)}</Tag>
       </div>
     </div>
   );
@@ -292,19 +304,11 @@ function TimelineChart({ points }: { points: TrafficTimelinePoint[] }) {
               <div key={`${point.dayKey}-${point.minuteKey}`} className="flex w-[38px] flex-col items-center gap-2">
                 <div className="flex h-36 w-full flex-col justify-end overflow-hidden rounded-full bg-default-100/80">
                   {thirdPartyHeight > 0 ? (
-                    <div
-                      className="w-full rounded-t-full bg-amber-500/85"
-                      style={{ height: `${thirdPartyHeight}px` }}
-                    />
+                    <div className="w-full rounded-t-full bg-amber-500/85" style={{ height: `${thirdPartyHeight}px` }} />
                   ) : null}
-                  {apiHeight > 0 ? (
-                    <div className="w-full bg-cyan-500/85" style={{ height: `${apiHeight}px` }} />
-                  ) : null}
+                  {apiHeight > 0 ? <div className="w-full bg-cyan-500/85" style={{ height: `${apiHeight}px` }} /> : null}
                   {pageHeight > 0 ? (
-                    <div
-                      className="w-full rounded-b-full bg-accent/90"
-                      style={{ height: `${pageHeight}px` }}
-                    />
+                    <div className="w-full rounded-b-full bg-accent/90" style={{ height: `${pageHeight}px` }} />
                   ) : null}
                 </div>
                 <p className="h-8 text-[10px] leading-4 text-default-400">{showLabel ? point.label : ""}</p>
@@ -325,7 +329,8 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
   const dailySummaries = [...overview.dailySummaries].reverse();
   const currentMinute = overview.currentMinute;
   const hourlyTimeline = aggregateHourlyTimeline(overview.timeline);
-  const apiShare = totals.all.count > 0 ? (totals.all.successCount / Math.max(1, totals.all.successCount + totals.all.failCount)) * 100 : 0;
+  const apiShare =
+    totals.all.count > 0 ? (totals.all.successCount / Math.max(1, totals.all.successCount + totals.all.failCount)) * 100 : 0;
 
   const refresh = () => {
     startTransition(() => {
@@ -346,12 +351,19 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
 
       <section className="relative mx-auto w-full max-w-6xl px-4 py-8 md:px-6 lg:px-8">
         <header className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_360px]">
-          <Card className="overflow-hidden border border-default-200/80 bg-background/75 shadow-[0_24px_80px_color-mix(in_oklab,var(--foreground)_10%,transparent)] backdrop-blur-xl">
-            <Card.Header className="flex flex-col gap-4 p-6 pb-0 md:p-8 md:pb-0">
+          <Card
+            style={{
+              background: "color-mix(in oklab, var(--background) 75%, transparent)",
+              border: "1px solid color-mix(in oklab, var(--foreground) 10%, transparent)",
+              boxShadow: "0 24px 80px color-mix(in oklab, var(--foreground) 10%, transparent)",
+            }}
+            styles={{ body: { padding: 0 } }}
+          >
+            <div className="flex flex-col gap-4 p-6 pb-0 md:p-8 md:pb-0">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <i aria-hidden="true" className="bi bi-bar-chart-fill text-2xl text-accent" />
+                    <BarChartOutlined className="text-2xl text-accent" />
                     <div>
                       <p className="text-sm font-medium uppercase tracking-[0.28em] text-default-500">最近 7 天总览</p>
                       <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-5xl">运营口径</h1>
@@ -363,18 +375,16 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <Chip color="accent" variant="soft">
-                    {formatTimestamp(overview.checkedAt)}
-                  </Chip>
-                  <Button isDisabled={isRefreshing} size="sm" variant="outline" onPress={refresh}>
-                    <i aria-hidden="true" className={`bi ${isRefreshing ? "bi-arrow-repeat" : "bi-arrow-clockwise"}`} />
+                  <Tag color="processing">{formatTimestamp(overview.checkedAt)}</Tag>
+                  <Button disabled={isRefreshing} size="small" onClick={refresh}>
+                    {isRefreshing ? <SyncOutlined spin /> : <RedoOutlined />}
                     {isRefreshing ? "刷新中" : "刷新"}
                   </Button>
                 </div>
               </div>
-            </Card.Header>
+            </div>
 
-            <Card.Content className="grid gap-5 p-6 pt-5 md:p-8 md:pt-5">
+            <div className="grid gap-5 p-6 pt-5 md:p-8 md:pt-5">
               <div className="grid gap-3 md:grid-cols-3">
                 <MinuteSummary label="当前页面分钟" metric={currentMinute.page} tone="bg-accent" />
                 <MinuteSummary label="当前 API 分钟" metric={currentMinute.api} tone="bg-cyan-500" />
@@ -382,39 +392,36 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
               </div>
 
               <div className="flex flex-wrap items-center gap-2 text-sm text-default-500">
-                <Chip color="accent" size="sm" variant="soft">
-                  页面
-                </Chip>
+                <Tag color="processing">页面</Tag>
                 <span>停留时长</span>
                 <span className="text-default-300">·</span>
-                <Chip color="default" size="sm" variant="soft">
-                  API
-                </Chip>
+                <Tag>API</Tag>
                 <span>请求耗时</span>
                 <span className="text-default-300">·</span>
-                <Chip color="warning" size="sm" variant="soft">
-                  第三方
-                </Chip>
+                <Tag color="warning">第三方</Tag>
                 <span>请求耗时</span>
               </div>
-            </Card.Content>
+            </div>
           </Card>
 
           <div className="grid gap-4">
-            <Card className="overflow-hidden border border-default-200/80 bg-background/75 backdrop-blur-xl">
-              <Card.Header className="px-5 pb-2 pt-5">
+            <Card
+              style={{
+                background: "color-mix(in oklab, var(--background) 75%, transparent)",
+                border: "1px solid color-mix(in oklab, var(--foreground) 10%, transparent)",
+              }}
+            >
+              <div className="px-5 pt-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium text-default-500">最近 7 天</p>
                     <p className="text-base font-semibold text-foreground">总请求次数</p>
                   </div>
-                  <Chip color="accent" variant="soft">
-                    {formatCount(totals.all.count)} 次
-                  </Chip>
+                  <Tag color="processing">{formatCount(totals.all.count)} 次</Tag>
                 </div>
-              </Card.Header>
-              <Separator />
-              <Card.Content className="grid gap-3 px-5 py-5 text-center">
+              </div>
+              <Divider style={{ margin: "12px 0" }} />
+              <div className="grid gap-3 px-5 pb-5 text-center">
                 <div className="relative min-h-[8rem] w-full overflow-hidden rounded-2xl bg-accent/10 px-6 py-4">
                   <p className="absolute left-6 top-4 text-xs font-medium uppercase tracking-[0.24em] text-default-500">总请求</p>
                   <div className="flex min-h-[8rem] w-full items-center justify-center">
@@ -427,9 +434,8 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
                   平均 {totals.all.averageDurationMs > 0 ? `${Math.round(totals.all.averageDurationMs)}ms` : "0ms"} · 成功率 {formatPercent(apiShare)}
                 </p>
                 <p className="text-xs text-default-500">近 7 天 · 分钟级</p>
-              </Card.Content>
+              </div>
             </Card>
-
           </div>
         </header>
 
@@ -437,44 +443,45 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
           <MetricCard
             accent="text-accent"
             description="最近 7 天内页面访问总量"
-            icon="bi-window-stack"
+            Icon={AppstoreOutlined}
             title="页面访问"
             value={formatCount(totals.page.count)}
           />
           <MetricCard
             accent="text-cyan-500"
             description="最近 7 天内 API 请求总量"
-            icon="bi-lightning-charge"
+            Icon={ThunderboltOutlined}
             title="API 请求"
             value={formatCount(totals.api.count)}
           />
           <MetricCard
             accent="text-amber-500"
             description="最近 7 天内第三方资源站请求总量"
-            icon="bi-cloud-arrow-down-fill"
+            Icon={CloudDownloadOutlined}
             title="第三方请求"
             value={formatCount(totals.thirdParty.count)}
           />
         </section>
 
         <section className="mt-8 grid gap-6">
-          <Card className="overflow-hidden border border-default-200/80 bg-background/75 backdrop-blur-xl">
-            <Card.Header className="flex flex-col gap-3 px-5 pb-2 pt-5">
+          <Card
+            style={{
+              background: "color-mix(in oklab, var(--background) 75%, transparent)",
+              border: "1px solid color-mix(in oklab, var(--foreground) 10%, transparent)",
+            }}
+          >
+            <div className="flex flex-col gap-3 px-5 pb-2 pt-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium text-default-500">每小时</p>
                   <p className="text-base font-semibold text-foreground">最近 12 小时访问波形</p>
                 </div>
-                <Chip color="accent" variant="soft">
-                  12 小时窗口
-                </Chip>
+                <Tag color="processing">12 小时窗口</Tag>
               </div>
-              <p className="text-sm leading-6 text-default-500">
-                这里展示每小时的总请求量，颜色区分页面、API 和第三方请求。
-              </p>
-            </Card.Header>
-            <Separator />
-            <Card.Content className="grid gap-4 px-5 py-5">
+              <p className="text-sm leading-6 text-default-500">这里展示每小时的总请求量，颜色区分页面、API 和第三方请求。</p>
+            </div>
+            <Divider style={{ margin: "12px 0" }} />
+            <div className="grid gap-4 px-5 py-5">
               <TimelineChart points={hourlyTimeline} />
               <div className="flex flex-wrap items-center gap-3 text-xs text-default-500">
                 <span className="inline-flex items-center gap-2">
@@ -490,24 +497,28 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
                   第三方
                 </span>
               </div>
-            </Card.Content>
+            </div>
           </Card>
         </section>
 
-        <Card className="mt-8 overflow-hidden border border-default-200/80 bg-background/75 backdrop-blur-xl">
-          <Card.Header className="px-5 pb-2 pt-5">
+        <Card
+          className="mt-8"
+          style={{
+            background: "color-mix(in oklab, var(--background) 75%, transparent)",
+            border: "1px solid color-mix(in oklab, var(--foreground) 10%, transparent)",
+          }}
+        >
+          <div className="px-5 pb-2 pt-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-default-500">7 天明细</p>
                 <p className="text-base font-semibold text-foreground">按天汇总表</p>
               </div>
-              <Chip color="accent" variant="soft">
-                {formatTimestamp(overview.checkedAt)}
-              </Chip>
+              <Tag color="processing">{formatTimestamp(overview.checkedAt)}</Tag>
             </div>
-          </Card.Header>
-          <Separator />
-          <Card.Content className="overflow-x-auto px-5 py-4">
+          </div>
+          <Divider style={{ margin: "12px 0" }} />
+          <div className="overflow-x-auto px-5 py-4">
             <table className="min-w-full border-separate border-spacing-0 text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-[0.24em] text-default-400">
@@ -542,7 +553,7 @@ export function StatsDashboard({ overview }: StatsDashboardProps) {
                 })}
               </tbody>
             </table>
-          </Card.Content>
+          </div>
         </Card>
       </section>
     </div>

@@ -32,7 +32,7 @@ describe("ContentCard", () => {
     expect(html).toContain(item.title);
     expect(html).toContain("bg-surface-secondary");
     expect(html).toContain("text-foreground");
-    expect(html).toContain("bi-play-fill");
+    expect(html).toContain('data-icon="play-circle"');
     expect(html).not.toContain("homepage-");
   });
 
