@@ -391,7 +391,7 @@ export async function getPlaybackPageData(
       return { status: "error", error: "当前资源没有可播放地址。" };
     }
 
-    let activeResource = requested.resource;
+    const activeResource = requested.resource;
     let playbackProgress = null;
 
     if (userId && progressStore) {

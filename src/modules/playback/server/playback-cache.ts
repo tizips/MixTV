@@ -293,7 +293,14 @@ export async function readPlaybackSourcesCacheEntry(cacheStore: PlaybackCacheSto
       })
       .filter((entry): entry is PlaybackSourcesCachePayload => entry !== null)
       .sort((left, right) => left.order - right.order)
-      .map(({ order, ...item }) => item);
+      .map((item) => ({
+        id: item.id,
+        key: item.key,
+        name: item.name,
+        quality: item.quality,
+        source_name: item.source_name,
+        total_episodes: item.total_episodes,
+      }));
 
     if (entries.length === 0) {
       return null;

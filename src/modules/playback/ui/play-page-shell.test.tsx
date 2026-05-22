@@ -3,8 +3,8 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createAntdMock } from "@/test/antd-mock";
 import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import { PlayPageShell } from "./play-page-shell";
 import type { PlayPageData } from "../domain/playback-page-data";
@@ -127,39 +127,11 @@ vi.mock("hls.js", () => ({
   },
 }));
 
+vi.mock("antd", () => createAntdMock());
+
 vi.mock("next/image", () => ({
   default: ({ alt, src }: { alt?: string; src?: string | { src?: string } }) => (
     <span data-alt={alt} data-src={typeof src === "string" ? src : src?.src ?? ""} />
-  ),
-}));
-
-vi.mock("@heroui/react", () => ({
-  Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  Button: ({
-    children,
-    isDisabled,
-    onPress,
-    type,
-  }: {
-    children: ReactNode;
-    isDisabled?: boolean;
-    onPress?: () => void;
-    type?: "button" | "submit" | "reset";
-  }) => (
-    <button disabled={isDisabled} type={type ?? "button"} onClick={onPress}>
-      {children}
-    </button>
-  ),
-  Chip: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  Separator: () => <hr />,
-  Tabs: Object.assign(
-    ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    {
-      List: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-      ListContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-      Panel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-      Tab: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
-    },
   ),
 }));
 

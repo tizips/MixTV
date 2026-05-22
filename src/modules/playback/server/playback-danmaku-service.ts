@@ -254,7 +254,7 @@ export async function getPlaybackDanmaku(request: PlaybackDanmakuRequest, option
   const matchUrl = createEndpointUrl(danmakuConfig.apiUrl, danmakuConfig.apiToken, "/api/v2/match");
 
   try {
-    const { payload: matchPayload, response: matchResponse, text: matchText } = await fetchJson(fetcher, matchUrl, {
+    const { payload: matchPayload, response: matchResponse } = await fetchJson(fetcher, matchUrl, {
       body: JSON.stringify({ fileName: requestTitle }),
       headers: {
         Accept: "application/json",
@@ -281,7 +281,7 @@ export async function getPlaybackDanmaku(request: PlaybackDanmakuRequest, option
     commentUrl.searchParams.set("format", "json");
     commentUrl.searchParams.set("duration", "true");
 
-    const { payload: commentPayload, response: commentResponse, text: commentText } = await fetchJson(fetcher, commentUrl, {
+    const { payload: commentPayload, response: commentResponse } = await fetchJson(fetcher, commentUrl, {
       headers: {
         Accept: "application/json",
       },
