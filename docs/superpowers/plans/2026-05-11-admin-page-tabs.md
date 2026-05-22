@@ -191,8 +191,8 @@ export function AdminTabs() {
                 onClick={() => setActiveTab(tab.key)}
                 className={`inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition ${
                   isActive
-                    ? "bg-[var(--homepage-surface)] text-[var(--homepage-text)] shadow-lg shadow-black/10"
-                    : "text-[var(--homepage-muted)] hover:bg-white/5 hover:text-[var(--homepage-text)]"
+                    ? "bg-(--homepage-surface) text-(--homepage-text) shadow-lg shadow-black/10"
+                    : "text-(--homepage-muted) hover:bg-white/5 hover:text-(--homepage-text)"
                 }`}
               >
                 <i aria-hidden="true" className={`bi ${tab.icon} text-base ${tab.accent}`} />
@@ -203,7 +203,7 @@ export function AdminTabs() {
         </div>
       </div>
 
-      <section className="rounded-3xl border border-white/10 bg-[var(--homepage-surface)] p-6 shadow-2xl shadow-black/10 backdrop-blur-md md:p-8">
+      <section className="rounded-3xl border border-white/10 bg-(--homepage-surface) p-6 shadow-2xl shadow-black/10 backdrop-blur-md md:p-8">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl space-y-3">
             <p className={`text-sm font-medium uppercase tracking-[0.28em] ${currentTab.accent}`}>
@@ -223,13 +223,13 @@ export function AdminTabs() {
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              className="inline-flex items-center justify-center rounded-full bg-[var(--homepage-accent)] px-4 py-2 text-sm font-medium text-white transition hover:brightness-110"
+              className="inline-flex items-center justify-center rounded-full bg-(--homepage-accent) px-4 py-2 text-sm font-medium text-white transition hover:brightness-110"
             >
               进入管理
             </button>
             <button
               type="button"
-              className="inline-flex items-center justify-center rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-[var(--homepage-text)] transition hover:bg-white/5"
+              className="inline-flex items-center justify-center rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-(--homepage-text) transition hover:bg-white/5"
             >
               刷新状态
             </button>
@@ -242,8 +242,8 @@ export function AdminTabs() {
               key={card.title}
               className="rounded-2xl border border-white/10 bg-black/10 p-5"
             >
-              <p className="text-sm text-[var(--homepage-muted)]">{card.title}</p>
-              <p className="mt-3 text-lg font-semibold text-[var(--homepage-text)]">
+              <p className="text-sm text-(--homepage-muted)">{card.title}</p>
+              <p className="mt-3 text-lg font-semibold text-(--homepage-text)">
                 {card.value}
               </p>
             </article>

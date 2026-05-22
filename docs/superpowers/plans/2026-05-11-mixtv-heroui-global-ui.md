@@ -77,7 +77,7 @@ describe("RootLayout", () => {
     expect(html).toContain("data-testid=\"heroui-provider\"");
     expect(html).toContain("site-header");
     expect(html).toContain("page-child");
-    expect(html).not.toContain("bg-[var(--homepage-bg)]");
+    expect(html).not.toContain("bg-(--homepage-bg)");
     expect(html).not.toContain("data-theme=");
     expect(css).not.toContain("--homepage-bg");
     expect(css).not.toContain("--homepage-text");
@@ -403,8 +403,8 @@ describe("HomepageShell", () => {
     expect(html).toContain("MixTV");
     expect(html).toContain("欢迎");
     expect(html).toContain(data.heroBanner[0].title);
-    expect(html).not.toContain("bg-[var(--homepage-bg)]");
-    expect(html).not.toContain("text-[var(--homepage-text)]");
+    expect(html).not.toContain("bg-(--homepage-bg)");
+    expect(html).not.toContain("text-(--homepage-text)");
   });
 
   it("hides the welcome banner when disabled in config", async () => {
@@ -436,8 +436,8 @@ describe("ContentCard", () => {
 
     expect(html).toContain(item.title);
     expect(html).toContain("bi-play-circle");
-    expect(html).not.toContain("bg-[var(--homepage-surface-strong)]");
-    expect(html).not.toContain("text-[var(--homepage-text)]");
+    expect(html).not.toContain("bg-(--homepage-surface-strong)");
+    expect(html).not.toContain("text-(--homepage-text)");
   });
 });
 ```
@@ -685,8 +685,8 @@ describe("placeholder routes", () => {
   it("renders every placeholder route through the shared HeroUI shell", async () => {
     for (const Page of placeholderRoutes) {
       const html = renderToStaticMarkup(await Page());
-      expect(html).not.toContain("bg-[var(--homepage-surface)]");
-      expect(html).not.toContain("text-[var(--homepage-text)]");
+      expect(html).not.toContain("bg-(--homepage-surface)");
+      expect(html).not.toContain("text-(--homepage-text)");
     }
   });
 });
@@ -765,7 +765,7 @@ describe("AdminPage", () => {
     expect(html).toContain("站点配置");
     expect(html).toContain("首页模块");
     expect(html).toContain("性能监控");
-    expect(html).not.toContain("bg-[var(--homepage-surface)]");
+    expect(html).not.toContain("bg-(--homepage-surface)");
     expect(html).not.toContain("border-white/10");
   });
 });
@@ -791,7 +791,7 @@ describe("SiteConfigPanel", () => {
     expect(html).toContain("启用流式搜索");
     expect(html).toContain("保存配置");
     expect(html).not.toContain("rounded-2xl border border-zinc-800/60");
-    expect(html).not.toContain("bg-[var(--homepage-surface)]");
+    expect(html).not.toContain("bg-(--homepage-surface)");
   });
 });
 ```

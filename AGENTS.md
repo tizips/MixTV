@@ -49,6 +49,9 @@
 - Use font icons for UI icons by default; do not introduce inline SVG icon markup unless explicitly requested.
 - Content pages such as home, search, sources, movies, series, anime, and variety should use the shared content width: outer horizontal padding `px-4 md:px-6 lg:px-8` and an inner centered container with `w-full max-w-6xl`.
 - The `/play` page is wider than standard content pages: use outer horizontal padding `px-4 md:px-6 lg:px-8`, an inner centered container with `w-full max-w-[100rem]`, and keep the playback layout's side panel around `360px` on `xl` and `380px` on `2xl` so the video area remains dominant.
+- All forms should prefer AntD `Form` and `Form.Item` for field layout, and `Row` / `Col` for page-level two-column structure when needed.
+- For forms, prefer AntD form values and `Form` submission handlers over manual input-state plumbing. Keep Tailwind limited to page shell, background, and other layout-only concerns when AntD does not cover them cleanly.
+- When replacing a legacy form, preserve the existing field semantics, validation messages, and submit behavior, but prefer AntD-native spacing, labeling, and button sizing over custom wrappers.
 
 ## Page and API Interaction Rules
 

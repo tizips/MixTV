@@ -133,7 +133,7 @@ export function HomepageShell({ data, userName }: HomepageShellProps) {
   const [isLoading] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[var(--homepage-bg)] px-4 py-4 text-[var(--homepage-text)] md:px-6 md:py-6 lg:px-12 lg:py-12">
+    <div className="min-h-screen bg-(--homepage-bg) px-4 py-4 text-(--homepage-text) md:px-6 md:py-6 lg:px-12 lg:py-12">
       <LoadingOverlay isLoading={isLoading} />
       <WelcomeBanner userName={userName} />
       {data.heroBanner.length > 0 && <HeroBanner items={data.heroBanner} />}
@@ -156,9 +156,9 @@ export function WelcomeBanner({ userName }: WelcomeBannerProps) {
   const greeting = userName ? `欢迎回来，${userName}` : "欢迎来到 MixTV";
 
   return (
-    <div className="mb-6 rounded-lg border border-[var(--homepage-border)] bg-[var(--homepage-surface)] p-6 backdrop-blur-md">
-      <h1 className="mb-2 text-3xl font-bold text-[var(--homepage-text)]">{greeting}</h1>
-      <p className="text-[var(--homepage-muted)]">探索精彩影视内容</p>
+    <div className="mb-6 rounded-lg border border-(--homepage-border) bg-(--homepage-surface) p-6 backdrop-blur-md">
+      <h1 className="mb-2 text-3xl font-bold text-(--homepage-text)">{greeting}</h1>
+      <p className="text-(--homepage-muted)">探索精彩影视内容</p>
     </div>
   );
 }
@@ -239,31 +239,31 @@ Update the components so their overlays, titles, muted text, and card frame/badg
 
 ```tsx
 // hero-banner.tsx
-<div className="relative mb-8 h-[70vh] w-full overflow-hidden rounded-lg border border-[var(--homepage-border)] bg-[var(--homepage-surface-strong)]">
+<div className="relative mb-8 h-[70vh] w-full overflow-hidden rounded-lg border border-(--homepage-border) bg-(--homepage-surface-strong)">
   ...
-  <div className="absolute inset-0 bg-gradient-to-t from-[var(--homepage-bg)] via-[var(--homepage-bg)]/60 to-transparent" />
+  <div className="absolute inset-0 bg-gradient-to-t from-(--homepage-bg) via-(--homepage-bg)/60 to-transparent" />
   ...
-  <div className="rounded-lg border border-[var(--homepage-border)] bg-[var(--homepage-surface)] p-6 backdrop-blur-md">
-    <h2 className="mb-4 text-4xl font-bold text-[var(--homepage-text)] md:text-5xl">...
-    <span className="text-[var(--homepage-accent)]">⭐ ...</span>
-    <span className="text-[var(--homepage-muted)]">...</span>
-    <p className="text-[var(--homepage-muted)]">...</p>
+  <div className="rounded-lg border border-(--homepage-border) bg-(--homepage-surface) p-6 backdrop-blur-md">
+    <h2 className="mb-4 text-4xl font-bold text-(--homepage-text) md:text-5xl">...
+    <span className="text-(--homepage-accent)">⭐ ...</span>
+    <span className="text-(--homepage-muted)">...</span>
+    <p className="text-(--homepage-muted)">...</p>
   </div>
 </div>
 
 // content-carousel.tsx
-<h2 className="text-2xl font-bold text-[var(--homepage-text)]">{title}</h2>
-<Link className="text-sm text-[var(--homepage-muted)] transition-colors hover:text-[var(--homepage-text)]">...</Link>
+<h2 className="text-2xl font-bold text-(--homepage-text)">{title}</h2>
+<Link className="text-sm text-(--homepage-muted) transition-colors hover:text-(--homepage-text)">...</Link>
 
 // content-card.tsx
-<div className="relative aspect-[2/3] overflow-hidden rounded-lg border border-[var(--homepage-border)] bg-[var(--homepage-surface-strong)] transition-transform duration-300 hover:scale-105 hover:shadow-2xl">
+<div className="relative aspect-[2/3] overflow-hidden rounded-lg border border-(--homepage-border) bg-(--homepage-surface-strong) transition-transform duration-300 hover:scale-105 hover:shadow-2xl">
   ...
-  <div className="absolute top-2 right-2 rounded bg-[var(--homepage-surface-strong)]/80 px-2 py-1 text-sm font-semibold text-[var(--homepage-accent)] backdrop-blur-sm">
+  <div className="absolute top-2 right-2 rounded bg-(--homepage-surface-strong)/80 px-2 py-1 text-sm font-semibold text-(--homepage-accent) backdrop-blur-sm">
     ...
   </div>
 </div>
-<h3 className="mt-2 line-clamp-2 text-sm font-medium text-[var(--homepage-text)]">...
-<p className="text-xs text-[var(--homepage-muted)]">...
+<h3 className="mt-2 line-clamp-2 text-sm font-medium text-(--homepage-text)">...
+<p className="text-xs text-(--homepage-muted)">...
 ```
 
 - [ ] **Step 4: Run the hero and carousel tests and confirm they pass**
@@ -308,10 +308,10 @@ export function LoadingOverlay({ isLoading }: LoadingOverlayProps) {
   if (!isLoading) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--homepage-bg)]/80 backdrop-blur-sm">
-      <div className="flex flex-col items-center gap-4 rounded-lg border border-[var(--homepage-border)] bg-[var(--homepage-surface)] p-6">
-        <div className="h-16 w-16 animate-spin rounded-full border-4 border-[var(--homepage-border)] border-t-[var(--homepage-text)]" />
-        <p className="text-lg font-medium text-[var(--homepage-text)]">加载中...</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-(--homepage-bg)/80 backdrop-blur-sm">
+      <div className="flex flex-col items-center gap-4 rounded-lg border border-(--homepage-border) bg-(--homepage-surface) p-6">
+        <div className="h-16 w-16 animate-spin rounded-full border-4 border-(--homepage-border) border-t-(--homepage-text)" />
+        <p className="text-lg font-medium text-(--homepage-text)">加载中...</p>
       </div>
     </div>
   );
