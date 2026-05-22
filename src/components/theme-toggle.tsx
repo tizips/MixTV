@@ -1,6 +1,7 @@
 "use client";
 
-import { Button } from "@heroui/react";
+import { DesktopOutlined, MoonFilled, SunFilled } from "@ant-design/icons";
+import { Button } from "antd";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
@@ -8,10 +9,13 @@ type ThemeMode = "system" | "light" | "dark";
 
 const themeModes: ThemeMode[] = ["system", "light", "dark"];
 
-const modeConfig: Record<ThemeMode, { icon: string; label: string }> = {
-  system: { icon: "bi-circle-half", label: "自动" },
-  light: { icon: "bi-sun-fill", label: "浅色" },
-  dark: { icon: "bi-moon-stars-fill", label: "深色" },
+const modeConfig: Record<
+  ThemeMode,
+  { Icon: typeof DesktopOutlined; label: string }
+> = {
+  system: { Icon: DesktopOutlined, label: "自动" },
+  light: { Icon: SunFilled, label: "浅色" },
+  dark: { Icon: MoonFilled, label: "深色" },
 };
 
 function getNextMode(mode: ThemeMode): ThemeMode {
@@ -20,7 +24,9 @@ function getNextMode(mode: ThemeMode): ThemeMode {
 }
 
 function getThemeMode(theme?: string): ThemeMode {
-  return theme === "light" || theme === "dark" || theme === "system" ? theme : "system";
+  return theme === "light" || theme === "dark" || theme === "system"
+    ? theme
+    : "system";
 }
 
 export function ThemeToggle() {
@@ -39,6 +45,7 @@ export function ThemeToggle() {
 
   const mode = getThemeMode(theme);
   const config = modeConfig[mode];
+  const CurrentIcon = config.Icon;
 
   function handlePress() {
     const nextMode = getNextMode(mode);
@@ -50,25 +57,21 @@ export function ThemeToggle() {
     return (
       <Button
         aria-label="主题切换初始化中"
-        className="h-10 w-10 rounded-full p-0"
-        isDisabled
-        isIconOnly
-        variant="ghost"
-      >
-        <i aria-hidden="true" className="bi bi-circle-half text-base" />
-      </Button>
+        disabled
+        shape="circle"
+        type="text"
+        icon={<DesktopOutlined />}
+      />
     );
   }
 
   return (
     <Button
       aria-label={`切换主题，当前${config.label}`}
-      className="h-10 w-10 rounded-full p-0"
-      isIconOnly
-      onPress={handlePress}
-      variant="ghost"
-    >
-      <i aria-hidden="true" className={`bi ${config.icon} text-base`} />
-    </Button>
+      shape="circle"
+      type="text"
+      onClick={handlePress}
+      icon={<CurrentIcon />}
+    />
   );
 }

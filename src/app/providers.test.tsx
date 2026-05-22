@@ -8,12 +8,7 @@ import { Providers } from "./providers";
 
 vi.mock("next-themes", () => ({
   ThemeProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
-}));
-
-vi.mock("@heroui/react", () => ({
-  Toast: {
-    Provider: () => null,
-  },
+  useTheme: () => ({ resolvedTheme: "light" }),
 }));
 
 describe("Providers", () => {

@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import HolyLoader from "holy-loader";
-import "bootstrap-icons/font/bootstrap-icons.css";
 import "./globals.css";
 import { auth } from "@/auth";
 import { Providers } from "@/app/providers";

@@ -58,7 +58,7 @@ describe("ThemeToggle", () => {
     const html = renderToStaticMarkup(<ThemeToggle />);
 
     expect(html).toContain("主题切换初始化中");
-    expect(html).toContain("bi-circle-half");
+    expect(html).toContain('data-icon="control"');
   });
 
   it("cycles automatic to light to dark to automatic", () => {
@@ -97,7 +97,7 @@ describe("ThemeToggle", () => {
 
     return renderClient().then(({ button, root }) => {
       expect(button.getAttribute("aria-label")).toContain("当前深色");
-      expect(button.innerHTML).toContain("bi-moon-stars-fill");
+      expect(button.innerHTML).toContain('data-icon="moon"');
 
       act(() => {
         root.unmount();

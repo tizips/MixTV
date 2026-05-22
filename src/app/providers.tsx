@@ -3,8 +3,9 @@
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { ThemeProvider } from "next-themes";
-import { Toast } from "@heroui/react";
+import { App, ConfigProvider, theme as antdTheme } from "antd";
 import { PageActivityTracker } from "@/modules/stats/ui/page-activity-tracker";
+import { useTheme } from "next-themes";
 
 const themeStorageMigrationScript = `
 try {
@@ -27,8 +28,10 @@ function isBenignViewTransitionRejection(reason: unknown) {
     error.name === "AbortError" ||
     (error.name === "InvalidStateError" &&
       (message === "Transition was aborted because of invalid state" ||
-        message === "View transition was skipped because document visibility state is hidden." ||
-        message === "Skipping view transition because document visibility state has become hidden." ||
+        message ===
+          "View transition was skipped because document visibility state is hidden." ||
+        message ===
+          "Skipping view transition because document visibility state has become hidden." ||
         message === "Skipping view transition because viewport size changed."))
   );
 }
@@ -43,13 +46,22 @@ function consumeViewTransitionPromise(promise: Promise<unknown> | undefined) {
 
 function useHandledViewTransitions() {
   useEffect(() => {
-    if (!("startViewTransition" in document) || typeof document.startViewTransition !== "function") {
+    if (
+      !("startViewTransition" in document) ||
+      typeof document.startViewTransition !== "function"
+    ) {
       return;
     }
 
-    const originalDescriptor = Object.getOwnPropertyDescriptor(document, "startViewTransition");
-    const originalStartViewTransition = document.startViewTransition.bind(document);
-    const patchedStartViewTransition: typeof document.startViewTransition = (callback) => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      "startViewTransition",
+    );
+    const originalStartViewTransition =
+      document.startViewTransition.bind(document);
+    const patchedStartViewTransition: typeof document.startViewTransition = (
+      callback,
+    ) => {
       const transition = originalStartViewTransition(callback);
       consumeViewTransitionPromise(transition.ready);
       consumeViewTransitionPromise(transition.updateCallbackDone);
@@ -65,7 +77,11 @@ function useHandledViewTransitions() {
     return () => {
       if (document.startViewTransition === patchedStartViewTransition) {
         if (originalDescriptor) {
-          Object.defineProperty(document, "startViewTransition", originalDescriptor);
+          Object.defineProperty(
+            document,
+            "startViewTransition",
+            originalDescriptor,
+          );
         } else {
           Object.defineProperty(document, "startViewTransition", {
             configurable: true,
@@ -75,6 +91,32 @@ function useHandledViewTransitions() {
       }
     };
   }, []);
+}
+
+function AntdThemeBridge({ children }: { children: ReactNode }) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
+  return (
+    <ConfigProvider
+      theme={{
+        algorithm: isDark
+          ? antdTheme.darkAlgorithm
+          : antdTheme.defaultAlgorithm,
+        token: {
+          colorPrimary: "#0f9d83",
+        },
+      }}
+      modal={{
+        centered: true,
+      }}
+    >
+      <App>
+        <PageActivityTracker />
+        {children}
+      </App>
+    </ConfigProvider>
+  );
 }
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -93,10 +135,8 @@ export function Providers({ children }: { children: ReactNode }) {
         enableSystem
         storageKey="mixtv-theme-mode"
       >
-        <PageActivityTracker />
-        {children}
+        <AntdThemeBridge>{children}</AntdThemeBridge>
       </ThemeProvider>
-      <Toast.Provider placement="top end" />
     </>
   );
 }

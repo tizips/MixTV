@@ -1,10 +1,21 @@
 "use client";
 
+import {
+  BarChartOutlined,
+  CalendarOutlined,
+  DashboardOutlined,
+  HeartOutlined,
+  LogoutOutlined,
+  PlayCircleOutlined,
+  SettingOutlined,
+  UserOutlined,
+} from "@ant-design/icons";
+import type { MenuProps } from "antd";
+import { Button, Divider, Dropdown, Modal, Tag, Typography } from "antd";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
-import { AlertDialog, Button, Chip, Dropdown, Separator } from "@heroui/react";
 
 type UserMenuProps = {
   userName: string;
@@ -13,36 +24,65 @@ type UserMenuProps = {
 
 type MenuItem = {
   label: string;
-  iconClassName: string;
+  Icon: typeof SettingOutlined;
   trailing?: ReactNode;
   adminOnly?: boolean;
-} & ({ href: string; onAction?: never } | { href?: never; onAction: () => void });
+} & (
+  | { href: string; onAction?: never }
+  | { href?: never; onAction: () => void }
+);
 
 function createMenuItems(historyUpdateCount?: number): MenuItem[] {
   return [
-    { label: "设置", href: "/settings", iconClassName: "bi-gear" },
+    {
+      label: "设置",
+      href: "/settings",
+      Icon: SettingOutlined,
+    },
     {
       label: "继续观看",
       href: "/history",
-      iconClassName: "bi-play-circle",
+      Icon: PlayCircleOutlined,
       trailing:
         typeof historyUpdateCount === "number" && historyUpdateCount > 0 ? (
-          <Chip className="h-5 shrink-0 px-1.5 text-[11px]" color="danger" size="sm" variant="primary">
+          <Tag
+            color="red"
+            className="m-0 rounded-full px-1.5 text-[11px] leading-4"
+          >
             {historyUpdateCount}
-          </Chip>
+          </Tag>
         ) : undefined,
     },
-    { label: "我的收藏", href: "/favorites", iconClassName: "bi-heart" },
-    { label: "管理面板", href: "/admin", iconClassName: "bi-speedometer2", adminOnly: true },
-    { label: "播放统计", href: "/stats", iconClassName: "bi-bar-chart", adminOnly: true },
-    { label: "上映日程", href: "/release-schedule", iconClassName: "bi-calendar-event" },
+    {
+      label: "我的收藏",
+      href: "/favorites",
+      Icon: HeartOutlined,
+    },
+    {
+      label: "管理面板",
+      href: "/admin",
+      Icon: DashboardOutlined,
+      adminOnly: true,
+    },
+    {
+      label: "播放统计",
+      href: "/stats",
+      Icon: BarChartOutlined,
+      adminOnly: true,
+    },
+    { label: "上映日程", href: "/release-schedule", Icon: CalendarOutlined },
   ];
 }
 
-function renderItemContent(item: Pick<MenuItem, "iconClassName" | "label" | "trailing">, className = "") {
+function renderItemContent(
+  item: Pick<MenuItem, "Icon" | "label" | "trailing">,
+  className = "",
+) {
+  const Icon = item.Icon;
+
   return (
     <span className={`flex w-full items-center gap-3 ${className}`.trim()}>
-      <span className={`bi ${item.iconClassName} text-base`} aria-hidden="true" />
+      <Icon className="text-base" />
       <span className="min-w-0 flex-1 truncate">{item.label}</span>
       {item.trailing}
     </span>
@@ -52,7 +92,9 @@ function renderItemContent(item: Pick<MenuItem, "iconClassName" | "label" | "tra
 export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
-  const [historyUpdateCount, setHistoryUpdateCount] = useState<number | null>(null);
+  const [historyUpdateCount, setHistoryUpdateCount] = useState<number | null>(
+    null,
+  );
   const permissionLabel = isAdmin ? "站长" : "普通用户";
 
   useEffect(() => {
@@ -60,16 +102,20 @@ export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
 
     async function loadHistoryUpdateCount() {
       try {
-        const response = await fetch("/api/history/update-count", { cache: "no-store" });
+        const response = await fetch("/api/history/update-count", {
+          cache: "no-store",
+        });
 
         if (!response.ok) {
           return;
         }
 
         const payload = (await response.json()) as { history?: unknown };
-        const nextCount = typeof payload.history === "number" && Number.isFinite(payload.history)
-          ? Math.max(0, Math.floor(payload.history))
-          : 0;
+        const nextCount =
+          typeof payload.history === "number" &&
+          Number.isFinite(payload.history)
+            ? Math.max(0, Math.floor(payload.history))
+            : 0;
 
         if (!cancelled) {
           setHistoryUpdateCount(nextCount);
@@ -89,14 +135,20 @@ export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
   }, []);
 
   const menuItems = createMenuItems(historyUpdateCount ?? undefined);
-  const logoutItem: MenuItem = {
-    label: "登出",
-    iconClassName: "bi-box-arrow-right",
-    onAction: () => {
-      setOpen(false);
-      setIsLogoutDialogOpen(true);
-    },
-  };
+  const visibleMenuItems = menuItems.filter(
+    (item) => !item.adminOnly || isAdmin,
+  );
+
+  const items: MenuProps["items"] = visibleMenuItems.map((item) => ({
+    key: item.href ?? item.label,
+    label: item.href ? (
+      <Link href={item.href} prefetch={false} onClick={() => setOpen(false)}>
+        {renderItemContent(item)}
+      </Link>
+    ) : (
+      renderItemContent(item)
+    ),
+  }));
 
   const handleConfirmLogout = () => {
     setIsLogoutDialogOpen(false);
@@ -105,90 +157,84 @@ export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
 
   return (
     <>
-      <Dropdown isOpen={open} onOpenChange={setOpen}>
-        <Dropdown.Trigger
-          aria-label="打开个人中心"
-          className="h-10 w-10 rounded-full p-0"
-        >
-          <span className="bi bi-person text-2xl" aria-hidden="true" />
-        </Dropdown.Trigger>
-        <Dropdown.Popover className="w-60" placement="bottom end">
-          <div className="px-4 py-4">
-            <div className="space-y-2">
-              <p className="text-[11px] text-default-300">当前用户</p>
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-base font-semibold text-foreground">{userName}</p>
-                <span className="rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent-soft-foreground">
-                  {permissionLabel}
-                </span>
+      <Dropdown
+        open={open}
+        trigger={["click"]}
+        popupRender={(menu) => (
+          <div className="w-60 bg-(--ant-color-bg-elevated)">
+            <div className="px-4 py-4">
+              <div className="space-y-2">
+                <p className="text-[11px] text-slate-400">当前用户</p>
+                <div className="flex items-center justify-between gap-3">
+                  <Typography.Text strong className="text-base text-slate-950">
+                    {userName}
+                  </Typography.Text>
+                  <Tag
+                    color="cyan"
+                    className="m-0 rounded-full px-2.5 py-0.5 text-xs"
+                  >
+                    {permissionLabel}
+                  </Tag>
+                </div>
               </div>
             </div>
-          </div>
-          <Dropdown.Menu aria-label="个人中心菜单" selectionMode="none" onAction={() => setOpen(false)}>
-            <Separator />
-            <Dropdown.Section>
-              {menuItems
-                .filter((item) => !item.adminOnly || isAdmin)
-                .map((item) => (
-                  <Dropdown.Item
-                    key={item.href ?? item.label}
-                    id={item.href ?? item.label}
-                    onAction={item.onAction}
-                    textValue={item.label}
-                  >
-                    {item.href ? (
-                      <Link
-                        className="block w-full outline-none"
-                        href={item.href}
-                        prefetch={false}
-                        onClick={() => setOpen(false)}
-                      >
-                        {renderItemContent(item)}
-                      </Link>
-                    ) : (
-                      renderItemContent(item)
-                    )}
-                  </Dropdown.Item>
-                ))}
-            </Dropdown.Section>
-            <Separator />
-            <Dropdown.Section>
-              <Dropdown.Item
-                id="logout"
-                onAction={logoutItem.onAction}
-                textValue="登出"
-                variant="danger"
+            <Divider size="small" className="my-0" />
+            {menu}
+            <Divider size="small" className="my-0" />
+            <div className="p-2">
+              <Button
+                danger
+                className="flex h-10 w-full items-center justify-start gap-3"
+                type="text"
+                onClick={() => {
+                  setOpen(false);
+                  setIsLogoutDialogOpen(true);
+                }}
               >
-                {renderItemContent(logoutItem, "text-danger")}
-              </Dropdown.Item>
-            </Dropdown.Section>
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
-      <AlertDialog.Backdrop
-        isOpen={isLogoutDialogOpen}
-        onOpenChange={setIsLogoutDialogOpen}
+                <LogoutOutlined className="text-base" />
+                <span>登出</span>
+              </Button>
+            </div>
+          </div>
+        )}
+        menu={{
+          items,
+          onClick: () => setOpen(false),
+          style: { boxShadow: "none" },
+        }}
+        onOpenChange={setOpen}
       >
-        <AlertDialog.Container placement="center" size="sm">
-          <AlertDialog.Dialog className="sm:max-w-[400px]">
-            <AlertDialog.Header className="flex flex-col">
-              <AlertDialog.Icon status="danger" />
-              <AlertDialog.Heading className="text-center">确认登出</AlertDialog.Heading>
-            </AlertDialog.Header>
-            <AlertDialog.Body className="text-center">
-              <p className="text-sm leading-6 text-default-600">确定要退出当前账号吗？</p>
-            </AlertDialog.Body>
-            <AlertDialog.Footer className="flex items-center justify-end gap-2">
-              <Button slot="close" variant="tertiary">
-                取消
-              </Button>
-              <Button slot="close" variant="danger" onPress={handleConfirmLogout}>
-                确认登出
-              </Button>
-            </AlertDialog.Footer>
-          </AlertDialog.Dialog>
-        </AlertDialog.Container>
-      </AlertDialog.Backdrop>
+        <Button
+          aria-label="打开个人中心"
+          className="flex h-10 w-10 items-center justify-center rounded-full"
+          type="text"
+          icon={<UserOutlined className="text-2xl" />}
+        />
+      </Dropdown>
+
+      <Modal
+        centered
+        open={isLogoutDialogOpen}
+        title="确认登出"
+        onCancel={() => setIsLogoutDialogOpen(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setIsLogoutDialogOpen(false)}>
+            取消
+          </Button>,
+          <Button
+            key="confirm"
+            danger
+            type="primary"
+            onClick={handleConfirmLogout}
+          >
+            确认登出
+          </Button>,
+        ]}
+      >
+        <p className="text-sm leading-6 text-slate-600">
+          确定要退出当前账号吗？
+        </p>
+      </Modal>
     </>
   );
 }

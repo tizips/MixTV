@@ -3,7 +3,7 @@
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot } from "react-dom/client";
-import type { ReactNode } from "react";
+import { createAntdMock } from "@/test/antd-mock";
 import { LoginForm } from "./login-form";
 
 const routerState = vi.hoisted(() => ({
@@ -23,81 +23,7 @@ vi.mock("next-auth/react", () => ({
   signIn: authState.signIn,
 }));
 
-vi.mock("@heroui/react", () => ({
-  Button: ({
-    children,
-    isDisabled,
-    type,
-  }: {
-    children: ReactNode | ((props: { isPending: boolean }) => ReactNode);
-    isDisabled?: boolean;
-    type?: "button" | "submit" | "reset";
-  }) => (
-    <button disabled={isDisabled} type={type}>
-      {typeof children === "function" ? children({ isPending: Boolean(isDisabled) }) : children}
-    </button>
-  ),
-  Card: Object.assign(
-    ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    {
-      Content: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-      Description: ({ children }: { children: ReactNode }) => <p>{children}</p>,
-      Header: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-      Title: ({ children }: { children: ReactNode }) => <h1>{children}</h1>,
-    },
-  ),
-  Form: ({
-    action,
-    children,
-  }: {
-    action: (formData: FormData) => void;
-    children: ReactNode;
-  }) => (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        action(new FormData(event.currentTarget));
-      }}
-    >
-      {children}
-    </form>
-  ),
-  Input: ({
-    id,
-    name,
-    onChange,
-    placeholder,
-    required,
-    type,
-    value,
-  }: {
-    id?: string;
-    name?: string;
-    onChange?: (event: { target: { value: string } }) => void;
-    placeholder?: string;
-    required?: boolean;
-    type?: string;
-    value?: string;
-  }) => (
-    <input
-      id={id}
-      name={name}
-      onChange={(event) => {
-        onChange?.({ target: { value: event.currentTarget.value } });
-      }}
-      onInput={(event) => {
-        onChange?.({ target: { value: event.currentTarget.value } });
-      }}
-      placeholder={placeholder}
-      required={required}
-      type={type}
-      value={value}
-    />
-  ),
-  Label: ({ children }: { children: ReactNode }) => <label>{children}</label>,
-  Spinner: () => <span>loading</span>,
-  TextField: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
+vi.mock("antd", () => createAntdMock());
 
 function renderLoginForm() {
   const host = document.createElement("div");

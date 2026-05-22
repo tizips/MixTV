@@ -6,28 +6,6 @@ import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
 import { UserMenu } from "./user-menu";
 
-type MockDropdownProps = {
-  children: ReactNode;
-};
-
-type MockButtonProps = {
-  "aria-label"?: string;
-  children: ReactNode;
-  className?: string;
-  isIconOnly?: boolean;
-  onPress?: () => void;
-  slot?: string;
-  variant?: string;
-};
-
-type MockChipProps = {
-  children: ReactNode;
-  className?: string;
-  color?: string;
-  size?: string;
-  variant?: string;
-};
-
 vi.mock("next/link", () => ({
   default: ({ href, children, prefetch, ...props }: { href: string; children: ReactNode; prefetch?: boolean }) => (
     <a data-prefetch={String(prefetch ?? true)} href={href} {...props}>
@@ -40,139 +18,93 @@ vi.mock("next-auth/react", () => ({
   signOut: vi.fn(),
 }));
 
-vi.mock("@heroui/react", () => {
-  function Dropdown({ children }: MockDropdownProps) {
-    return <div data-testid="dropdown">{children}</div>;
-  }
-
-  function DropdownTrigger({ children }: MockDropdownProps) {
+vi.mock("antd", () => {
+  function Button({ children, className, icon, onClick, type }: { children: ReactNode; className?: string; icon?: ReactNode; onClick?: () => void; type?: string }) {
     return (
-      <button data-testid="dropdown-trigger" type="button">
+      <button className={className} type={type === "primary" ? "button" : "button"} onClick={onClick}>
+        {icon}
         {children}
       </button>
     );
   }
 
-  function DropdownPopover({ children }: MockDropdownProps) {
-    return <div data-testid="dropdown-popover">{children}</div>;
+  function Divider() {
+    return <hr />;
   }
 
-  function DropdownMenu({ children }: MockDropdownProps) {
-    return <ul aria-label="个人中心菜单" role="menu">{children}</ul>;
-  }
-
-  function DropdownSection({ children }: MockDropdownProps) {
-    return <>{children}</>;
-  }
-
-  function DropdownItem({
+  function Dropdown({
     children,
-    id,
-    onAction,
-    variant,
+    popupRender,
+    menu,
   }: {
     children: ReactNode;
-    id: string;
-    onAction?: () => void;
-    variant?: string;
+    popupRender?: (menu: ReactNode) => ReactNode;
+    menu?: { items?: Array<{ key: string; label: ReactNode }>; onClick?: () => void };
   }) {
-    return (
-      <li data-id={id} data-variant={variant} role="menuitem" onClick={() => onAction?.()}>
-        {children}
-      </li>
+    const renderedMenu = (
+      <ul aria-label="个人中心菜单" role="menu">
+        {menu?.items?.map((item) => (
+          <li key={item.key} role="menuitem" onClick={() => menu?.onClick?.()}>
+            {item.label}
+          </li>
+        ))}
+      </ul>
     );
-  }
 
-  Dropdown.Popover = DropdownPopover;
-  Dropdown.Trigger = DropdownTrigger;
-  Dropdown.Menu = DropdownMenu;
-  Dropdown.Section = DropdownSection;
-  Dropdown.Item = DropdownItem;
-
-  function Button({ "aria-label": ariaLabel, children, className, isIconOnly, slot, variant }: MockButtonProps) {
     return (
-      <button
-        aria-label={ariaLabel}
-        className={className}
-        data-icon-only={isIconOnly ? "true" : undefined}
-        data-slot={slot}
-        data-variant={variant}
-        type="button"
-      >
+      <div data-testid="dropdown">
         {children}
-      </button>
-    );
-  }
-
-  function Chip({ children, className, color, size, variant }: MockChipProps) {
-    return (
-      <span className={className} data-color={color} data-size={size} data-variant={variant}>
-        {children}
-      </span>
-    );
-  }
-
-  function Separator() {
-    return <li aria-hidden="true" className="border-y border-default-200" role="separator" />;
-  }
-
-  function AlertDialogBackdrop({ children }: MockDropdownProps) {
-    return <div data-testid="alert-dialog-backdrop">{children}</div>;
-  }
-
-  function AlertDialogContainer({ children }: MockDropdownProps) {
-    return <div data-testid="alert-dialog-container">{children}</div>;
-  }
-
-  function AlertDialogDialog({ children }: MockDropdownProps) {
-    return <div data-testid="alert-dialog-dialog">{children}</div>;
-  }
-
-  function AlertDialogHeader({ children, className }: { children: ReactNode; className?: string }) {
-    return (
-      <div className={className} data-testid="alert-dialog-header">
-        {children}
+        {popupRender ? popupRender(renderedMenu) : renderedMenu}
       </div>
     );
   }
 
-  function AlertDialogHeading({ children, className }: { children: ReactNode; className?: string }) {
+  function Modal({
+    children,
+    footer,
+    open,
+    title,
+  }: {
+    children: ReactNode;
+    footer?: ReactNode;
+    open?: boolean;
+    title?: ReactNode;
+  }) {
+    if (!open) {
+      return null;
+    }
+
+    return (
+      <div data-testid="modal">
+        <h2>{title}</h2>
+        {children}
+        <div>{footer}</div>
+      </div>
+    );
+  }
+
+  function Tag({ children, className }: { children: ReactNode; className?: string }) {
+    return <span className={className}>{children}</span>;
+  }
+
+  function TypographyText({ children, className }: { children: ReactNode; className?: string }) {
+    return <span className={className}>{children}</span>;
+  }
+
+  function TypographyTitle({ children, className }: { children: ReactNode; className?: string }) {
     return <h2 className={className}>{children}</h2>;
   }
 
-  function AlertDialogBody({ children, className }: { children: ReactNode; className?: string }) {
-    return <div className={className}>{children}</div>;
-  }
-
-  function AlertDialogFooter({ children, className }: { children: ReactNode; className?: string }) {
-    return <div className={className}>{children}</div>;
-  }
-
-  function AlertDialogIcon({ children }: MockDropdownProps) {
-    return <div>{children}</div>;
-  }
-
-  function AlertDialog({ children }: MockDropdownProps) {
-    return <div data-testid="alert-dialog">{children}</div>;
-  }
-
-  AlertDialog.Backdrop = AlertDialogBackdrop;
-  AlertDialog.Container = AlertDialogContainer;
-  AlertDialog.Dialog = AlertDialogDialog;
-  AlertDialog.Header = AlertDialogHeader;
-  AlertDialog.Heading = AlertDialogHeading;
-  AlertDialog.Body = AlertDialogBody;
-  AlertDialog.Footer = AlertDialogFooter;
-  AlertDialog.Icon = AlertDialogIcon;
-
   return {
-    AlertDialog,
     Button,
-    Chip,
+    Divider,
     Dropdown,
-    Label: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-    Separator,
-    useOverlayState: () => ({ close: vi.fn(), open: vi.fn() }),
+    Modal,
+    Tag,
+    Typography: {
+      Text: TypographyText,
+      Title: TypographyTitle,
+    },
   };
 });
 

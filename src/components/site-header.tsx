@@ -1,5 +1,14 @@
 "use client";
 
+import {
+  AppstoreOutlined,
+  HomeFilled,
+  LaptopOutlined,
+  PlaySquareFilled,
+  SearchOutlined,
+  StarFilled,
+  VideoCameraOutlined,
+} from "@ant-design/icons";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -7,14 +16,49 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 import { env } from "@/shared/env";
 
-const navItems = [
-  { label: "首页", href: "/", icon: "bi-house-door-fill", iconClass: "text-muted" },
-  { label: "搜索", href: "/search", icon: "bi-search", iconClass: "text-muted" },
-  { label: "源浏览器", href: "/sources", icon: "bi-box-seam", iconClass: "text-muted" },
-  { label: "电影", href: "/movies", icon: "bi-film", iconClass: "text-muted" },
-  { label: "剧集", href: "/series", icon: "bi-tv-fill", iconClass: "text-muted" },
-  { label: "动漫", href: "/anime", icon: "bi-play-btn-fill", iconClass: "text-muted" },
-  { label: "综艺", href: "/variety", icon: "bi-stars", iconClass: "text-muted" },
+const navItems: Array<{
+  label: string;
+  href: string;
+  Icon: typeof HomeFilled;
+  iconClass: string;
+}> = [
+  { label: "首页", href: "/", Icon: HomeFilled, iconClass: "text-muted" },
+  {
+    label: "搜索",
+    href: "/search",
+    Icon: SearchOutlined,
+    iconClass: "text-muted",
+  },
+  {
+    label: "源浏览器",
+    href: "/sources",
+    Icon: AppstoreOutlined,
+    iconClass: "text-muted",
+  },
+  {
+    label: "电影",
+    href: "/movies",
+    Icon: VideoCameraOutlined,
+    iconClass: "text-muted",
+  },
+  {
+    label: "剧集",
+    href: "/series",
+    Icon: LaptopOutlined,
+    iconClass: "text-muted",
+  },
+  {
+    label: "动漫",
+    href: "/anime",
+    Icon: PlaySquareFilled,
+    iconClass: "text-muted",
+  },
+  {
+    label: "综艺",
+    href: "/variety",
+    Icon: StarFilled,
+    iconClass: "text-muted",
+  },
 ];
 
 type SiteHeaderProps = {
@@ -35,15 +79,19 @@ export function SiteHeader({
   isAdmin = false,
 }: SiteHeaderProps) {
   const pathname = usePathname();
-  const [hydratedAccount, setHydratedAccount] = useState<HydratedAccount | null>(null);
+  const [hydratedAccount, setHydratedAccount] =
+    useState<HydratedAccount | null>(null);
   const activeHydratedAccount =
     hydratedAccount?.accessToken === accessToken ? hydratedAccount : null;
   const resolvedUserName =
-    typeof activeHydratedAccount?.name === "string" && activeHydratedAccount.name
+    typeof activeHydratedAccount?.name === "string" &&
+    activeHydratedAccount.name
       ? activeHydratedAccount.name
       : userName;
   const resolvedIsAdmin =
-    typeof activeHydratedAccount?.admin === "boolean" ? activeHydratedAccount.admin : isAdmin;
+    typeof activeHydratedAccount?.admin === "boolean"
+      ? activeHydratedAccount.admin
+      : isAdmin;
 
   useEffect(() => {
     if (!accessToken) {
@@ -99,34 +147,35 @@ export function SiteHeader({
   return (
     <header className="fixed inset-x-0 top-0 z-50 bg-[color-mix(in_oklab,var(--surface)_78%,transparent)] shadow-[0_14px_40px_color-mix(in_oklab,var(--foreground)_8%,transparent)] backdrop-blur-2xl backdrop-saturate-150">
       <div className="mx-auto flex h-16 w-full items-center gap-4 px-4 md:px-6 lg:px-12">
-        <div className="min-w-0 shrink-0">
-          <Link
-            href="/"
-            className="truncate text-lg font-semibold tracking-tight text-foreground transition hover:text-accent"
-            prefetch={false}
-          >
-            {env.NEXT_PUBLIC_SITE_NAME}
-          </Link>
+        <div className="min-w-0 shrink-0 text-lg font-semibold tracking-tight text-foreground transition">
+          {env.NEXT_PUBLIC_SITE_NAME}
         </div>
 
         <nav aria-label="主导航" className="min-w-0 flex-1 overflow-x-auto">
           <div className="flex items-center justify-center gap-1 whitespace-nowrap">
             {navItems.map((item) => {
               const active = pathname === item.href;
+              const Icon = item.Icon;
 
               return (
                 <div
                   key={item.href}
-                  className={`border-b-2 pb-0.5 ${active ? "border-accent" : "border-transparent"}`}
+                  className={`border-b-2 pb-0.5 ${active ? "border-(--ant-color-primary)" : "border-transparent"}`}
                 >
                   <Link
                     href={item.href}
-                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition hover:bg-foreground/5 md:px-4"
+                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-(--ant-color-text)! font-medium transition hover:bg-(--ant-color-primary)/5! md:px-4"
                     aria-current={active ? "page" : undefined}
                     prefetch={false}
                   >
-                    <i aria-hidden="true" className={`bi ${item.icon} text-base ${active ? "text-accent" : item.iconClass}`} />
-                    <span>{item.label}</span>
+                    <Icon
+                      className={`text-base ${active ? "text-(--ant-color-primary)!" : item.iconClass}`}
+                    />
+                    <span
+                      className={`${active ? "text-(--ant-color-primary)!" : null}`}
+                    >
+                      {item.label}
+                    </span>
                   </Link>
                 </div>
               );
