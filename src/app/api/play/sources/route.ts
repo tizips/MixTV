@@ -9,6 +9,8 @@ import {
 import { createPlaybackProgressStore } from "@/modules/playback/server/playback-progress-service";
 import { recordApiRequest } from "@/modules/stats";
 
+export const runtime = "nodejs";
+
 const encoder = new TextEncoder();
 
 function encodeSseEvent(event: string, data: unknown) {
