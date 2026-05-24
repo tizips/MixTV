@@ -1,7 +1,9 @@
 "use client";
 
+import { WarningOutlined } from "@ant-design/icons";
 import { useEffect, useState } from "react";
 import type { HomepageData } from "../application/homepage-service";
+import type { ContentItem } from "../domain/content-types";
 import { WelcomeBanner } from "./welcome-banner";
 import { LoadingOverlay } from "./loading-overlay";
 import { HeroBanner } from "./hero-banner";
@@ -59,6 +61,18 @@ function readHistoryFromApi(data: HistoryApiResponse) {
   return data.history.filter(isHistoryApiItem);
 }
 
+function createHistoryResourceKey(source: string, id: string) {
+  return `${source}:${id}`;
+}
+
+function createHistoryApiResourceKey(item: HistoryApiItem) {
+  return createHistoryResourceKey(item.source, item.id);
+}
+
+function createContentResourceKey(item: ContentItem) {
+  return createHistoryResourceKey(item.continueWatching?.source ?? "", item.id);
+}
+
 export function createContinueWatchingItem(history: HistoryApiItem) {
   const year = Number(history.year);
 
@@ -101,6 +115,9 @@ export function HomepageShell({ data, userName }: HomepageShellProps) {
   const [isLoading] = useState(false);
   const [sections, setSections] = useState(data.sections);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => new Set());
+  const [favoritingIds, setFavoritingIds] = useState<Set<string>>(() => new Set());
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set());
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     let isActive = true;
@@ -120,7 +137,7 @@ export function HomepageShell({ data, userName }: HomepageShellProps) {
         }
 
         const nextItems = history.map(createContinueWatchingItem);
-        const nextFavorites = new Set(history.filter((item) => item.is_favorite).map((item) => item.id));
+        const nextFavorites = new Set(history.filter((item) => item.is_favorite).map(createHistoryApiResourceKey));
 
         setSections((currentSections) =>
           currentSections.map((section) =>
@@ -142,34 +159,131 @@ export function HomepageShell({ data, userName }: HomepageShellProps) {
     };
   }, [data.sections]);
 
-  const toggleFavorite = (itemId: string) => {
-    setFavoriteIds((current) => {
-      const next = new Set(current);
+  const toggleFavorite = async (item: ContentItem) => {
+    const source = item.continueWatching?.source;
 
-      if (next.has(itemId)) {
-        next.delete(itemId);
-      } else {
-        next.add(itemId);
+    if (!source) {
+      return;
+    }
+
+    const favoriteKey = createContentResourceKey(item);
+
+    if (favoritingIds.has(favoriteKey)) {
+      return;
+    }
+
+    setFavoritingIds((current) => new Set(current).add(favoriteKey));
+    setErrorMessage("");
+
+    const isFavorite = favoriteIds.has(favoriteKey);
+
+    try {
+      const response = await fetch(
+        `/api/favorites/${encodeURIComponent(source)}/${encodeURIComponent(item.id)}`,
+        {
+          headers: { Accept: "application/json" },
+          method: isFavorite ? "DELETE" : "POST",
+        },
+      );
+      const result = (await response.json()) as { message?: string };
+
+      if (!response.ok) {
+        throw new Error(result.message || "收藏操作失败。");
       }
 
-      return next;
-    });
+      setFavoriteIds((current) => {
+        const next = new Set(current);
+
+        if (isFavorite) {
+          next.delete(favoriteKey);
+        } else {
+          next.add(favoriteKey);
+        }
+
+        return next;
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "收藏操作失败。");
+    } finally {
+      setFavoritingIds((current) => {
+        const next = new Set(current);
+        next.delete(favoriteKey);
+        return next;
+      });
+    }
   };
 
-  const deleteContinueWatchingItem = (itemId: string) => {
-    setSections((currentSections) =>
-      currentSections.map((section) =>
-        section.key === "continueWatching"
-          ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
-          : section,
-      ),
-    );
-    setFavoriteIds((current) => {
-      const next = new Set(current);
-      next.delete(itemId);
-      return next;
-    });
+  const deleteContinueWatchingItem = async (item: ContentItem) => {
+    const source = item.continueWatching?.source;
+
+    if (!source) {
+      return;
+    }
+
+    const historyKey = createContentResourceKey(item);
+
+    if (deletingIds.has(historyKey)) {
+      return;
+    }
+
+    setDeletingIds((current) => new Set(current).add(historyKey));
+    setErrorMessage("");
+
+    try {
+      const response = await fetch(
+        `/api/history/${encodeURIComponent(source)}/${encodeURIComponent(item.id)}`,
+        {
+          headers: { Accept: "application/json" },
+          method: "DELETE",
+        },
+      );
+      const result = (await response.json()) as HistoryApiResponse;
+
+      if (!response.ok) {
+        throw new Error(result.message || "移除观看记录失败。");
+      }
+
+      const nextHistory = readHistoryFromApi(result);
+      const nextItems = nextHistory.map(createContinueWatchingItem);
+      const nextFavorites = new Set(nextHistory.filter((historyItem) => historyItem.is_favorite).map(createHistoryApiResourceKey));
+
+      setSections((currentSections) =>
+        currentSections.map((section) =>
+          section.key === "continueWatching"
+            ? { ...section, items: nextItems }
+            : section,
+        ),
+      );
+      setFavoriteIds(nextFavorites);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "移除观看记录失败。");
+    } finally {
+      setDeletingIds((current) => {
+        const next = new Set(current);
+        next.delete(historyKey);
+        return next;
+      });
+    }
   };
+
+  const favoriteItemIds = new Set(
+    sections
+      .flatMap((section) => section.items)
+      .filter((item) => favoriteIds.has(createContentResourceKey(item)))
+      .map((item) => item.id),
+  );
+  const favoritingItemIds = new Set(
+    sections
+      .flatMap((section) => section.items)
+      .filter((item) => favoritingIds.has(createContentResourceKey(item)))
+      .map((item) => item.id),
+  );
+  const deletingItemIds = new Set(
+    sections
+      .flatMap((section) => section.items)
+      .filter((item) => deletingIds.has(createContentResourceKey(item)))
+      .map((item) => item.id),
+  );
 
   return (
     <div className="min-h-screen p-4 text-foreground md:p-6 lg:p-12">
@@ -179,6 +293,13 @@ export function HomepageShell({ data, userName }: HomepageShellProps) {
 
       {data.heroBanner.length > 0 && (
         <HeroBanner items={data.heroBanner} />
+      )}
+
+      {errorMessage && (
+        <div className="mb-6 flex items-center gap-3 rounded-md border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger">
+          <WarningOutlined />
+          <span>{errorMessage}</span>
+        </div>
       )}
 
       <div className="space-y-8">
@@ -192,7 +313,9 @@ export function HomepageShell({ data, userName }: HomepageShellProps) {
               items={section.items}
               moreLink={section.moreLink}
               variant={section.key === "continueWatching" ? "continueWatching" : "default"}
-              favoriteIds={favoriteIds}
+              favoriteIds={favoriteItemIds}
+              favoritingIds={favoritingItemIds}
+              deletingIds={deletingItemIds}
               onFavorite={section.key === "continueWatching" ? toggleFavorite : undefined}
               onDelete={section.key === "continueWatching" ? deleteContinueWatchingItem : undefined}
             />

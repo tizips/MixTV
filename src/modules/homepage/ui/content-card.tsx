@@ -17,6 +17,8 @@ type ContentCardProps = {
   item: ContentItem;
   variant?: "default" | "continueWatching";
   isFavorite?: boolean;
+  isDeleting?: boolean;
+  isFavoriting?: boolean;
   onClick?: () => void;
   onFavorite?: () => void;
   onDelete?: () => void;
@@ -42,6 +44,8 @@ export function ContentCard({
   item,
   variant = "default",
   isFavorite = false,
+  isDeleting = false,
+  isFavoriting = false,
   onClick,
   onFavorite,
   onDelete,
@@ -113,22 +117,20 @@ export function ContentCard({
               type="button"
               aria-label={isFavorite ? "取消收藏" : "收藏"}
               aria-pressed={isFavorite}
-              className={`grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed ${isFavorite ? "text-danger" : ""}`}
+              disabled={isFavoriting}
+              className={`grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed ${isFavorite ? "text-(--ant-red)!" : "text-white!"}`}
               onClick={(event) => {
                 event.stopPropagation();
                 onFavorite?.();
               }}
             >
-              {isFavorite ? (
-                <HeartFilled className="text-danger" />
-              ) : (
-                <HeartOutlined />
-              )}
+              {isFavorite ? <HeartFilled /> : <HeartOutlined />}
             </button>
             <button
               type="button"
               aria-label="删除"
-              className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed"
+              disabled={isDeleting}
+              className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white! transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed"
               onClick={(event) => {
                 event.stopPropagation();
                 onDelete?.();

@@ -23,8 +23,10 @@ type ContentCarouselProps = {
   moreLink?: string;
   variant?: "default" | "continueWatching";
   favoriteIds?: Set<string>;
-  onFavorite?: (itemId: string) => void;
-  onDelete?: (itemId: string) => void;
+  deletingIds?: Set<string>;
+  favoritingIds?: Set<string>;
+  onFavorite?: (item: ContentItem) => void;
+  onDelete?: (item: ContentItem) => void;
 };
 
 const sectionIconMap = {
@@ -45,6 +47,8 @@ export function ContentCarousel({
   moreLink,
   variant = "default",
   favoriteIds,
+  deletingIds,
+  favoritingIds,
   onFavorite,
   onDelete,
 }: ContentCarouselProps) {
@@ -75,8 +79,10 @@ export function ContentCarousel({
             item={item}
             variant={variant}
             isFavorite={favoriteIds?.has(item.id)}
-            onFavorite={onFavorite ? () => onFavorite(item.id) : undefined}
-            onDelete={onDelete ? () => onDelete(item.id) : undefined}
+            isDeleting={deletingIds?.has(item.id)}
+            isFavoriting={favoritingIds?.has(item.id)}
+            onFavorite={onFavorite ? () => onFavorite(item) : undefined}
+            onDelete={onDelete ? () => onDelete(item) : undefined}
           />
         ))}
       </div>
