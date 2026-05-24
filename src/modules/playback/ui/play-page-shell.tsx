@@ -22,7 +22,7 @@ import type {
   Result as DanmakuPluginResult,
 } from "artplayer-plugin-danmuku";
 import Image from "next/image";
-import { Button, Divider, Tag, Tabs } from "antd";
+import { App, Button, Divider, Tag, Tabs } from "antd";
 import { env } from "@/shared/env";
 import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import type { Episode, PlayPageData } from "../domain/playback-page-data";
@@ -519,6 +519,7 @@ export function PlayPageShell({
   playbackPlaceholderError?: string;
   playbackIndex?: string;
 } = {}) {
+  const { message } = App.useApp();
   const [playbackData, setPlaybackData] = useState<PlayPageData | null>(
     initialData ?? null,
   );
@@ -861,7 +862,7 @@ export function PlayPageShell({
           const data = (await response.json().catch(() => null)) as {
             message?: string;
           } | null;
-          setPlaybackError(data?.message ?? "切换源失败，请稍后重试。");
+          message.error(data?.message ?? "切换源失败，请稍后重试。");
           return;
         }
 
@@ -906,12 +907,12 @@ export function PlayPageShell({
           window.history.replaceState(null, "", nextUrl);
         }
       } catch {
-        setPlaybackError("切换源失败，请稍后重试。");
+        message.error("切换源失败，请稍后重试。");
       } finally {
         setIsSourceSwitching(false);
       }
     },
-    [isSourceSwitching, playbackData],
+    [isSourceSwitching, message, playbackData],
   );
   useEffect(() => {
     if (

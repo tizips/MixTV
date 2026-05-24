@@ -19,6 +19,9 @@ const artplayerState = vi.hoisted(() => ({
   danmakuOptions: [] as Array<Record<string, unknown>>,
   settings: [] as Array<{ name?: string; html?: string }>,
 }));
+const toastState = vi.hoisted(() => ({
+  error: vi.fn(),
+}));
 
 class FakeArtplayer {
   currentTime = 0;
@@ -127,7 +130,7 @@ vi.mock("hls.js", () => ({
   },
 }));
 
-vi.mock("antd", () => createAntdMock());
+vi.mock("antd", () => createAntdMock({ message: toastState }));
 
 vi.mock("next/image", () => ({
   default: ({ alt, src }: { alt?: string; src?: string | { src?: string } }) => (
@@ -146,6 +149,7 @@ afterEach(() => {
   artplayerState.danmakuLoads = [];
   artplayerState.danmakuOptions = [];
   artplayerState.settings = [];
+  toastState.error.mockReset();
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -1043,6 +1047,74 @@ describe("PlayPageShell client playback cover", () => {
     }
 
     expect(infoSection.textContent ?? "").toContain("Alpha Source");
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("shows source switch failures through message without rendering page error text", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+      if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}`) {
+        return new Response(
+          'event: start\ndata: {"total":1}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","quality":"1080P","source_name":"Alpha Source","total_episodes":2}\n\nevent: complete\ndata: {"completed":1,"total":1}\n\n',
+          { headers: { "Content-Type": "text/event-stream" } },
+        );
+      }
+
+      if (url === "/api/play/sources" && init?.method === "POST") {
+        return new Response(JSON.stringify({ message: "换源失败，请稍后重试。" }), {
+          headers: { "Content-Type": "application/json" },
+          status: 500,
+        });
+      }
+
+      return new Response(JSON.stringify({ favorites: [] }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={createInitialData()} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const sourcesTab = [...host.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("换源")) as HTMLButtonElement | undefined;
+
+    if (!sourcesTab) {
+      throw new Error("Playback sources tab was not rendered");
+    }
+
+    await act(async () => {
+      sourcesTab.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const sourceButton = [...host.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("Alpha Source")) as HTMLButtonElement | undefined;
+
+    if (!sourceButton) {
+      throw new Error("Playback source button was not rendered");
+    }
+
+    await act(async () => {
+      sourceButton.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(toastState.error).toHaveBeenCalledWith("换源失败，请稍后重试。");
+    expect(host.textContent ?? "").not.toContain("换源失败，请稍后重试。");
 
     act(() => {
       root.unmount();
