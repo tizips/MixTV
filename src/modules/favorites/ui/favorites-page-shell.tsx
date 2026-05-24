@@ -154,7 +154,7 @@ function FavoriteCard({
   onRemove: (favorite: FavoriteItem) => void;
 }) {
   return (
-    <article className="group grid w-full shrink-0 content-start overflow-hidden rounded-[1.15rem] bg-surface/78 text-left transition duration-300 hover:-translate-y-1 hover:bg-surface hover:shadow-[0_6px_12px_rgba(15,23,42,0.14)]">
+    <article className="group grid w-full shrink-0 content-start overflow-hidden rounded-[1.15rem] bg-(--ant-color-bg-base)/78 text-left transition duration-300 hover:-translate-y-1 hover:bg-(--ant-color-bg-base) hover:shadow-[0_6px_12px_rgba(15,23,42,0.14)]">
       <FavoritePoster
         favorite={favorite}
         isRemoving={isRemoving}
@@ -167,14 +167,14 @@ function FavoriteCard({
           href={createPlayHref(favorite)}
           prefetch={false}
         >
-          <h2 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground transition-colors group-hover:text-accent">
+          <h2 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-(--ant-color-text-base) transition-colors group-hover:text-accent">
             {favorite.title}
           </h2>
           <div className="flex min-w-0 items-center justify-between gap-2 text-xs text-muted">
             <span className="min-w-0 truncate">
               {favorite.year || "未知年份"}
             </span>
-            <span className="min-w-0 truncate text-right text-foreground/80">
+            <span className="min-w-0 truncate text-right text-(--ant-color-text-base)/80">
               {favorite.source_name}
             </span>
           </div>
