@@ -6,6 +6,8 @@ import {
 } from "@/modules/playback/server/playback-progress-service";
 import { withApiTraffic } from "@/modules/stats";
 
+export const runtime = "nodejs";
+
 type PlaybackProgressRouteContext = {
   params: Promise<{ id: string; source: string }>;
 };

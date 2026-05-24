@@ -639,7 +639,7 @@ export function PlayPageShell({
       return "";
     }
 
-    return `/api/playback/progress/${encodeURIComponent(progressSource)}/${encodeURIComponent(progressId)}`;
+    return `/api/play/progress/${encodeURIComponent(progressSource)}/${encodeURIComponent(progressId)}`;
   }, [playbackData]);
   const playbackActionsRef = useRef<{
     skipPlayback: (seconds: number) => void;

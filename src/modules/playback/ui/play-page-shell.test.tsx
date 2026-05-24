@@ -722,7 +722,7 @@ describe("PlayPageShell client playback cover", () => {
     });
 
     expect(art.poster).toBe("");
-    expect(fetchMock).toHaveBeenCalledWith("/api/playback/progress/dyttzyapi.com/80474", {
+    expect(fetchMock).toHaveBeenCalledWith("/api/play/progress/dyttzyapi.com/80474", {
       body: JSON.stringify({ play_episodes: 1, play_time: 1061, total_time: 1247 }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
@@ -855,7 +855,7 @@ describe("PlayPageShell client playback cover", () => {
       vi.advanceTimersByTime(20000);
     });
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/playback/progress/dyttzyapi.com/80474", {
+    expect(fetchMock).toHaveBeenCalledWith("/api/play/progress/dyttzyapi.com/80474", {
       body: JSON.stringify({ play_episodes: 1, play_time: 25, total_time: 1247 }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
