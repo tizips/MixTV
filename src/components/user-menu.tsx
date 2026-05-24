@@ -47,6 +47,7 @@ function createMenuItems(historyUpdateCount?: number): MenuItem[] {
         typeof historyUpdateCount === "number" && historyUpdateCount > 0 ? (
           <Tag
             color="red"
+            variant="solid"
             className="m-0 rounded-full px-1.5 text-[11px] leading-4"
           >
             {historyUpdateCount}
@@ -161,12 +162,12 @@ export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
         open={open}
         trigger={["click"]}
         popupRender={(menu) => (
-          <div className="w-60 bg-(--ant-color-bg-elevated)">
+          <div className="w-60 overflow-hidden rounded-lg bg-(--ant-color-bg-elevated) shadow-lg">
             <div className="px-4 py-4">
               <div className="space-y-2">
-                <p className="text-[11px] text-slate-400">当前用户</p>
+                <p className="text-[11px] text-muted">当前用户</p>
                 <div className="flex items-center justify-between gap-3">
-                  <Typography.Text strong className="text-base text-slate-950">
+                  <Typography.Text strong className="text-base text-foreground">
                     {userName}
                   </Typography.Text>
                   <Tag
@@ -231,7 +232,7 @@ export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
           </Button>,
         ]}
       >
-        <p className="text-sm leading-6 text-slate-600">
+        <p className="text-sm leading-6 text-default-600">
           确定要退出当前账号吗？
         </p>
       </Modal>

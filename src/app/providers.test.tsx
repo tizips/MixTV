@@ -1,9 +1,6 @@
-// @vitest-environment happy-dom
-
-import { act } from "react";
 import type { ReactNode } from "react";
-import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
 import { Providers } from "./providers";
 
 vi.mock("next-themes", () => ({
@@ -11,45 +8,36 @@ vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
 }));
 
+const configProviderMock = vi.fn((props: { children?: ReactNode; theme?: { hashed?: boolean } }) => (
+  <div data-testid="config-provider" data-hashed={String(props.theme?.hashed)}>
+    {props.children}
+  </div>
+));
+
+vi.mock("antd", async () => {
+  const actual = await vi.importActual<typeof import("antd")>("antd");
+
+  return {
+    ...actual,
+    App: ({ children }: { children: ReactNode }) => <>{children}</>,
+    ConfigProvider: (props: { children?: ReactNode; theme?: { hashed?: boolean } }) => configProviderMock(props),
+  };
+});
+
+vi.mock("@/modules/stats/ui/page-activity-tracker", () => ({
+  PageActivityTracker: () => <div data-testid="page-activity-tracker" />,
+}));
+
 describe("Providers", () => {
-  afterEach(() => {
-    document.body.innerHTML = "";
-    vi.restoreAllMocks();
-  });
+  it("disables AntD hashed selectors for consistent dev and production output", () => {
+    const html = renderToStaticMarkup(
+      <Providers>
+        <div data-testid="child" />
+      </Providers>,
+    );
 
-  it("marks benign ViewTransition rejections as handled", async () => {
-    const finishedCatch = vi.fn();
-    const finished = {
-      catch: finishedCatch,
-    } as unknown as Promise<void>;
-    const startViewTransition = vi.fn(() => ({
-      finished,
-      ready: Promise.resolve(),
-      updateCallbackDone: Promise.resolve(),
-    }));
-    Object.defineProperty(document, "startViewTransition", {
-      configurable: true,
-      value: startViewTransition,
-    });
-
-    const host = document.createElement("div");
-    document.body.append(host);
-    const root = createRoot(host);
-
-    act(() => {
-      root.render(
-        <Providers>
-          <div />
-        </Providers>,
-      );
-    });
-
-    document.startViewTransition?.(() => undefined);
-
-    expect(finishedCatch).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      root.unmount();
-    });
+    expect(html).toContain('data-hashed="false"');
+    expect(html).toContain("data-testid=\"child\"");
+    expect(configProviderMock).toHaveBeenCalled();
   });
 });

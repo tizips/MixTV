@@ -30,7 +30,7 @@ describe("ContentCard", () => {
     const html = renderToStaticMarkup(<ContentCard item={item} />);
 
     expect(html).toContain(item.title);
-    expect(html).toContain("bg-surface-secondary");
+    expect(html).toContain("bg-surface/75");
     expect(html).toContain("text-foreground");
     expect(html).toContain('data-icon="play-circle"');
     expect(html).not.toContain("homepage-");

@@ -72,7 +72,7 @@ export function ContentCarousel({
           </Link>
         )}
       </div>
-      <div className="flex overflow-x-auto scrollbar-hide gap-4 pt-4 pb-4">
+      <div className="flex gap-4 overflow-x-auto py-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((item) => (
           <ContentCard
             key={item.id}

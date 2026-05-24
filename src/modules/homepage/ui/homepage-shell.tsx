@@ -49,7 +49,8 @@ function isHistoryApiItem(value: unknown): value is HistoryApiItem {
     typeof history.source_name === "string" &&
     typeof history.title === "string" &&
     typeof history.year === "string" &&
-    (history.is_favorite === undefined || typeof history.is_favorite === "boolean")
+    (history.is_favorite === undefined ||
+      typeof history.is_favorite === "boolean")
   );
 }
 
@@ -115,14 +116,18 @@ export function HomepageShell({ data, userName }: HomepageShellProps) {
   const [isLoading] = useState(false);
   const [sections, setSections] = useState(data.sections);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => new Set());
-  const [favoritingIds, setFavoritingIds] = useState<Set<string>>(() => new Set());
+  const [favoritingIds, setFavoritingIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set());
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     let isActive = true;
 
-    const continueWatchingSection = data.sections.find((section) => section.key === "continueWatching");
+    const continueWatchingSection = data.sections.find(
+      (section) => section.key === "continueWatching",
+    );
 
     if (!continueWatchingSection) {
       return () => {
@@ -137,7 +142,11 @@ export function HomepageShell({ data, userName }: HomepageShellProps) {
         }
 
         const nextItems = history.map(createContinueWatchingItem);
-        const nextFavorites = new Set(history.filter((item) => item.is_favorite).map(createHistoryApiResourceKey));
+        const nextFavorites = new Set(
+          history
+            .filter((item) => item.is_favorite)
+            .map(createHistoryApiResourceKey),
+        );
 
         setSections((currentSections) =>
           currentSections.map((section) =>
@@ -203,7 +212,9 @@ export function HomepageShell({ data, userName }: HomepageShellProps) {
         return next;
       });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "收藏操作失败。");
+      setErrorMessage(
+        error instanceof Error ? error.message : "收藏操作失败。",
+      );
     } finally {
       setFavoritingIds((current) => {
         const next = new Set(current);
@@ -245,7 +256,11 @@ export function HomepageShell({ data, userName }: HomepageShellProps) {
 
       const nextHistory = readHistoryFromApi(result);
       const nextItems = nextHistory.map(createContinueWatchingItem);
-      const nextFavorites = new Set(nextHistory.filter((historyItem) => historyItem.is_favorite).map(createHistoryApiResourceKey));
+      const nextFavorites = new Set(
+        nextHistory
+          .filter((historyItem) => historyItem.is_favorite)
+          .map(createHistoryApiResourceKey),
+      );
 
       setSections((currentSections) =>
         currentSections.map((section) =>
@@ -256,7 +271,9 @@ export function HomepageShell({ data, userName }: HomepageShellProps) {
       );
       setFavoriteIds(nextFavorites);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "移除观看记录失败。");
+      setErrorMessage(
+        error instanceof Error ? error.message : "移除观看记录失败。",
+      );
     } finally {
       setDeletingIds((current) => {
         const next = new Set(current);
@@ -291,19 +308,17 @@ export function HomepageShell({ data, userName }: HomepageShellProps) {
 
       {data.showWelcomeBanner ? <WelcomeBanner userName={userName} /> : null}
 
-      {data.heroBanner.length > 0 && (
-        <HeroBanner items={data.heroBanner} />
-      )}
+      {data.heroBanner.length > 0 && <HeroBanner items={data.heroBanner} />}
 
       {errorMessage && (
-        <div className="mb-6 flex items-center gap-3 rounded-md border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger">
+        <div className="mb-6 flex items-center gap-3 rounded-md border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-red-500">
           <WarningOutlined />
           <span>{errorMessage}</span>
         </div>
       )}
 
       <div className="space-y-8">
-        {sections.map((section) => (
+        {sections.map((section) =>
           section.items.length > 0 ? (
             <ContentCarousel
               key={section.key}
@@ -312,15 +327,25 @@ export function HomepageShell({ data, userName }: HomepageShellProps) {
               iconClass={section.iconClass}
               items={section.items}
               moreLink={section.moreLink}
-              variant={section.key === "continueWatching" ? "continueWatching" : "default"}
+              variant={
+                section.key === "continueWatching"
+                  ? "continueWatching"
+                  : "default"
+              }
               favoriteIds={favoriteItemIds}
               favoritingIds={favoritingItemIds}
               deletingIds={deletingItemIds}
-              onFavorite={section.key === "continueWatching" ? toggleFavorite : undefined}
-              onDelete={section.key === "continueWatching" ? deleteContinueWatchingItem : undefined}
+              onFavorite={
+                section.key === "continueWatching" ? toggleFavorite : undefined
+              }
+              onDelete={
+                section.key === "continueWatching"
+                  ? deleteContinueWatchingItem
+                  : undefined
+              }
             />
-          ) : null
-        ))}
+          ) : null,
+        )}
       </div>
     </div>
   );

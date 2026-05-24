@@ -411,7 +411,7 @@ export function DanmakuPanel() {
             min={1}
             max={120}
             controls={false}
-            style={{ width: "100%" }}
+            className="w-full"
           />
         </Form.Item>
 

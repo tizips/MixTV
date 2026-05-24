@@ -12,20 +12,21 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body className="text-foreground">
-        <HolyLoader
-          color="var(--accent)"
-          height="2px"
-          boxShadow="0 0 18px color-mix(in oklab, var(--accent) 78%, transparent)"
-          showSpinner={false}
-        />
-        <Providers>
-          <SiteHeader
-            accessToken={session?.user?.accessToken}
-            isAdmin={session?.user?.admin ?? false}
-            userName={session?.user?.name ?? `${env.NEXT_PUBLIC_SITE_NAME} 用户`}
+        <div className="app-background min-h-screen">
+          <HolyLoader
+            color="var(--accent)"
+            height="2px"
+            showSpinner={false}
           />
-          <main className="min-h-[calc(100dvh+4rem)] pt-16">{children}</main>
-        </Providers>
+          <Providers>
+            <SiteHeader
+              accessToken={session?.user?.accessToken}
+              isAdmin={session?.user?.admin ?? false}
+              userName={session?.user?.name ?? `${env.NEXT_PUBLIC_SITE_NAME} 用户`}
+            />
+            <main className="min-h-[calc(100dvh+4rem)] pt-16">{children}</main>
+          </Providers>
+        </div>
       </body>
     </html>
   );

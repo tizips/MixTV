@@ -37,7 +37,7 @@ describe("SiteHeader", () => {
     expect(html.indexOf("主题切换初始化中")).toBeLessThan(html.indexOf("打开个人中心"));
     expect(html).not.toContain("bg-white/70");
     expect(html).not.toContain("border-(--border)");
-    expect(html).toContain("bg-[color-mix(in_oklab,var(--surface)_78%,transparent)]");
+    expect(html).toContain("bg-surface/80");
     expect(html).toContain("backdrop-blur-2xl");
     expect(html).toContain("backdrop-saturate-150");
     expect(html).toContain('data-icon="user"');

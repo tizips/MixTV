@@ -23,7 +23,7 @@ describe("ContentCarousel", () => {
       <ContentCarousel
         title="继续观看"
         icon="play-circle-fill"
-        iconClass="text-danger"
+        iconClass="text-red-500"
         items={[continueWatchingItem]}
         moreLink="/updates"
         variant="continueWatching"
@@ -33,7 +33,7 @@ describe("ContentCarousel", () => {
     expect(html).toContain("继续观看");
     expect(html).toContain(continueWatchingItem.title);
     expect(html).toContain('data-icon="play-circle"');
-    expect(html).toContain("text-danger");
+    expect(html).toContain("text-red-500");
     expect(html).toContain("查看更多");
     expect(html).toContain('data-icon="right"');
     expect(html).toContain("EP.12");

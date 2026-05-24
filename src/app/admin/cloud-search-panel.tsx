@@ -346,23 +346,19 @@ function CloudSearchDriveTypeSelector({
             type="button"
             data-drive-type-option={option.key}
             data-selected={String(isSelected)}
-            className="group relative flex min-h-16 cursor-pointer items-start gap-3 overflow-hidden! rounded-xl border border-emerald-100/80 bg-[linear-gradient(135deg,#ffffff_0%,#f7fdf9_58%,#f1faf4_100%)] px-3.5 py-3 text-left shadow-sm shadow-emerald-950/3 transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-[linear-gradient(135deg,#ffffff_0%,#f3fbf5_58%,#eaf7ee_100%)] hover:shadow-md hover:shadow-emerald-950/6 focus-visible:border-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/20 data-[selected=true]:border-emerald-500 data-[selected=true]:bg-[linear-gradient(135deg,#f6fff8_0%,#e9faef_62%,#f6f9e8_100%)] data-[selected=true]:shadow-md data-[selected=true]:shadow-emerald-950/8"
+            className="group relative flex min-h-16 cursor-pointer items-start gap-3 overflow-hidden rounded-xl border border-(--accent)/20 bg-surface px-3.5 py-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-surface-secondary hover:shadow-md focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20 data-[selected=true]:border-accent data-[selected=true]:bg-accent/10 data-[selected=true]:shadow-md"
             role="checkbox"
             onClick={() => toggleDriveType(option.key)}
           >
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute -right-8 -top-10 size-24 rounded-full bg-emerald-100/35 transition-colors duration-200 group-hover:bg-emerald-100/60 group-data-[selected=true]:bg-emerald-200/70"
-            />
             <span className="relative flex min-w-0 flex-1 items-start gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-emerald-100 bg-white text-lg text-emerald-600 shadow-sm shadow-emerald-950/4 transition-colors duration-200 group-hover:border-emerald-200 group-hover:bg-emerald-50 group-data-[selected=true]:border-emerald-400 group-data-[selected=true]:bg-emerald-100 group-data-[selected=true]:text-emerald-800">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-background text-lg text-accent transition-colors duration-200 group-hover:border-accent group-hover:bg-surface group-data-[selected=true]:border-accent group-data-[selected=true]:bg-accent/10">
                 <Icon />
               </span>
               <span className="min-w-0 pt-0.5">
-                <span className="block truncate text-sm font-semibold text-slate-800">
+                <span className="block truncate text-sm font-semibold text-foreground">
                   {option.label}
                 </span>
-                <span className="mt-1 block truncate text-xs leading-5 text-slate-500">
+                <span className="mt-1 block truncate text-xs leading-5 text-default-500">
                   已接入 PanSou 类型
                 </span>
               </span>
@@ -579,12 +575,7 @@ export function CloudSearchPanel() {
           name="requestTimeoutSeconds"
           help="范围 1-120 秒，用于限制单次 PanSou 请求等待时间。"
         >
-          <InputNumber
-            min={1}
-            max={120}
-            controls={false}
-            style={{ width: "100%" }}
-          />
+          <InputNumber min={1} max={120} controls={false} className="w-full" />
         </Form.Item>
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-4 pb-3">

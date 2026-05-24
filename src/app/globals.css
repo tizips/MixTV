@@ -1,130 +1,85 @@
+@layer theme, base, antd, components, utilities;
+
 @import "tailwindcss";
-@import "antd/dist/reset.css";
 
 :root {
-    --accent: oklch(0.696 0.17 162);
-    --accent-foreground: oklch(0.985 0.004 95);
+    --background: rgb(255 255 255);
     --foreground: rgb(15 23 42);
     --surface: rgb(255 255 255 / 0.84);
     --surface-secondary: rgb(248 250 252 / 0.92);
+    --accent: oklch(0.696 0.17 162);
+    --accent-foreground: oklch(0.985 0.004 95);
+}
+
+:root,
+.dark {
+    color-scheme: light;
 }
 
 .dark {
-    --accent: oklch(0.74 0.16 162);
-    --accent-foreground: oklch(0.145 0.02 162);
+    --background: rgb(2 6 23);
     --foreground: rgb(226 232 240);
     --surface: rgb(15 23 42 / 0.72);
     --surface-secondary: rgb(30 41 59 / 0.9);
+    --accent: oklch(0.74 0.16 162);
+    --accent-foreground: oklch(0.145 0.02 162);
+    color-scheme: dark;
 }
 
-body {
-    background:
-        radial-gradient(
-            circle at 12% 14%,
-            rgba(132, 216, 198, 0.28),
-            transparent 34%
-        ),
-        radial-gradient(
-            circle at 85% 20%,
-            rgba(169, 227, 255, 0.3),
-            transparent 40%
-        ),
-        radial-gradient(
-            circle at 50% 100%,
-            rgba(198, 235, 219, 0.36),
-            transparent 50%
-        ),
-        linear-gradient(160deg, #edf9f6 0%, #f5fcff 38%, #fbfffd 100%);
-    color: var(--foreground);
-    min-height: 100vh;
-    background-attachment: fixed;
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-surface: var(--surface);
+    --color-surface-secondary: var(--surface-secondary);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
 }
 
-.dark body {
-    background:
-        radial-gradient(
-            circle at 14% 16%,
-            rgba(45, 130, 110, 0.24),
-            transparent 36%
-        ),
-        radial-gradient(
-            circle at 84% 18%,
-            rgba(70, 120, 190, 0.22),
-            transparent 42%
-        ),
-        radial-gradient(
-            circle at 52% 100%,
-            rgba(36, 92, 82, 0.2),
-            transparent 52%
-        ),
-        linear-gradient(
-            160deg,
-            #04070b 0%,
-            #07101a 36%,
-            #0b1320 64%,
-            #060c14 100%
-        );
-}
+@layer base {
+    .app-background {
+        background-attachment: fixed;
+        background-image:
+            radial-gradient(
+                circle at 12% 14%,
+                rgb(132 216 198 / 0.28),
+                transparent 34%
+            ),
+            radial-gradient(
+                circle at 85% 20%,
+                rgb(169 227 255 / 0.3),
+                transparent 40%
+            ),
+            radial-gradient(
+                circle at 50% 100%,
+                rgb(198 235 219 / 0.36),
+                transparent 50%
+            ),
+            linear-gradient(160deg, #edf9f6 0%, #f5fcff 38%, #fbfffd 100%);
+    }
 
-/* Hide scrollbar for horizontal carousels */
-.scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-
-.scrollbar-hide::-webkit-scrollbar {
-    display: none;
-}
-
-[data-mixtv-artplayer] .art-video-player {
-    height: 100% !important;
-    width: 100% !important;
-}
-
-[data-mixtv-artplayer] .art-bottom {
-    position: absolute !important;
-    inset: auto auto 1rem 50% !important;
-    top: auto !important;
-    bottom: 1rem !important;
-    left: 50% !important;
-    right: auto !important;
-    transform: translateX(-50%) !important;
-    width: min(calc(100% - 1.5rem), 56rem) !important;
-    height: auto !important;
-    min-height: 5.75rem !important;
-    max-height: 7rem !important;
-    padding: 0.85rem 0.85rem 0 !important;
-    border: 1px solid rgba(255, 255, 255, 0.14) !important;
-    border-radius: 16px !important;
-    background: color-mix(in srgb, var(--surface) 24%, transparent) !important;
-    backdrop-filter: blur(26px) saturate(190%) !important;
-    -webkit-backdrop-filter: blur(26px) !important;
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28) !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: center !important;
-    overflow: visible !important;
-}
-
-.dark [data-mixtv-artplayer] .art-bottom {
-    background: color-mix(in srgb, var(--surface) 42%, transparent) !important;
-}
-
-[data-mixtv-artplayer] .art-progress {
-    margin: 0 0 0 !important;
-    overflow: visible !important;
-}
-
-[data-mixtv-artplayer] .art-controls {
-    min-height: 2.15rem !important;
-}
-
-[data-mixtv-artplayer] .art-controls-left,
-[data-mixtv-artplayer] .art-controls-center,
-[data-mixtv-artplayer] .art-controls-right {
-    align-items: center !important;
-}
-
-[data-mixtv-artplayer] .art-controls-left {
-    gap: 0.25rem !important;
+    .dark .app-background {
+        background-image:
+            radial-gradient(
+                circle at 14% 16%,
+                rgb(45 130 110 / 0.24),
+                transparent 36%
+            ),
+            radial-gradient(
+                circle at 84% 18%,
+                rgb(70 120 190 / 0.22),
+                transparent 42%
+            ),
+            radial-gradient(
+                circle at 52% 100%,
+                rgb(36 92 82 / 0.2),
+                transparent 52%
+            ),
+            linear-gradient(
+                160deg,
+                #04070b 0%,
+                #07101a 36%,
+                #0b1320 64%,
+                #060c14 100%
+            );
+    }
 }

@@ -14,19 +14,7 @@ import {
   UploadOutlined,
 } from "@ant-design/icons";
 import { useState } from "react";
-import type { CSSProperties } from "react";
-import {
-  Alert,
-  Button,
-  Card,
-  Col,
-  Divider,
-  Form,
-  Input,
-  Row,
-  Tag,
-  theme,
-} from "antd";
+import { Alert, Button, Card, Col, Divider, Form, Input, Row, Tag } from "antd";
 import { env } from "@/shared/env";
 
 const backupItems: Array<{ Icon: typeof SlidersOutlined; title: string }> = [
@@ -52,7 +40,6 @@ function getBackupFilename() {
 }
 
 export function DataMigrationPanel() {
-  const { token } = theme.useToken();
   const [exportForm] = Form.useForm<ExportBackupFormValues>();
   const [importForm] = Form.useForm<ImportBackupFormValues>();
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -126,23 +113,9 @@ export function DataMigrationPanel() {
 
         <Row gutter={[16, 16]} className="mt-5">
           <Col xs={24} lg={12}>
-            <section
-              className="overflow-hidden p-5 rounded-lg border border-(--admin-action-border) bg-(--surface)"
-              style={
-                {
-                  "--admin-action-border": token.colorBorderSecondary,
-                  "--admin-action-split": token.colorSplit,
-                } as CSSProperties
-              }
-            >
-              <div className="flex items-start gap-3 border-b border-(--admin-action-split) p-4">
-                <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-accent"
-                  style={{
-                    background:
-                      "color-mix(in srgb, var(--accent) 12%, transparent)",
-                  }}
-                >
+            <section className="overflow-hidden rounded-lg border border-(--ant-color-border) bg-surface p-5">
+              <div className="flex items-start gap-3 border-b border-(--ant-color-border) p-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
                   <UploadOutlined className="text-lg" />
                 </span>
                 <div className="min-w-0">
@@ -185,23 +158,9 @@ export function DataMigrationPanel() {
           </Col>
 
           <Col xs={24} lg={12}>
-            <section
-              className="overflow-hidden p-5 rounded-lg border border-(--admin-action-border) bg-(--surface)"
-              style={
-                {
-                  "--admin-action-border": token.colorBorderSecondary,
-                  "--admin-action-split": token.colorSplit,
-                } as CSSProperties
-              }
-            >
-              <div className="flex items-start gap-3 border-b border-(--admin-action-split) p-4">
-                <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-accent"
-                  style={{
-                    background:
-                      "color-mix(in srgb, var(--accent) 12%, transparent)",
-                  }}
-                >
+            <section className="overflow-hidden rounded-lg border border-(--ant-color-border) bg-surface p-5">
+              <div className="flex items-start gap-3 border-b border-(--ant-color-border) p-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
                   <LoginOutlined className="text-lg" />
                 </span>
                 <div className="min-w-0">
@@ -274,22 +233,14 @@ export function DataMigrationPanel() {
             </span>
           </div>
 
-          <div
-            className="grid overflow-hidden rounded-lg border border-(--admin-scope-border) bg-(--surface) sm:grid-cols-2 xl:grid-cols-5"
-            style={
-              {
-                "--admin-scope-border": token.colorBorderSecondary,
-                "--admin-scope-split": token.colorSplit,
-              } as CSSProperties
-            }
-          >
+          <div className="grid overflow-hidden rounded-lg border border-(--ant-color-border) bg-surface sm:grid-cols-2 xl:grid-cols-5">
             {backupItems.map((item) => {
               const Icon = item.Icon;
 
               return (
                 <div
                   key={item.title}
-                  className="flex items-center gap-3 border-b border-(--admin-scope-split) px-4 py-3 last:border-b-0 sm:nth-last-[-n+1]:border-b-0 xl:border-b-0 xl:border-r xl:last:border-r-0"
+                  className="flex items-center gap-3 border-b border-(--ant-color-border) px-4 py-3 last:border-b-0 sm:nth-last-[-n+1]:border-b-0 xl:border-b-0 xl:border-r xl:last:border-r-0"
                 >
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
                     <Icon />

@@ -2,10 +2,10 @@
 
 import type { ReactNode } from "react";
 import { useEffect } from "react";
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider, useTheme } from "next-themes";
 import { App, ConfigProvider, theme as antdTheme } from "antd";
+import { StyleProvider } from "@ant-design/cssinjs";
 import { PageActivityTracker } from "@/modules/stats/ui/page-activity-tracker";
-import { useTheme } from "next-themes";
 
 const themeStorageMigrationScript = `
 try {
@@ -98,24 +98,27 @@ function AntdThemeBridge({ children }: { children: ReactNode }) {
   const isDark = resolvedTheme === "dark";
 
   return (
-    <ConfigProvider
-      theme={{
-        algorithm: isDark
-          ? antdTheme.darkAlgorithm
-          : antdTheme.defaultAlgorithm,
-        token: {
-          colorPrimary: "#0f9d83",
-        },
-      }}
-      modal={{
-        centered: true,
-      }}
-    >
-      <App>
-        <PageActivityTracker />
-        {children}
-      </App>
-    </ConfigProvider>
+    <StyleProvider layer>
+      <ConfigProvider
+        theme={{
+          algorithm: isDark
+            ? antdTheme.darkAlgorithm
+            : antdTheme.defaultAlgorithm,
+          hashed: false,
+          token: {
+            colorPrimary: "#0f9d83",
+          },
+        }}
+        modal={{
+          centered: true,
+        }}
+      >
+        <App>
+          <PageActivityTracker />
+          {children}
+        </App>
+      </ConfigProvider>
+    </StyleProvider>
   );
 }
 

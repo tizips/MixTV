@@ -64,8 +64,8 @@ export function ContentCard({
   });
 
   return (
-    <article className="group grid w-48 shrink-0 content-start overflow-hidden rounded-[1.15rem]  bg-(--ant-color-bg-container)/75 text-left transition duration-300 hover:-translate-y-1 hover:shadow-[0_6px_12px_rgba(15,23,42,0.14)]">
-      <div className="relative aspect-2/3 overflow-hidden)]">
+    <article className="group grid w-48 shrink-0 content-start overflow-hidden rounded-xl bg-surface/75 text-left transition duration-300 hover:-translate-y-1 hover:shadow-md">
+      <div className="relative aspect-2/3 overflow-hidden">
         <Link
           aria-label={`播放 ${item.title}`}
           className="relative block h-full overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
@@ -81,15 +81,15 @@ export function ContentCard({
             sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 192px"
             onError={() => setImageError(true)}
           />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.26)_0%,transparent_34%,rgba(0,0,0,0.84)_100%)] opacity-85 transition-opacity group-hover:opacity-100" />
+          <div className="absolute inset-0 bg-linear-to-b from-black/25 via-transparent to-black/85 opacity-85 transition-opacity group-hover:opacity-100" />
           <div className="absolute inset-x-0 top-0 h-16 bg-linear-to-b from-black/45 to-transparent" />
-          <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/18 text-xl text-white opacity-0 shadow-[0_18px_50px_rgba(0,0,0,0.32)] ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover:scale-105 group-hover:opacity-100">
+          <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/18 text-xl text-white opacity-0 shadow-lg ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover:scale-105 group-hover:opacity-100">
             <PlayCircleFilled className="translate-x-px" />
           </span>
           {isContinueWatching && progress && (
             <>
               <div className="absolute left-2.5 top-2.5 z-10 inline-flex overflow-hidden rounded-full shadow-sm ring-1 ring-white/20 backdrop-blur-md">
-                <span className="bg-(--ant-red) px-2.5 py-1 text-[11px] font-semibold leading-none text-white">
+                <span className="bg-red-600 px-2.5 py-1 text-[11px] font-semibold leading-none text-white">
                   EP.{progress.currentEpisode}
                 </span>
                 <span className="bg-white/14 px-2.5 py-1 text-[11px] font-semibold leading-none text-white">
@@ -100,7 +100,7 @@ export function ContentCard({
                 <Tag
                   color="red"
                   variant="solid"
-                  className="absolute! top-2.5 right-2.5"
+                  className="absolute top-2.5 right-2.5"
                 >
                   +{extraEpisodes}
                 </Tag>
@@ -118,19 +118,23 @@ export function ContentCard({
               aria-label={isFavorite ? "取消收藏" : "收藏"}
               aria-pressed={isFavorite}
               disabled={isFavoriting}
-              className={`grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed ${isFavorite ? "text-(--ant-red)!" : "text-white!"}`}
+              className={`grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm transition duration-200 hover:scale-110 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed ${isFavorite ? "text-red-500" : "text-white"}`}
               onClick={(event) => {
                 event.stopPropagation();
                 onFavorite?.();
               }}
             >
-              {isFavorite ? <HeartFilled /> : <HeartOutlined />}
+              {isFavorite ? (
+                <HeartFilled className="text-red-600" />
+              ) : (
+                <HeartOutlined />
+              )}
             </button>
             <button
               type="button"
               aria-label="删除"
               disabled={isDeleting}
-              className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white! transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed"
+              className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white transition duration-200 hover:scale-110 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed"
               onClick={(event) => {
                 event.stopPropagation();
                 onDelete?.();
@@ -143,7 +147,7 @@ export function ContentCard({
       </div>
       <Link
         aria-label={`播放 ${item.title}`}
-        className="grid gap-1.5 p-3.5 text-(--ant-color-text)! outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+        className="grid gap-1.5 p-3.5 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
         href={createPlayHref(item, variant)}
         prefetch={false}
         onClick={onClick}
@@ -156,7 +160,7 @@ export function ContentCard({
             <div className="flex min-w-0 items-center justify-between gap-2 text-xs text-muted">
               {item.year && <span>{item.year}</span>}
               {progress && (
-                <span className="truncate text-(--ant-color-text)/80">
+                <span className="truncate text-foreground/80">
                   {progress.sourceName}
                 </span>
               )}

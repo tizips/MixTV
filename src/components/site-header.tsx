@@ -145,7 +145,7 @@ export function SiteHeader({
   }
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 bg-[color-mix(in_oklab,var(--surface)_78%,transparent)] shadow-[0_14px_40px_color-mix(in_oklab,var(--foreground)_8%,transparent)] backdrop-blur-2xl backdrop-saturate-150">
+    <header className="fixed inset-x-0 top-0 z-50 bg-surface/80 shadow-lg backdrop-blur-2xl backdrop-saturate-150">
       <div className="mx-auto flex h-16 w-full items-center gap-4 px-4 md:px-6 lg:px-12">
         <div className="min-w-0 shrink-0 text-lg font-semibold tracking-tight text-foreground transition">
           {env.NEXT_PUBLIC_SITE_NAME}
@@ -160,19 +160,19 @@ export function SiteHeader({
               return (
                 <div
                   key={item.href}
-                  className={`border-b-2 pb-0.5 ${active ? "border-(--ant-color-primary)" : "border-transparent"}`}
+                  className={`border-b-2 pb-0.5 ${active ? "border-accent" : "border-transparent"}`}
                 >
                   <Link
                     href={item.href}
-                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-(--ant-color-text)! font-medium transition hover:bg-(--ant-color-primary)/5! md:px-4"
+                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-foreground transition hover:bg-foreground/5 md:px-4"
                     aria-current={active ? "page" : undefined}
                     prefetch={false}
                   >
                     <Icon
-                      className={`text-base ${active ? "text-(--ant-color-primary)!" : item.iconClass}`}
+                      className={`text-base ${active ? "text-accent" : item.iconClass}`}
                     />
                     <span
-                      className={`${active ? "text-(--ant-color-primary)!" : null}`}
+                      className={active ? "text-accent" : ""}
                     >
                       {item.label}
                     </span>

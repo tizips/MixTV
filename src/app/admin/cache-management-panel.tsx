@@ -15,8 +15,7 @@ import {
   VideoCameraOutlined,
 } from "@ant-design/icons";
 import { useMemo, useState } from "react";
-import type { CSSProperties } from "react";
-import { Alert, Button, Card, Divider, Tag, theme } from "antd";
+import { Alert, Button, Card, Divider, Tag } from "antd";
 
 type CacheCategory = {
   key: string;
@@ -71,7 +70,6 @@ function formatSize(sizeKb: number) {
 }
 
 export function CacheManagementPanel() {
-  const { token } = theme.useToken();
   const [cacheCategories, setCacheCategories] = useState(
     initialCacheCategories,
   );
@@ -118,7 +116,7 @@ export function CacheManagementPanel() {
       icon: <AppstoreOutlined />,
       label: "缓存项",
       suffix: "项",
-      tone: "var(--accent)",
+      progressClassName: "bg-accent",
       value: cacheStats.totalItems,
       width: cacheStats.totalItems > 0 ? 100 : 0,
     },
@@ -127,7 +125,7 @@ export function CacheManagementPanel() {
       icon: <HddOutlined />,
       label: "存储空间",
       suffix: "",
-      tone: token.colorInfo,
+      progressClassName: "bg-sky-500",
       value: cacheStats.totalSize,
       width: cacheStats.totalSizeKb > 0 ? 100 : 0,
     },
@@ -136,7 +134,7 @@ export function CacheManagementPanel() {
       icon: <TableOutlined />,
       label: "活跃类型",
       suffix: "类",
-      tone: token.colorWarning,
+      progressClassName: "bg-amber-500",
       value: cacheStats.activeTypes,
       width: activePercent,
     },
@@ -199,18 +197,10 @@ export function CacheManagementPanel() {
       </div>
 
       <div
-        className="mb-6 overflow-hidden rounded-lg border border-(--admin-stat-border) bg-(--surface)"
+        className="mb-6 overflow-hidden rounded-lg border border-(--ant-color-border) bg-surface"
         aria-live="polite"
-        style={
-          {
-            "--admin-stat-active": "var(--accent)",
-            "--admin-stat-border": token.colorBorderSecondary,
-            "--admin-stat-danger": token.colorError,
-            "--admin-stat-split": token.colorSplit,
-          } as CSSProperties
-        }
       >
-        <div className="flex flex-col gap-4 border-b border-(--admin-stat-split) px-4 py-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-4 border-b border-(--ant-color-border) px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
               <BarChartOutlined className="text-xl" />
@@ -232,7 +222,7 @@ export function CacheManagementPanel() {
         </div>
 
         <div className="grid gap-0 lg:grid-cols-[minmax(15rem,0.95fr)_minmax(0,2fr)]">
-          <div className="border-b border-(--admin-stat-split) p-4 lg:border-b-0 lg:border-r">
+          <div className="border-b border-(--ant-color-border) p-4 lg:border-b-0 lg:border-r">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-medium uppercase text-default-500">
@@ -243,58 +233,42 @@ export function CacheManagementPanel() {
                 </p>
                 <p className="mt-2 text-sm text-default-500">缓存分类总数</p>
               </div>
-              <span
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-accent"
-                style={{
-                  background:
-                    "color-mix(in srgb, var(--accent) 12%, transparent)",
-                }}
-              >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
                 <DatabaseFilled className="text-lg" />
               </span>
             </div>
 
             <div
-              className="mt-5 flex h-2 overflow-hidden rounded-full bg-(--surface-secondary)"
+              className="mt-5 flex h-2 overflow-hidden rounded-full bg-surface-secondary"
               aria-label={`活跃缓存 ${activePercent}%，空缓存 ${emptyPercent}%`}
             >
               <div
-                style={{
-                  background: "var(--admin-stat-active)",
-                  width: `${activePercent}%`,
-                }}
+                className="bg-accent"
+                style={{ width: `${activePercent}%` }}
               />
               <div
-                style={{
-                  background: "var(--admin-stat-danger)",
-                  width: `${emptyPercent}%`,
-                }}
+                className="bg-danger"
+                style={{ width: `${emptyPercent}%` }}
               />
             </div>
 
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-default-500">
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-(--admin-stat-active)" />
+                <span className="h-2 w-2 rounded-full bg-accent" />
                 活跃 {activePercent}%
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-(--admin-stat-danger)" />
+                <span className="h-2 w-2 rounded-full bg-danger" />
                 空缓存 {emptyPercent}%
               </span>
             </div>
           </div>
 
-          <div className="grid divide-y divide-(--admin-stat-split) text-sm md:grid-cols-3 md:divide-x md:divide-y-0">
+          <div className="grid divide-y divide-(--ant-color-border) text-sm md:grid-cols-3 md:divide-x md:divide-y-0">
             {statItems.map((item) => (
               <div key={item.label} className="p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <span
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                    style={{
-                      background: `color-mix(in srgb, ${item.tone} 12%, transparent)`,
-                      color: item.tone,
-                    }}
-                  >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
                     {item.icon}
                   </span>
                   <span className="text-xs font-medium text-default-500">
@@ -320,15 +294,12 @@ export function CacheManagementPanel() {
                   </span>
                 </div>
                 <div
-                  className="mt-4 h-1.5 overflow-hidden rounded-full bg-(--surface-secondary)"
+                  className="mt-4 h-1.5 overflow-hidden rounded-full bg-surface-secondary"
                   aria-label={`${item.label}占比 ${item.width}%`}
                 >
                   <div
-                    className="h-full rounded-full"
-                    style={{
-                      background: item.tone,
-                      width: `${item.width}%`,
-                    }}
+                    className={`h-full rounded-full ${item.progressClassName}`}
+                    style={{ width: `${item.width}%` }}
                   />
                 </div>
               </div>
@@ -359,23 +330,11 @@ export function CacheManagementPanel() {
             return (
               <div
                 key={category.key}
-                className="overflow-hidden rounded-lg border border-(--admin-category-border) bg-(--surface)"
-                style={
-                  {
-                    "--admin-category-border": token.colorBorderSecondary,
-                    "--admin-category-split": token.colorSplit,
-                  } as CSSProperties
-                }
+                className="overflow-hidden rounded-lg border border-(--ant-color-border) bg-surface"
               >
-                <div className="flex items-start justify-between gap-4 border-b border-(--admin-category-split) p-4">
+                <div className="flex items-start justify-between gap-4 border-b border-(--ant-color-border) p-4">
                   <div className="flex min-w-0 items-start gap-3">
-                    <span
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-accent"
-                      style={{
-                        background:
-                          "color-mix(in srgb, var(--accent) 12%, transparent)",
-                      }}
-                    >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
                       <Icon className="text-lg" />
                     </span>
                     <div className="min-w-0">
@@ -394,7 +353,7 @@ export function CacheManagementPanel() {
                   </div>
                 </div>
 
-                <div className="grid divide-y divide-(--admin-category-split) text-sm sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                <div className="grid divide-y divide-(--ant-color-border) text-sm sm:grid-cols-2 sm:divide-x sm:divide-y-0">
                   <div className="p-4">
                     <p className="text-xs text-default-500">缓存项</p>
                     <p className="mt-2 text-2xl font-semibold text-foreground">
@@ -407,7 +366,7 @@ export function CacheManagementPanel() {
                       {formatSize(category.sizeKb)}
                     </p>
                     <div
-                      className="mt-3 h-1.5 overflow-hidden rounded-full bg-(--surface-secondary)"
+                      className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-secondary"
                       aria-label={`${category.title}存储占比 ${sizePercent}%`}
                     >
                       <div
@@ -418,7 +377,7 @@ export function CacheManagementPanel() {
                   </div>
                 </div>
 
-                <div className="flex justify-end border-t border-(--admin-category-split) p-4">
+                <div className="flex justify-end border-t border-(--ant-color-border) p-4">
                   <Button
                     danger
                     disabled={isEmpty}

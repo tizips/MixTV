@@ -63,12 +63,7 @@ const defaultPlaybackDanmakuSettings: PlaybackDanmakuPreferences = {
 const tabBaseClassName =
   "group relative h-[72px] justify-center rounded-none text-sm font-medium transition-colors before:absolute before:inset-x-6 before:top-1/2 before:h-[72px] before:-translate-y-1/2 before:opacity-0 before:transition-opacity data-[selected]:text-accent data-[selected]:before:opacity-100";
 
-const tabGlowClassNames = [
-  "before:bg-[radial-gradient(circle_at_42%_42%,color-mix(in_srgb,var(--accent)_13%,transparent)_0%,transparent_36%),radial-gradient(circle_at_62%_58%,color-mix(in_srgb,var(--accent)_9%,transparent)_0%,transparent_34%),radial-gradient(ellipse_64%_42%_at_52%_50%,color-mix(in_srgb,var(--accent)_6%,transparent)_0%,transparent_72%)]",
-  "before:bg-[radial-gradient(circle_at_36%_56%,color-mix(in_srgb,var(--accent)_12%,transparent)_0%,transparent_32%),radial-gradient(circle_at_58%_38%,color-mix(in_srgb,var(--accent)_9%,transparent)_0%,transparent_38%),radial-gradient(ellipse_70%_46%_at_50%_52%,color-mix(in_srgb,var(--accent)_5%,transparent)_0%,transparent_74%)]",
-  "before:bg-[radial-gradient(circle_at_46%_34%,color-mix(in_srgb,var(--accent)_11%,transparent)_0%,transparent_34%),radial-gradient(circle_at_66%_54%,color-mix(in_srgb,var(--accent)_8%,transparent)_0%,transparent_36%),radial-gradient(ellipse_58%_52%_at_48%_54%,color-mix(in_srgb,var(--accent)_6%,transparent)_0%,transparent_76%)]",
-  "before:bg-[radial-gradient(circle_at_34%_44%,color-mix(in_srgb,var(--accent)_10%,transparent)_0%,transparent_30%),radial-gradient(circle_at_54%_64%,color-mix(in_srgb,var(--accent)_11%,transparent)_0%,transparent_35%),radial-gradient(ellipse_68%_40%_at_55%_48%,color-mix(in_srgb,var(--accent)_5%,transparent)_0%,transparent_72%)]",
-] as const;
+const tabGlowClassNames = ["before:bg-accent/10"] as const;
 
 type TabGlowClassName = (typeof tabGlowClassNames)[number];
 type ArtplayerWithHls = Artplayer & { hls?: Hls };
@@ -1399,7 +1394,7 @@ export function PlayPageShell({
       children: (
         <div className="grid gap-4 p-4 md:p-5">
           <div className="grid grid-cols-[minmax(0,1fr)_2rem] items-center gap-2">
-            <div className="scrollbar-hide flex min-w-0 gap-2 overflow-x-auto">
+            <div className="flex min-w-0 gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {episodeGroups.map((group) => (
                 <Button
                   key={group.key}
@@ -1427,7 +1422,7 @@ export function PlayPageShell({
             </Button>
           </div>
 
-          <Divider style={{ margin: "12px 0" }} />
+          <Divider className="my-3" />
 
           <div className="grid max-h-107.5 grid-cols-5 gap-2 overflow-y-auto pr-1 sm:grid-cols-6 xl:grid-cols-5">
             {visibleEpisodes.map((episode) => (
@@ -1435,10 +1430,10 @@ export function PlayPageShell({
                 key={episode.number}
                 type="button"
                 aria-label={`${episode.title} ${episode.duration}`}
-                className={`h-7 min-w-14 border border-(--ant-color-primary)! cursor-pointer rounded px-3 text-sm font-medium transition-colors ${
+                className={`h-7 min-w-14 cursor-pointer rounded border px-3 text-sm font-medium transition-colors ${
                   episode.number === activeEpisode
-                    ? "bg-(--ant-color-primary) text-white!"
-                    : "text-(--ant-color-primary)! bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_12%,transparent),color-mix(in_srgb,var(--surface-secondary)_82%,transparent))] text-default-700 ring-1 ring-inset ring-white/35 hover:bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_18%,transparent),color-mix(in_srgb,var(--surface-secondary)_92%,transparent))] hover:text-foreground"
+                    ? "border-accent bg-accent text-accent-foreground"
+                    : "border-default-200 bg-surface-secondary text-accent hover:bg-surface hover:text-foreground"
                 }`}
                 onClick={() => resetPlaybackForEpisode(episode.number)}
               >
@@ -1461,7 +1456,7 @@ export function PlayPageShell({
     {
       children: (
         <div className="grid max-h-122.5 gap-3 overflow-y-auto p-4 pr-3 md:p-5 md:pr-4">
-          {playbackSourceOptions.length > 0 ? (
+          {playbackSourceOptions.length > 0 && (
             <>
               {playbackSourceOptions.map((source) => {
                 const isCurrentSource =
@@ -1474,14 +1469,18 @@ export function PlayPageShell({
                     type="button"
                     className={`relative grid cursor-pointer gap-3 rounded-lg border p-4 text-left transition-colors ${
                       isCurrentSource
-                        ? "border-accent bg-white/2"
-                        : "border-[color-mix(in_srgb,var(--accent)_24%,transparent)] bg-white/12 hover:border-[color-mix(in_srgb,var(--accent)_38%,transparent)] hover:bg-white/16"
+                        ? "border-accent bg-accent/10"
+                        : "border-accent/20 bg-surface-secondary/50 hover:border-accent hover:bg-surface"
                     }`}
                     disabled={isSourceSwitching}
                     onClick={() => switchPlaybackSource(source)}
                   >
                     {isCurrentSource ? (
-                      <Tag color="success" className="absolute right-3 top-3">
+                      <Tag
+                        color="success"
+                        variant="solid"
+                        className="absolute right-3 top-3"
+                      >
                         当前源
                       </Tag>
                     ) : null}
@@ -1502,37 +1501,6 @@ export function PlayPageShell({
                 );
               })}
             </>
-          ) : (
-            playbackData?.sources.map((source, index) => (
-              <button
-                key={source.id}
-                type="button"
-                className={`relative grid cursor-pointer gap-3 rounded-lg border p-4 text-left transition-colors ${
-                  source.id === activeSource
-                    ? "border-accent bg-white/2"
-                    : "border-[color-mix(in_srgb,var(--accent)_24%,transparent)] bg-white/12 hover:border-[color-mix(in_srgb,var(--accent)_38%,transparent)] hover:bg-white/16"
-                }`}
-                onClick={() => resetPlaybackForEpisode(index + 1)}
-              >
-                {source.id === activeSource ? (
-                  <Tag color="success" className="absolute right-3 top-3">
-                    当前源
-                  </Tag>
-                ) : null}
-                <span className="flex min-w-0 items-center gap-3 pr-16">
-                  <span className="min-w-0 truncate font-medium text-foreground">
-                    {source.name}
-                  </span>
-                </span>
-                <span className="flex items-center justify-between gap-3 text-xs text-default-500">
-                  <span className="flex min-w-0 flex-wrap items-center gap-2">
-                    <Tag color="processing">{source.quality}</Tag>
-                    <span>{source.latency}</span>
-                  </span>
-                  <Tag>{playbackData?.episodes.length ?? 0} 集</Tag>
-                </span>
-              </button>
-            ))
           )}
         </div>
       ),
@@ -1554,7 +1522,7 @@ export function PlayPageShell({
         <div className="mx-auto grid w-full max-w-400 gap-5">
           <div className="grid min-h-[50vh] place-items-center rounded-2xl border border-default-200/70 bg-surface px-6 text-center shadow-sm">
             <div className="grid max-w-2xl justify-items-center gap-3">
-              <span className="grid h-14 w-14 place-items-center rounded-full border border-white/12 bg-white/8 text-2xl text-danger-300">
+              <span className="grid h-14 w-14 place-items-center rounded-full border border-white/12 bg-white/8 text-2xl text-red-300">
                 <WarningOutlined />
               </span>
               <h1 className="text-lg font-semibold tracking-normal">
@@ -1576,7 +1544,7 @@ export function PlayPageShell({
                     ) : null}
                   </div>
                   {placeholderSourceError ? (
-                    <p className="text-sm text-danger-300">
+                    <p className="text-sm text-red-300">
                       {placeholderSourceError}
                     </p>
                   ) : null}
@@ -1591,7 +1559,7 @@ export function PlayPageShell({
                     {placeholderSourceOptions.map((source) => (
                       <a
                         key={`${source.key}:${source.id}`}
-                        className="grid gap-3 rounded-lg border border-[color-mix(in_srgb,var(--accent)_24%,transparent)] bg-white/8 p-4 text-left transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,transparent)] hover:bg-white/12"
+                        className="grid gap-3 rounded-lg border border-default-200 bg-surface-secondary/50 p-4 text-left transition-colors hover:border-accent hover:bg-surface"
                         href={createPlayUrl({
                           id: source.id,
                           source: source.key,
@@ -1651,15 +1619,15 @@ export function PlayPageShell({
               ref={artContainerRef}
               aria-label={`${playbackData.title} 第 ${activeEpisode} 集视频`}
               data-mixtv-artplayer
-              className="absolute inset-0 z-20 h-full w-full bg-black [&_.art-video-player]:h-full [&_.art-video-player]:w-full"
+              className="absolute inset-0 z-20 h-full w-full bg-black [&_.art-video-player]:h-full [&_.art-video-player]:w-full [&_.art-bottom]:!absolute [&_.art-bottom]:!inset-auto [&_.art-bottom]:!bottom-4 [&_.art-bottom]:!left-1/2 [&_.art-bottom]:!right-auto [&_.art-bottom]:!top-auto [&_.art-bottom]:!translate-x-[-50%] [&_.art-bottom]:!w-[min(calc(100%-1.5rem),56rem)] [&_.art-bottom]:!min-h-24 [&_.art-bottom]:!max-h-28 [&_.art-bottom]:!rounded-2xl [&_.art-bottom]:!border [&_.art-bottom]:!border-white/15 [&_.art-bottom]:!bg-black/35 [&_.art-bottom]:!px-3 [&_.art-bottom]:!pt-3 [&_.art-bottom]:!pb-0 [&_.art-bottom]:!shadow-lg [&_.art-bottom]:!backdrop-blur-2xl [&_.art-bottom]:!backdrop-saturate-200 [&_.art-bottom]:!flex [&_.art-bottom]:!flex-col [&_.art-bottom]:!justify-center [&_.art-bottom]:!overflow-visible dark:[&_.art-bottom]:!bg-black/45 [&_.art-progress]:!m-0 [&_.art-progress]:!overflow-visible [&_.art-controls]:!min-h-8 [&_.art-controls-left]:!items-center [&_.art-controls-center]:!items-center [&_.art-controls-right]:!items-center [&_.art-controls-left]:!gap-1"
             />
-            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,transparent_56%,rgba(0,0,0,0.32)_100%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-transparent via-transparent to-black/30" />
           </div>
           {playbackError ? (
-            <p className="px-1 text-sm text-danger-300">{playbackError}</p>
+            <p className="px-1 text-sm text-red-300">{playbackError}</p>
           ) : null}
 
-          <div className="overflow-hidden rounded-xl border border-default-200/70 bg-surface shadow-sm backdrop-blur">
+          <div className="overflow-hidden rounded-xl bg-surface shadow-sm backdrop-blur">
             <Tabs
               activeKey={selectedTabKey}
               className="w-full"
@@ -1678,7 +1646,7 @@ export function PlayPageShell({
           </div>
         </section>
 
-        <section className="grid gap-5 rounded-2xl bg-(--surface) p-4 shadow-sm backdrop-blur md:grid-cols-[180px_minmax(0,1fr)] md:p-5">
+        <section className="grid gap-5 rounded-2xl bg-surface p-4 shadow-sm backdrop-blur md:grid-cols-[180px_minmax(0,1fr)] md:p-5">
           <div className="relative aspect-2/3 w-36 overflow-hidden rounded-lg bg-default-100 md:w-full">
             <Image
               src={playbackData.cover || playbackCoverDefaultUrl}

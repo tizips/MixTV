@@ -20,7 +20,10 @@ function formatBytes(bytes: number) {
   }
 
   const units = ["B", "KB", "MB", "GB", "TB"];
-  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const unitIndex = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1,
+  );
   const value = bytes / 1024 ** unitIndex;
 
   return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
@@ -44,7 +47,8 @@ async function sampleProcessCpuPercent(cpuCount: number) {
 
   await new Promise((resolve) => setTimeout(resolve, cpuSampleMs));
 
-  const elapsedMicroseconds = Number(process.hrtime.bigint() - startTime) / 1_000;
+  const elapsedMicroseconds =
+    Number(process.hrtime.bigint() - startTime) / 1_000;
   const usage = process.cpuUsage(startUsage);
   const usedMicroseconds = usage.user + usage.system;
 
@@ -65,7 +69,8 @@ export async function getPerformanceMetrics() {
   const totalMemory = os.totalmem();
   const freeMemory = os.freemem();
   const usedMemory = Math.max(0, totalMemory - freeMemory);
-  const systemMemoryPercent = totalMemory > 0 ? (usedMemory / totalMemory) * 100 : 0;
+  const systemMemoryPercent =
+    totalMemory > 0 ? (usedMemory / totalMemory) * 100 : 0;
   const metrics: PerformanceMetric[] = [
     {
       key: "process-cpu",
@@ -91,7 +96,12 @@ export async function getPerformanceMetrics() {
       value: formatBytes(usedMemory),
       detail: `总共 ${formatBytes(totalMemory)} · 可用 ${formatBytes(freeMemory)}`,
       detailAccent: `(${formatPercent(systemMemoryPercent)})`,
-      tone: systemMemoryPercent >= 85 ? "text-danger" : systemMemoryPercent >= 70 ? "text-warning" : "text-accent",
+      tone:
+        systemMemoryPercent >= 85
+          ? "text-red-500"
+          : systemMemoryPercent >= 70
+            ? "text-warning"
+            : "text-accent",
     },
     {
       key: "page-traffic",
@@ -118,7 +128,10 @@ export async function getPerformanceMetrics() {
       value: `${trafficSnapshot.thirdParty.count.toFixed(0)} 次`,
       detail: `成功 ${trafficSnapshot.thirdParty.successCount.toFixed(0)} · 失败 ${trafficSnapshot.thirdParty.failCount.toFixed(0)}`,
       detailAccent: `平均 ${formatDurationMs(trafficSnapshot.thirdParty.averageDurationMs)}`,
-      tone: trafficSnapshot.thirdParty.failCount > 0 ? "text-warning" : "text-accent",
+      tone:
+        trafficSnapshot.thirdParty.failCount > 0
+          ? "text-warning"
+          : "text-accent",
     },
   ];
 

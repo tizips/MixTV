@@ -244,13 +244,13 @@ function FavoriteButton({
   return (
     <button
       aria-label={`${isFavorited ? "取消收藏" : "收藏"} ${result.title}`}
-      className="absolute bottom-2.5 right-2.5 z-20 grid h-6 w-6 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 opacity-0 transition duration-200 hover:scale-110 hover:text-danger group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:text-danger"
+      className="absolute bottom-2.5 right-2.5 z-20 grid h-6 w-6 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 opacity-0 transition duration-200 hover:scale-110 hover:text-red-500 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:text-red-500"
       disabled={isPending}
       type="button"
       onClick={() => onToggle(result)}
     >
       {isFavorited ? (
-        <HeartFilled className="text-danger" />
+        <HeartFilled className="text-red-500" />
       ) : (
         <HeartOutlined />
       )}
@@ -338,31 +338,31 @@ function SearchResultItem({
 
   if (viewMode === "grid") {
     return (
-      <article className="group grid min-w-0 content-start overflow-hidden rounded-[1.15rem] bg-surface/78 text-left shadow-[0_14px_40px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:bg-surface hover:shadow-[0_22px_60px_rgba(15,23,42,0.16)]">
+      <article className="group grid min-w-0 content-start overflow-hidden rounded-xl bg-surface/80 text-left shadow-sm transition duration-300 hover:-translate-y-1 hover:bg-surface hover:shadow-md">
         <div className="relative aspect-2/3 overflow-hidden bg-surface-secondary">
           <Link
             aria-label={`播放 ${result.title}`}
-            className="relative block h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--ant-color-primary)"
+            className="relative block h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
             href={createPlayHref(result)}
             rel="noreferrer"
             target="_blank"
             prefetch={false}
           >
             <ResultCover result={result} />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.26)_0%,transparent_34%,rgba(0,0,0,0.84)_100%)] opacity-85 transition-opacity group-hover:opacity-100" />
+            <div className="absolute inset-0 bg-linear-to-b from-black/25 via-transparent to-black/85 opacity-85 transition-opacity group-hover:opacity-100" />
             <div className="absolute inset-x-0 top-0 h-16 bg-linear-to-b from-black/45 to-transparent" />
             <div className="absolute left-2.5 top-2.5 z-10">
               <Tag color="default">{result.year}</Tag>
             </div>
             {result.episodeCount > 1 ? (
-              <Tag color="default" className="absolute! top-2.5 right-2.5">
+              <Tag color="default" className="absolute right-2.5 top-2.5">
                 {result.episodeCount}集
               </Tag>
             ) : null}
-            <Tag color="default" className="absolute! bottom-2.5 left-2.5">
+            <Tag color="default" className="absolute bottom-2.5 left-2.5">
               {result.sourceTotal}源
             </Tag>
-            <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/18 text-xl text-white opacity-0 shadow-[0_18px_50px_rgba(0,0,0,0.32)] ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover:scale-105 group-hover:opacity-100">
+            <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/20 text-xl text-white opacity-0 shadow-lg ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover:scale-105 group-hover:opacity-100">
               <PlayCircleFilled className="translate-x-px" />
             </span>
           </Link>
@@ -375,13 +375,13 @@ function SearchResultItem({
         </div>
         <Link
           aria-label={`播放 ${result.title}`}
-          className="grid gap-2.5 p-3.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--ant-color-primary)"
+          className="grid gap-2.5 p-3.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
           href={createPlayHref(result)}
           rel="noreferrer"
           target="_blank"
           prefetch={false}
         >
-          <h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-(--ant-color-text-base) transition-colors group-hover:text-(--ant-color-primary)">
+          <h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground transition-colors group-hover:text-accent">
             {result.title}
           </h3>
         </Link>
@@ -390,7 +390,7 @@ function SearchResultItem({
   }
 
   return (
-    <article className="group grid w-full grid-cols-[5.25rem_minmax(0,1fr)] items-start gap-3 rounded-2xl bg-surface/78 p-3 text-left shadow-[0_12px_36px_rgba(15,23,42,0.07)] transition duration-300 hover:-translate-y-0.5 hover:bg-surface hover:shadow-[0_20px_54px_rgba(15,23,42,0.13)] sm:grid-cols-[6rem_minmax(0,1fr)_3rem] sm:items-center">
+    <article className="group grid w-full grid-cols-[5.25rem_minmax(0,1fr)] items-start gap-3 rounded-2xl bg-surface/80 p-3 text-left shadow-sm transition duration-300 hover:-translate-y-0.5 hover:bg-surface hover:shadow-md sm:grid-cols-[6rem_minmax(0,1fr)_3rem] sm:items-center">
       <div className="relative h-32 w-21 overflow-hidden rounded-xl bg-surface-secondary ring-1 ring-default-200/80 sm:h-36 sm:w-24">
         <Link
           aria-label={`播放 ${result.title}`}
@@ -460,7 +460,7 @@ function SearchHistoryPanel({
   onSearch: (keyword: string) => void;
 }) {
   return (
-    <div className="grid gap-4 rounded-[1.2rem] bg-(--surface) p-4 shadow-[0_18px_58px_rgba(15,23,42,0.07)] backdrop-blur-xl md:p-5">
+    <div className="grid gap-4 rounded-xl bg-surface p-4 shadow-sm md:p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-normal text-foreground">
@@ -478,7 +478,7 @@ function SearchHistoryPanel({
           {keywords.map((keyword) => (
             <article
               key={keyword}
-              className="group grid min-w-0 grid-cols-[1.75rem_minmax(0,1fr)_1.75rem] items-center gap-2 rounded-xl bg-surface-secondary/64 px-2.5 py-2 text-left shadow-[0_8px_24px_rgba(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:bg-surface-secondary hover:shadow-[0_14px_34px_rgba(15,23,42,0.10)]"
+              className="group grid min-w-0 grid-cols-[1.75rem_minmax(0,1fr)_1.75rem] items-center gap-2 rounded-xl bg-surface-secondary/70 px-2.5 py-2 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:bg-surface-secondary hover:shadow-md"
             >
               <button
                 aria-label={`搜索 ${keyword}`}
@@ -499,7 +499,7 @@ function SearchHistoryPanel({
               </button>
               <button
                 aria-label={`删除搜索历史 ${keyword}`}
-                className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-xs text-default-400 transition hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
+                className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-xs text-default-400 transition hover:bg-danger/10 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
                 type="button"
                 onClick={() => onDelete(keyword)}
               >
@@ -899,13 +899,13 @@ export function SearchPageShell() {
             runSearch();
           }}
         >
-          <div className="mx-auto flex w-fit flex-wrap justify-center gap-2 rounded-xl bg-surface/80 px-4 py-2 shadow-[0_14px_44px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+          <div className="mx-auto flex w-fit flex-wrap justify-center gap-2 rounded-xl bg-surface/80 px-4 py-2 shadow-sm">
             {searchTypes.map((type) => {
               const Icon = type.Icon;
 
               return (
                 <Button
-                  className="shadow-none!"
+                  className="shadow-none"
                   key={type.key}
                   aria-pressed={searchType === type.key}
                   type={searchType === type.key ? "primary" : "default"}
@@ -919,7 +919,7 @@ export function SearchPageShell() {
           </div>
           <label className="mx-auto grid w-full max-w-3xl">
             <span className="sr-only">搜索关键词</span>
-            <span className="grid grid-cols-[minmax(0,1fr)_auto_auto] overflow-hidden rounded-2xl bg-(--surface) shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_14px_36px_rgba(15,23,42,0.10)] transition focus-within:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_18px_46px_rgba(15,23,42,0.14)]">
+            <span className="grid grid-cols-[minmax(0,1fr)_auto_auto] overflow-hidden rounded-2xl bg-surface shadow-sm transition focus-within:shadow-md">
               <input
                 className="h-14 min-w-0 bg-transparent px-5 text-base text-foreground outline-none placeholder:text-default-400"
                 autoComplete="off"
@@ -939,7 +939,7 @@ export function SearchPageShell() {
                 </button>
               ) : null}
               <Button
-                className="w-28 h-14!"
+                className="h-14 w-28"
                 htmlType="submit"
                 type="primary"
                 icon={<SearchOutlined />}
@@ -953,7 +953,7 @@ export function SearchPageShell() {
         <div className="grid gap-4">
           {hasSearched ? (
             <div className="grid gap-5">
-              <div className="relative overflow-hidden rounded-[1.25rem] bg-surface/75 p-4 shadow-[0_18px_58px_rgba(15,23,42,0.08)] backdrop-blur-xl md:p-5">
+              <div className="relative overflow-hidden rounded-xl bg-surface/80 p-4 shadow-sm md:p-5">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-accent/45 to-transparent" />
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div className="min-w-0">
@@ -978,7 +978,7 @@ export function SearchPageShell() {
                     {(["grid", "list"] as const).map((mode) => (
                       <Button
                         key={mode}
-                        className="shadow-none!"
+                        className="shadow-none"
                         aria-label={
                           mode === "grid" ? "切换为卡片视图" : "切换为列表视图"
                         }
@@ -996,7 +996,7 @@ export function SearchPageShell() {
 
               {streamError ? (
                 <div
-                  className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger"
+                  className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-red-500"
                   role="alert"
                 >
                   <WarningOutlined />

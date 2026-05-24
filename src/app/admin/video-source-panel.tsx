@@ -11,7 +11,7 @@ import {
   WarningFilled,
 } from "@ant-design/icons";
 import { useEffect, useMemo, useState } from "react";
-import type { CSSProperties, HTMLAttributes } from "react";
+import type { HTMLAttributes } from "react";
 import {
   App,
   Button,
@@ -27,7 +27,6 @@ import {
   Switch,
   Table,
   Tag,
-  theme,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type {
@@ -414,7 +413,6 @@ function validateDraft(draft: EditableVideoSource) {
 
 export function VideoSourcePanel() {
   const { message: msg } = App.useApp();
-  const { token } = theme.useToken();
   const [sourceForm] = Form.useForm<VideoSourceFormValues>();
   const [validityForm] = Form.useForm<ValidityCheckFormValues>();
   const [sources, setSources] = useState<VideoSourceItem[]>([]);
@@ -461,27 +459,24 @@ export function VideoSourcePanel() {
     {
       helper: "可参与搜索",
       icon: <CheckCircleFilled />,
-      iconColor: "var(--accent)",
       label: "启用",
-      tone: "var(--accent)",
+      progressClassName: "bg-accent",
       value: enabledCount,
       width: enabledPercent,
     },
     {
       helper: "暂不参与聚合",
       icon: <WarningFilled />,
-      iconColor: token.colorWarning,
       label: "禁用",
-      tone: token.colorWarning,
+      progressClassName: "bg-amber-500",
       value: disabledCount,
       width: disabledPercent,
     },
     {
       helper: "需要排查接口",
       icon: <AlertOutlined />,
-      iconColor: token.colorError,
       label: "异常",
-      tone: token.colorError,
+      progressClassName: "bg-red-500",
       value: invalidCount,
       width: invalidPercent,
     },
@@ -1027,18 +1022,10 @@ export function VideoSourcePanel() {
         </div>
 
         <div
-          className="mb-6 overflow-hidden rounded-lg border border-(--admin-stat-border) bg-(--surface)"
+          className="mb-6 overflow-hidden rounded-lg border border-(--ant-color-border) bg-surface"
           aria-live="polite"
-          style={
-            {
-              "--admin-stat-active": "var(--accent)",
-              "--admin-stat-border": token.colorBorderSecondary,
-              "--admin-stat-danger": token.colorError,
-              "--admin-stat-split": token.colorSplit,
-            } as CSSProperties
-          }
         >
-          <div className="flex flex-col gap-4 border-b border-(--admin-stat-split) px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-4 border-b border-(--ant-color-border) px-4 py-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
                 <BarChartOutlined className="text-xl" />
@@ -1058,7 +1045,7 @@ export function VideoSourcePanel() {
           </div>
 
           <div className="grid gap-0 lg:grid-cols-[minmax(15rem,0.95fr)_minmax(0,2fr)]">
-            <div className="border-b border-(--admin-stat-split) p-4 lg:border-b-0 lg:border-r">
+            <div className="border-b border-(--ant-color-border) p-4 lg:border-b-0 lg:border-r">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-medium uppercase text-default-500">
@@ -1069,58 +1056,42 @@ export function VideoSourcePanel() {
                   </p>
                   <p className="mt-2 text-sm text-default-500">视频源总数</p>
                 </div>
-                <span
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-accent"
-                  style={{
-                    background:
-                      "color-mix(in srgb, var(--accent) 12%, transparent)",
-                  }}
-                >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
                   <ApiOutlined className="text-lg" />
                 </span>
               </div>
 
               <div
-                className="mt-5 flex h-2 overflow-hidden rounded-full bg-(--surface-secondary)"
+                className="mt-5 flex h-2 overflow-hidden rounded-full bg-surface-secondary"
                 aria-label={`启用视频源 ${enabledPercent}%，禁用视频源 ${disabledPercent}%`}
               >
                 <div
-                  style={{
-                    background: "var(--admin-stat-active)",
-                    width: `${enabledPercent}%`,
-                  }}
+                  className="bg-accent"
+                  style={{ width: `${enabledPercent}%` }}
                 />
                 <div
-                  style={{
-                    background: "var(--admin-stat-danger)",
-                    width: `${invalidPercent}%`,
-                  }}
+                  className="bg-danger"
+                  style={{ width: `${invalidPercent}%` }}
                 />
               </div>
 
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-default-500">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-(--admin-stat-active)" />
+                  <span className="h-2 w-2 rounded-full bg-accent" />
                   启用 {enabledPercent}%
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-(--admin-stat-danger)" />
+                  <span className="h-2 w-2 rounded-full bg-danger" />
                   异常 {invalidPercent}%
                 </span>
               </div>
             </div>
 
-            <div className="grid divide-y divide-(--admin-stat-split) text-sm md:grid-cols-3 md:divide-x md:divide-y-0">
+            <div className="grid divide-y divide-(--ant-color-border) text-sm md:grid-cols-3 md:divide-x md:divide-y-0">
               {statItems.map((item) => (
                 <div key={item.label} className="p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <span
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                      style={{
-                        background: `color-mix(in srgb, ${item.iconColor} 12%, transparent)`,
-                        color: item.iconColor,
-                      }}
-                    >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
                       {item.icon}
                     </span>
                     <span className="text-xs font-medium text-default-500">
@@ -1141,15 +1112,12 @@ export function VideoSourcePanel() {
                     </span>
                   </div>
                   <div
-                    className="mt-4 h-1.5 overflow-hidden rounded-full bg-(--surface-secondary)"
+                    className="mt-4 h-1.5 overflow-hidden rounded-full bg-surface-secondary"
                     aria-label={`${item.label}占比 ${item.width}%`}
                   >
                     <div
-                      className="h-full rounded-full"
-                      style={{
-                        background: item.tone,
-                        width: `${item.width}%`,
-                      }}
+                      className={`h-full rounded-full ${item.progressClassName}`}
+                      style={{ width: `${item.width}%` }}
                     />
                   </div>
                 </div>
@@ -1318,7 +1286,7 @@ export function VideoSourcePanel() {
                     max={99}
                     min={1}
                     controls={false}
-                    style={{ width: "100%" }}
+                    className="w-full"
                   />
                 </Form.Item>
               </Col>

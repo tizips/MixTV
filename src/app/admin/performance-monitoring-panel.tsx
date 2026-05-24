@@ -11,8 +11,7 @@ import {
   DesktopOutlined,
 } from "@ant-design/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
-import { Alert, App, Button, Card, Divider, Tag, theme } from "antd";
+import { Alert, App, Button, Card, Divider, Tag } from "antd";
 
 type Metric = {
   key: string;
@@ -73,7 +72,6 @@ function formatCheckedAt(checkedAt: string) {
 }
 
 export function PerformanceMonitoringPanel() {
-  const { token } = theme.useToken();
   const { message: msg } = App.useApp();
   const hasLoadedRef = useRef(false);
   const [metrics, setMetrics] = useState<Metric[]>([]);
@@ -187,19 +185,11 @@ export function PerformanceMonitoringPanel() {
           ) : null}
 
           {isLoading && metrics.length === 0 ? (
-            <div
-              className="grid overflow-hidden rounded-lg border border-(--admin-metrics-border) bg-(--surface) md:grid-cols-2 xl:grid-cols-3"
-              style={
-                {
-                  "--admin-metrics-border": token.colorBorderSecondary,
-                  "--admin-metrics-split": token.colorSplit,
-                } as CSSProperties
-              }
-            >
+            <div className="grid overflow-hidden rounded-lg border border-default-200 bg-surface md:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }, (_, index) => (
                 <div
                   key={index}
-                  className="grid gap-3 border-b border-(--admin-metrics-split) p-4 md:border-r md:nth-[2n]:border-r-0 xl:nth-[2n]:border-r xl:nth-[3n]:border-r-0 nth-last-[-n+1]:border-b-0 md:nth-last-[-n+2]:border-b-0 xl:nth-last-[-n+3]:border-b-0"
+                  className="grid gap-3 border-b border-default-200 p-4 md:border-r md:nth-[2n]:border-r-0 xl:nth-[2n]:border-r xl:nth-[3n]:border-r-0 nth-last-[-n+1]:border-b-0 md:nth-last-[-n+2]:border-b-0 xl:nth-last-[-n+3]:border-b-0"
                 >
                   <div className="h-4 w-24 rounded bg-default-200/80" />
                   <div className="h-7 w-20 rounded bg-default-200/80" />
@@ -210,22 +200,14 @@ export function PerformanceMonitoringPanel() {
           ) : null}
 
           {metrics.length > 0 ? (
-            <div
-              className="grid overflow-hidden rounded-lg border border-(--admin-metrics-border) bg-(--surface) md:grid-cols-2 xl:grid-cols-3"
-              style={
-                {
-                  "--admin-metrics-border": token.colorBorderSecondary,
-                  "--admin-metrics-split": token.colorSplit,
-                } as CSSProperties
-              }
-            >
+            <div className="grid overflow-hidden rounded-lg border border-(--ant-color-border) bg-surface md:grid-cols-2 xl:grid-cols-3">
               {metrics.map((metric) => {
                 const Icon = metricIconMap[metric.icon] ?? DashboardOutlined;
 
                 return (
                   <div
                     key={metric.key}
-                    className="grid gap-4 border-b border-(--admin-metrics-split) p-4 md:border-r md:nth-[2n]:border-r-0 xl:nth-[2n]:border-r xl:nth-[3n]:border-r-0 nth-last-[-n+1]:border-b-0 md:nth-last-[-n+2]:border-b-0 xl:nth-last-[-n+3]:border-b-0"
+                    className="grid gap-4 border-b border-(--ant-color-border) p-4 md:border-r md:nth-[2n]:border-r-0 xl:nth-[2n]:border-r xl:nth-[3n]:border-r-0 nth-last-[-n+1]:border-b-0 md:nth-last-[-n+2]:border-b-0 xl:nth-last-[-n+3]:border-b-0"
                   >
                     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
                       <p className="mb-0! min-w-0 text-sm font-medium text-default-600">
@@ -270,15 +252,7 @@ export function PerformanceMonitoringPanel() {
             </span>
           </div>
 
-          <div
-            className="grid overflow-hidden rounded-lg border border-(--admin-scope-border) bg-(--surface) sm:grid-cols-2 xl:grid-cols-4"
-            style={
-              {
-                "--admin-scope-border": token.colorBorderSecondary,
-                "--admin-scope-split": token.colorSplit,
-              } as CSSProperties
-            }
-          >
+          <div className="grid overflow-hidden rounded-lg border border-(--ant-color-border) bg-surface sm:grid-cols-2 xl:grid-cols-4">
             {[
               {
                 Icon: DashboardOutlined,
@@ -298,7 +272,7 @@ export function PerformanceMonitoringPanel() {
               return (
                 <div
                   key={item.label}
-                  className="flex items-center gap-3 border-b border-(--admin-scope-split) px-4 py-3 last:border-b-0 sm:nth-last-[-n+2]:border-b-0 xl:border-b-0 xl:border-r xl:last:border-r-0"
+                  className="flex items-center gap-3 border-b border-(--ant-color-border) px-4 py-3 last:border-b-0 sm:nth-last-[-n+2]:border-b-0 xl:border-b-0 xl:border-r xl:last:border-r-0"
                 >
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
                     <Icon />

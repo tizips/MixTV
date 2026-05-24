@@ -116,9 +116,9 @@ function FavoritePoster({
           src={imageError ? fallbackPosterUrl : favorite.cover}
           onError={() => setImageError(true)}
         />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.22)_0%,transparent_34%,rgba(0,0,0,0.84)_100%)] opacity-85 transition-opacity group-hover:opacity-100" />
+        <div className="absolute inset-0 bg-linear-to-b from-black/20 via-transparent to-black/85 opacity-85 transition-opacity group-hover:opacity-100" />
         <div className="absolute inset-x-0 top-0 h-16 bg-linear-to-b from-black/45 to-transparent" />
-        <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/18 text-xl text-white opacity-0 shadow-[0_18px_50px_rgba(0,0,0,0.32)] ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover:scale-105 group-hover:opacity-100">
+        <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/18 text-xl text-white opacity-0 shadow-lg ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover:scale-105 group-hover:opacity-100">
           <PlayCircleFilled className="translate-x-px" />
         </span>
       </Link>
@@ -126,7 +126,7 @@ function FavoritePoster({
         <button
           type="button"
           aria-label={`取消收藏 ${favorite.title}`}
-          className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed"
+          className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 transition duration-200 hover:scale-110 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed"
           disabled={isRemoving}
           onClick={(event) => {
             event.stopPropagation();
@@ -136,7 +136,7 @@ function FavoritePoster({
           {isRemoving ? (
             <SyncOutlined spin />
           ) : (
-            <HeartFilled className="text-danger" />
+            <HeartFilled className="text-red-500" />
           )}
         </button>
       </div>
@@ -154,7 +154,7 @@ function FavoriteCard({
   onRemove: (favorite: FavoriteItem) => void;
 }) {
   return (
-    <article className="group grid w-full shrink-0 content-start overflow-hidden rounded-[1.15rem] bg-(--ant-color-bg-base)/78 text-left transition duration-300 hover:-translate-y-1 hover:bg-(--ant-color-bg-base) hover:shadow-[0_6px_12px_rgba(15,23,42,0.14)]">
+    <article className="group grid w-full shrink-0 content-start overflow-hidden rounded-xl bg-surface/80 text-left transition duration-300 hover:-translate-y-1 hover:bg-surface hover:shadow-md">
       <FavoritePoster
         favorite={favorite}
         isRemoving={isRemoving}
@@ -167,14 +167,14 @@ function FavoriteCard({
           href={createPlayHref(favorite)}
           prefetch={false}
         >
-          <h2 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-(--ant-color-text-base) transition-colors group-hover:text-accent">
+          <h2 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground transition-colors group-hover:text-accent">
             {favorite.title}
           </h2>
-          <div className="flex min-w-0 items-center justify-between gap-2 text-xs text-muted">
+          <div className="flex min-w-0 items-center justify-between gap-2 text-xs text-foreground/80">
             <span className="min-w-0 truncate">
               {favorite.year || "未知年份"}
             </span>
-            <span className="min-w-0 truncate text-right text-(--ant-color-text-base)/80">
+            <span className="min-w-0 truncate text-right text-foreground/80">
               {favorite.source_name}
             </span>
           </div>
@@ -307,7 +307,7 @@ export function FavoritesPageShell() {
         </header>
 
         {errorMessage && (
-          <div className="flex items-center gap-3 rounded-md border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger">
+          <div className="flex items-center gap-3 rounded-md border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-red-500">
             <WarningOutlined />
             <span>{errorMessage}</span>
           </div>

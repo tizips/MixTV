@@ -13,7 +13,12 @@ vi.mock("next/image", () => ({
   }: {
     alt?: string;
     src?: string | { src?: string };
-  }) => <span data-alt={alt} data-src={typeof src === "string" ? src : src?.src ?? ""} />,
+  }) => (
+    <span
+      data-alt={alt}
+      data-src={typeof src === "string" ? src : (src?.src ?? "")}
+    />
+  ),
 }));
 
 vi.mock("next/link", () => ({
@@ -29,7 +34,16 @@ vi.mock("next/link", () => ({
     prefetch?: boolean;
     rel?: string;
     target?: string;
-  }) => <a data-prefetch={String(prefetch ?? true)} href={href} rel={rel} target={target}>{children}</a>,
+  }) => (
+    <a
+      data-prefetch={String(prefetch ?? true)}
+      href={href}
+      rel={rel}
+      target={target}
+    >
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock("@tanstack/react-virtual", () => ({
@@ -109,19 +123,24 @@ let replaceStateSpy: ReturnType<typeof vi.spyOn>;
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  originalUrl = window.location.pathname + window.location.search + window.location.hash;
+  originalUrl =
+    window.location.pathname + window.location.search + window.location.hash;
   window.history.pushState(null, "", "/search");
   replaceStateSpy = vi.spyOn(window.history, "replaceState");
   vi.useFakeTimers();
-  (globalThis as typeof globalThis & {
-    matchMedia?: typeof window.matchMedia;
-  }).matchMedia = vi.fn((query: string) => {
+  (
+    globalThis as typeof globalThis & {
+      matchMedia?: typeof window.matchMedia;
+    }
+  ).matchMedia = vi.fn((query: string) => {
     const listeners = new Set<(event: MediaQueryListEvent) => void>();
 
     return {
-      addEventListener: vi.fn((_type: string, listener: (event: MediaQueryListEvent) => void) => {
-        listeners.add(listener);
-      }),
+      addEventListener: vi.fn(
+        (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+          listeners.add(listener);
+        },
+      ),
       addListener: vi.fn((listener: (event: MediaQueryListEvent) => void) => {
         listeners.add(listener);
       }),
@@ -132,16 +151,25 @@ beforeEach(() => {
       matches: false,
       media: query,
       onchange: null,
-      removeEventListener: vi.fn((_type: string, listener: (event: MediaQueryListEvent) => void) => {
-        listeners.delete(listener);
-      }),
-      removeListener: vi.fn((listener: (event: MediaQueryListEvent) => void) => {
-        listeners.delete(listener);
-      }),
+      removeEventListener: vi.fn(
+        (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+          listeners.delete(listener);
+        },
+      ),
+      removeListener: vi.fn(
+        (listener: (event: MediaQueryListEvent) => void) => {
+          listeners.delete(listener);
+        },
+      ),
     } as MediaQueryList;
   });
   fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
 
     if (url === "/api/search/histories") {
       return searchHistoryResponse();
@@ -187,7 +215,9 @@ describe("SearchPageShell", () => {
       await flushPromises();
     });
 
-    const historySearchButton = host.querySelector('button[aria-label="搜索 庆余年"]') as HTMLButtonElement | null;
+    const historySearchButton = host.querySelector(
+      'button[aria-label="搜索 庆余年"]',
+    ) as HTMLButtonElement | null;
 
     if (!historySearchButton) {
       throw new Error("Search form elements were not rendered");
@@ -204,16 +234,23 @@ describe("SearchPageShell", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/search/histories", {
       headers: { Accept: "application/json" },
     });
-    expect(fetchMock).toHaveBeenCalledWith("/api/search/media?q=%E5%BA%86%E4%BD%99%E5%B9%B4", {
-      headers: { Accept: "text/event-stream" },
-      signal: expect.any(AbortSignal),
-    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/search/media?q=%E5%BA%86%E4%BD%99%E5%B9%B4",
+      {
+        headers: { Accept: "text/event-stream" },
+        signal: expect.any(AbortSignal),
+      },
+    );
     expect(host.textContent).toContain("庆余年 第二季");
     expect(host.textContent).toContain("已完成 1/1");
     expect(host.textContent).not.toContain("正在连接搜索源");
     expect(replaceStateSpy).not.toHaveBeenCalled();
     expect(window.location.pathname + window.location.search).toBe("/search");
-    expect(host.querySelector('a[data-prefetch="false"][href="/play?source=alpha&id=movie-1"]')).not.toBeNull();
+    expect(
+      host.querySelector(
+        'a[data-prefetch="false"][href="/play?source=alpha&id=movie-1"]',
+      ),
+    ).not.toBeNull();
 
     act(() => {
       root.unmount();
@@ -227,7 +264,9 @@ describe("SearchPageShell", () => {
       await flushPromises();
     });
 
-    const historySearchButton = host.querySelector('button[aria-label="搜索 庆余年"]') as HTMLButtonElement | null;
+    const historySearchButton = host.querySelector(
+      'button[aria-label="搜索 庆余年"]',
+    ) as HTMLButtonElement | null;
 
     if (!historySearchButton) {
       throw new Error("Search form elements were not rendered");
@@ -241,14 +280,16 @@ describe("SearchPageShell", () => {
       await Promise.resolve();
     });
 
-    const favoriteButton = host.querySelector('button[aria-label="收藏 庆余年 第二季"]') as HTMLButtonElement | null;
+    const favoriteButton = host.querySelector(
+      'button[aria-label="收藏 庆余年 第二季"]',
+    ) as HTMLButtonElement | null;
 
     if (!favoriteButton) {
       throw new Error("Favorite button was not rendered");
     }
 
-    expect(favoriteButton.className).toContain("hover:text-danger");
-    expect(favoriteButton.className).toContain("focus-visible:text-danger");
+    expect(favoriteButton.className).toContain("hover:text-red-500");
+    expect(favoriteButton.className).toContain("focus-visible:text-red-500");
 
     await act(async () => {
       favoriteButton.click();
@@ -261,7 +302,9 @@ describe("SearchPageShell", () => {
       method: "POST",
     });
 
-    const unfavoriteButton = host.querySelector('button[aria-label="取消收藏 庆余年 第二季"]') as HTMLButtonElement | null;
+    const unfavoriteButton = host.querySelector(
+      'button[aria-label="取消收藏 庆余年 第二季"]',
+    ) as HTMLButtonElement | null;
 
     if (!unfavoriteButton) {
       throw new Error("Unfavorite button was not rendered");
@@ -283,7 +326,12 @@ describe("SearchPageShell", () => {
 
   it("updates one result card when additional sources are aggregated", async () => {
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
 
       if (url === "/api/search/histories") {
         return searchHistoryResponse();
@@ -297,7 +345,9 @@ describe("SearchPageShell", () => {
       await flushPromises();
     });
 
-    const historySearchButton = host.querySelector('button[aria-label="搜索 庆余年"]') as HTMLButtonElement | null;
+    const historySearchButton = host.querySelector(
+      'button[aria-label="搜索 庆余年"]',
+    ) as HTMLButtonElement | null;
 
     if (!historySearchButton) {
       throw new Error("Search form elements were not rendered");
@@ -338,7 +388,9 @@ describe("SearchPageShell", () => {
       await flushPromises();
     });
 
-    const historySearchButton = host.querySelector('button[aria-label="搜索 庆余年"]') as HTMLButtonElement | null;
+    const historySearchButton = host.querySelector(
+      'button[aria-label="搜索 庆余年"]',
+    ) as HTMLButtonElement | null;
 
     if (!historySearchButton) {
       throw new Error("Search form elements were not rendered");
@@ -356,8 +408,8 @@ describe("SearchPageShell", () => {
     expect(resultCountBefore).toBeGreaterThan(0);
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
-    const cloudTypeButton = Array.from(host.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("网盘资源"),
+    const cloudTypeButton = Array.from(host.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("网盘资源"),
     ) as HTMLButtonElement | undefined;
 
     if (!cloudTypeButton) {
@@ -385,19 +437,29 @@ describe("SearchPageShell", () => {
   });
 
   it("loads and deletes search history through the history API", async () => {
-    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
 
-      if (url === "/api/search/histories/%E5%BA%86%E4%BD%99%E5%B9%B4" && init?.method === "DELETE") {
-        return searchHistoryResponse(["沙丘"]);
-      }
+        if (
+          url === "/api/search/histories/%E5%BA%86%E4%BD%99%E5%B9%B4" &&
+          init?.method === "DELETE"
+        ) {
+          return searchHistoryResponse(["沙丘"]);
+        }
 
-      if (url === "/api/search/histories") {
-        return searchHistoryResponse(["庆余年", "沙丘"]);
-      }
+        if (url === "/api/search/histories") {
+          return searchHistoryResponse(["庆余年", "沙丘"]);
+        }
 
-      return mediaSearchResponse();
-    });
+        return mediaSearchResponse();
+      },
+    );
 
     const { host, root } = renderSearchPageShell();
 
@@ -408,7 +470,9 @@ describe("SearchPageShell", () => {
     expect(host.textContent).toContain("庆余年");
     expect(host.textContent).toContain("沙丘");
 
-    const deleteButton = host.querySelector('button[aria-label="删除搜索历史 庆余年"]') as HTMLButtonElement | null;
+    const deleteButton = host.querySelector(
+      'button[aria-label="删除搜索历史 庆余年"]',
+    ) as HTMLButtonElement | null;
 
     if (!deleteButton) {
       throw new Error("Search history delete button was not rendered");
@@ -422,12 +486,15 @@ describe("SearchPageShell", () => {
       await flushPromises();
     });
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/search/histories/%E5%BA%86%E4%BD%99%E5%B9%B4", {
-      headers: {
-        Accept: "application/json",
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/search/histories/%E5%BA%86%E4%BD%99%E5%B9%B4",
+      {
+        headers: {
+          Accept: "application/json",
+        },
+        method: "DELETE",
       },
-      method: "DELETE",
-    });
+    );
     expect(host.textContent).not.toContain("庆余年");
     expect(host.textContent).toContain("沙丘");
 

@@ -316,7 +316,7 @@ export function AdminTabs() {
             return (
               <Button
                 key={tab.key}
-                className="shadow-none!"
+                className="shadow-none"
                 block
                 type={activeTab === tab.key ? "primary" : "default"}
                 onClick={() => setActiveTab(tab.key)}

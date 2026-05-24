@@ -424,7 +424,7 @@ export function TimingManagementPanel() {
               min={1}
               max={1000}
               controls={false}
-              style={{ width: "100%" }}
+              className="w-full"
               onChange={(value) =>
                 updateConfigValue(
                   "maxRecordsPerRun",
@@ -448,7 +448,7 @@ export function TimingManagementPanel() {
               min={1}
               max={365}
               controls={false}
-              style={{ width: "100%" }}
+              className="w-full"
               onChange={(value) =>
                 updateConfigValue(
                   "recentActiveDays",
@@ -472,7 +472,7 @@ export function TimingManagementPanel() {
               min={1}
               max={20}
               controls={false}
-              style={{ width: "100%" }}
+              className="w-full"
               onChange={(value) =>
                 updateConfigValue(
                   "maxSearchPages",
@@ -496,7 +496,7 @@ export function TimingManagementPanel() {
               min={0}
               max={86400}
               controls={false}
-              style={{ width: "100%" }}
+              className="w-full"
               onChange={(value) =>
                 updateConfigValue(
                   "siteCacheSeconds",

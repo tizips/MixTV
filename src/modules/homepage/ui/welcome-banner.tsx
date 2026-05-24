@@ -12,7 +12,7 @@ export function WelcomeBanner({ userName }: WelcomeBannerProps) {
     : `欢迎来到 ${env.NEXT_PUBLIC_SITE_NAME}`;
 
   return (
-    <section className="mb-6 rounded-lg bg-(--ant-color-bg-container) p-6 shadow-surface backdrop-blur-md">
+    <section className="mb-6 rounded-lg bg-surface p-6 shadow-lg backdrop-blur-md">
       <h1 className="text-3xl font-bold text-foreground">{greeting}</h1>
       <p className="mt-2 text-muted">探索精彩影视内容</p>
     </section>

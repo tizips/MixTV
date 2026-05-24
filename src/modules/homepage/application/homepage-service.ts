@@ -2,7 +2,10 @@ import type { HomepageConfig } from "../domain/homepage-config";
 import { defaultHomepageConfig } from "../domain/homepage-config";
 import type { ContentItem, HeroItem } from "../domain/content-types";
 import type { HomepageSectionKey } from "../domain/section-types";
-import { getMockHomepageData, type MockHomepageData } from "./mock-data-provider";
+import {
+  getMockHomepageData,
+  type MockHomepageData,
+} from "./mock-data-provider";
 
 export type HomepageSectionIcon =
   | "calendar-event-fill"
@@ -40,7 +43,7 @@ export const sectionConfigs: SectionConfig[] = [
     key: "continueWatching",
     title: "继续观看",
     icon: "play-circle-fill",
-    iconClass: "text-danger",
+    iconClass: "text-red-500",
     configKey: "showContinueWatching",
   },
   {
@@ -95,7 +98,7 @@ export const sectionConfigs: SectionConfig[] = [
 
 export async function getHomepageData(
   config: HomepageConfig = defaultHomepageConfig,
-  dataProvider?: () => MockHomepageData
+  dataProvider?: () => MockHomepageData,
 ): Promise<HomepageData> {
   const mockData = dataProvider ? dataProvider() : getMockHomepageData();
 
