@@ -178,23 +178,19 @@ function HistoryPoster({
             isFavorite ? `取消收藏 ${history.title}` : `收藏 ${history.title}`
           }
           aria-pressed={isFavorite}
-          className={`grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed ${isFavorite ? "text-danger" : ""}`}
+          className={`grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed ${isFavorite ? "text-(--ant-red)!" : "text-white!"}`}
           disabled={isFavoriting}
           onClick={(event) => {
             event.stopPropagation();
             onFavoriteToggle(history);
           }}
         >
-          {isFavorite ? (
-            <HeartFilled className="text-danger" />
-          ) : (
-            <HeartOutlined />
-          )}
+          {isFavorite ? <HeartFilled /> : <HeartOutlined />}
         </button>
         <button
           type="button"
           aria-label={`移除观看记录 ${history.title}`}
-          className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white/95 transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed"
+          className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-transparent text-sm text-white! transition duration-200 hover:scale-110 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed"
           disabled={isRemoving}
           onClick={(event) => {
             event.stopPropagation();
