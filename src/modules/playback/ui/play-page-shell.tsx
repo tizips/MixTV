@@ -13,7 +13,14 @@ import {
   WarningOutlined,
 } from "@ant-design/icons";
 import { renderToStaticMarkup } from "react-dom/server";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Hls from "hls.js";
 import type Artplayer from "artplayer";
 import type {
@@ -22,7 +29,7 @@ import type {
   Result as DanmakuPluginResult,
 } from "artplayer-plugin-danmuku";
 import Image from "next/image";
-import { App, Button, Divider, Tag, Tabs } from "antd";
+import { App, Button, Divider, Tag } from "antd";
 import { env } from "@/shared/env";
 import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import type { Episode, PlayPageData } from "../domain/playback-page-data";
@@ -60,10 +67,12 @@ const defaultPlaybackDanmakuSettings: PlaybackDanmakuPreferences = {
   synchronousPlayback: true,
   visible: true,
 };
-const tabBaseClassName =
-  "group relative h-[72px] justify-center rounded-none text-sm font-medium transition-colors before:absolute before:inset-x-6 before:top-1/2 before:h-[72px] before:-translate-y-1/2 before:opacity-0 before:transition-opacity data-[selected]:text-accent data-[selected]:before:opacity-100";
-
-const tabGlowClassNames = ["before:bg-accent/10"] as const;
+const tabGlowClassNames = [
+  "before:bg-[radial-gradient(circle_at_42%_42%,color-mix(in_srgb,var(--accent)_13%,transparent)_0%,transparent_36%),radial-gradient(circle_at_62%_58%,color-mix(in_srgb,var(--accent)_9%,transparent)_0%,transparent_34%),radial-gradient(ellipse_64%_42%_at_52%_50%,color-mix(in_srgb,var(--accent)_6%,transparent)_0%,transparent_72%)]",
+  "before:bg-[radial-gradient(circle_at_36%_56%,color-mix(in_srgb,var(--accent)_12%,transparent)_0%,transparent_32%),radial-gradient(circle_at_58%_38%,color-mix(in_srgb,var(--accent)_9%,transparent)_0%,transparent_38%),radial-gradient(ellipse_70%_46%_at_50%_52%,color-mix(in_srgb,var(--accent)_5%,transparent)_0%,transparent_74%)]",
+  "before:bg-[radial-gradient(circle_at_46%_34%,color-mix(in_srgb,var(--accent)_11%,transparent)_0%,transparent_34%),radial-gradient(circle_at_66%_54%,color-mix(in_srgb,var(--accent)_8%,transparent)_0%,transparent_36%),radial-gradient(ellipse_58%_52%_at_48%_54%,color-mix(in_srgb,var(--accent)_6%,transparent)_0%,transparent_76%)]",
+  "before:bg-[radial-gradient(circle_at_34%_44%,color-mix(in_srgb,var(--accent)_10%,transparent)_0%,transparent_30%),radial-gradient(circle_at_54%_64%,color-mix(in_srgb,var(--accent)_11%,transparent)_0%,transparent_35%),radial-gradient(ellipse_68%_40%_at_55%_48%,color-mix(in_srgb,var(--accent)_5%,transparent)_0%,transparent_72%)]",
+] as const;
 
 type TabGlowClassName = (typeof tabGlowClassNames)[number];
 type ArtplayerWithHls = Artplayer & { hls?: Hls };
@@ -94,21 +103,6 @@ type PlaybackDanmakuResponseItem = {
   time?: unknown;
   visible?: unknown;
 };
-
-function getRandomTabGlowClass(
-  currentClassName: TabGlowClassName,
-): TabGlowClassName {
-  const nextClassNames = tabGlowClassNames.filter(
-    (className) => className !== currentClassName,
-  );
-  const candidates =
-    nextClassNames.length > 0 ? nextClassNames : tabGlowClassNames;
-
-  return (
-    candidates[Math.floor(Math.random() * candidates.length)] ??
-    tabGlowClassNames[0]
-  );
-}
 
 function getArtplayerDanmakuPlugin(
   art: Artplayer,
@@ -580,9 +574,6 @@ export function PlayPageShell({
       : "",
   );
   const [selectedTabKey, setSelectedTabKey] = useState("episodes");
-  const [tabGlowClassName, setTabGlowClassName] = useState<TabGlowClassName>(
-    tabGlowClassNames[0],
-  );
   const [isDescending, setIsDescending] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState<number>(readStoredPlaybackVolume);
@@ -1390,6 +1381,42 @@ export function PlayPageShell({
     });
   }, [currentSource, playbackCoverDefaultUrl, setPlaybackPosterVisible]);
 
+  const renderPlaybackTabLabel = useCallback(
+    ({
+      glowClassName,
+      icon,
+      isSelected,
+      title,
+    }: {
+      glowClassName: TabGlowClassName;
+      icon: ReactNode;
+      isSelected: boolean;
+      title: string;
+    }) => {
+      return (
+        <span
+          className={`relative z-0 flex h-14 w-full items-center justify-center overflow-hidden text-sm font-semibold tracking-normal transition-colors before:pointer-events-none before:absolute before:left-1/2 before:top-1/2 before:-z-10 before:h-[72px] before:w-[88%] before:-translate-x-1/2 before:-translate-y-1/2 before:opacity-0 before:blur-[2px] before:transition-opacity ${glowClassName} ${
+            isSelected
+              ? "text-accent before:opacity-100"
+              : "text-default-500 hover:text-foreground"
+          }`}
+        >
+          <span
+            aria-hidden="true"
+            className={`pointer-events-none absolute left-1/2 top-1/2 -z-10 h-8 w-[62%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[color-mix(in_srgb,var(--accent)_5%,transparent)] blur-[3px] transition-opacity ${
+              isSelected ? "opacity-100" : "opacity-0"
+            }`}
+          />
+          <span className="relative z-10 inline-flex items-center gap-2">
+            {icon}
+            {title}
+          </span>
+        </span>
+      );
+    },
+    [],
+  );
+
   const playbackTabs = [
     {
       children: (
@@ -1423,7 +1450,7 @@ export function PlayPageShell({
             </Button>
           </div>
 
-          <Divider className="my-3" />
+          <Divider size="small" className="m-0" />
 
           <div className="grid max-h-107.5 grid-cols-5 gap-2 overflow-y-auto pr-1 sm:grid-cols-6 xl:grid-cols-5">
             {visibleEpisodes.map((episode) => (
@@ -1444,15 +1471,10 @@ export function PlayPageShell({
           </div>
         </div>
       ),
-      label: (
-        <span
-          className={`relative inline-flex items-center gap-2 rounded-md px-5 py-2.5 transition-colors ${tabBaseClassName} ${tabGlowClassName}`}
-        >
-          <PlaySquareFilled />
-          选集
-        </span>
-      ),
+      glowClassName: tabGlowClassNames[0],
+      icon: <PlaySquareFilled />,
       key: "episodes",
+      title: "选集",
     },
     {
       children: (
@@ -1505,17 +1527,17 @@ export function PlayPageShell({
           )}
         </div>
       ),
-      label: (
-        <span
-          className={`relative inline-flex items-center gap-2 rounded-md px-5 py-2.5 transition-colors ${tabBaseClassName} ${tabGlowClassName}`}
-        >
-          <GlobalOutlined />
-          换源
-        </span>
-      ),
+      glowClassName: tabGlowClassNames[1],
+      icon: <GlobalOutlined />,
       key: "sources",
+      title: "换源",
     },
   ] as const;
+  const activePlaybackTab =
+    playbackTabs.find((tab) => tab.key === selectedTabKey) ?? playbackTabs[0];
+  const selectPlaybackTab = useCallback((key: string) => {
+    setSelectedTabKey(key);
+  }, []);
 
   if (hasPlaybackPlaceholderError || !playbackData) {
     return (
@@ -1620,7 +1642,7 @@ export function PlayPageShell({
               ref={artContainerRef}
               aria-label={`${playbackData.title} 第 ${activeEpisode} 集视频`}
               data-mixtv-artplayer
-              className="absolute inset-0 z-20 h-full w-full bg-black [&_.art-video-player]:h-full [&_.art-video-player]:w-full [&_.art-bottom]:!absolute [&_.art-bottom]:!inset-auto [&_.art-bottom]:!bottom-4 [&_.art-bottom]:!left-1/2 [&_.art-bottom]:!right-auto [&_.art-bottom]:!top-auto [&_.art-bottom]:!translate-x-[-50%] [&_.art-bottom]:!w-[min(calc(100%-1.5rem),56rem)] [&_.art-bottom]:!min-h-24 [&_.art-bottom]:!max-h-28 [&_.art-bottom]:!rounded-2xl [&_.art-bottom]:!border [&_.art-bottom]:!border-white/15 [&_.art-bottom]:!bg-black/35 [&_.art-bottom]:!px-3 [&_.art-bottom]:!pt-3 [&_.art-bottom]:!pb-0 [&_.art-bottom]:!shadow-lg [&_.art-bottom]:!backdrop-blur-2xl [&_.art-bottom]:!backdrop-saturate-200 [&_.art-bottom]:!flex [&_.art-bottom]:!flex-col [&_.art-bottom]:!justify-center [&_.art-bottom]:!overflow-visible dark:[&_.art-bottom]:!bg-black/45 [&_.art-progress]:!m-0 [&_.art-progress]:!overflow-visible [&_.art-controls]:!min-h-8 [&_.art-controls-left]:!items-center [&_.art-controls-center]:!items-center [&_.art-controls-right]:!items-center [&_.art-controls-left]:!gap-1"
+              className="absolute inset-0 z-20 h-full w-full bg-black"
             />
             <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-transparent via-transparent to-black/30" />
           </div>
@@ -1629,21 +1651,38 @@ export function PlayPageShell({
           ) : null}
 
           <div className="overflow-hidden rounded-xl bg-surface shadow-sm backdrop-blur">
-            <Tabs
-              activeKey={selectedTabKey}
-              className="w-full"
-              items={playbackTabs.map((item) => ({
-                children: item.children,
-                key: item.key,
-                label: item.label,
-              }))}
-              onChange={(key) => {
-                setSelectedTabKey(key);
-                setTabGlowClassName((currentClassName) =>
-                  getRandomTabGlowClass(currentClassName),
-                );
-              }}
-            />
+            <div
+              role="tablist"
+              aria-label="播放侧栏"
+              className="grid grid-cols-2 border-b border-(--ant-color-border)"
+            >
+              {playbackTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={selectedTabKey === tab.key}
+                  aria-controls={`playback-tab-panel-${tab.key}`}
+                  id={`playback-tab-${tab.key}`}
+                  className="min-w-0 cursor-pointer border-0 bg-transparent p-0 text-inherit outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-inset"
+                  onClick={() => selectPlaybackTab(tab.key)}
+                >
+                  {renderPlaybackTabLabel({
+                    glowClassName: tab.glowClassName,
+                    icon: tab.icon,
+                    isSelected: selectedTabKey === tab.key,
+                    title: tab.title,
+                  })}
+                </button>
+              ))}
+            </div>
+            <div
+              role="tabpanel"
+              id={`playback-tab-panel-${activePlaybackTab.key}`}
+              aria-labelledby={`playback-tab-${activePlaybackTab.key}`}
+            >
+              {activePlaybackTab.children}
+            </div>
           </div>
         </section>
 

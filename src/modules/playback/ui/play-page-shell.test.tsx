@@ -1008,6 +1008,19 @@ describe("PlayPageShell client playback cover", () => {
       await Promise.resolve();
     });
 
+    const sourcesTab = [...host.querySelectorAll('button[role="tab"]')]
+      .find((button) => button.textContent?.includes("换源")) as HTMLButtonElement | undefined;
+
+    if (!sourcesTab) {
+      throw new Error("Playback sources tab was not rendered");
+    }
+
+    await act(async () => {
+      sourcesTab.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
     const sourceButton = [...host.querySelectorAll("button")]
       .find((button) => button.textContent?.includes("Alpha Source")) as HTMLButtonElement | undefined;
 
