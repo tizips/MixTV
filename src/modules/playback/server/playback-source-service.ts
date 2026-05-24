@@ -106,6 +106,7 @@ function toIndexCacheEntry(item: PlaybackSourceItem) {
     quality: item.quality ?? "",
     resourceKey: item.key,
     name: item.name,
+    total_episodes: item.total_episodes,
   }];
 }
 
@@ -156,9 +157,33 @@ export async function getPlaybackSources(
     return siteConfig.showAdultContent || !source.adult;
   });
 
+  const cachedByKey = new Map(cachedEntries.map((entry) => [entry.resourceKey, entry]));
+  const cachedPlayableSources = sources
+    .map((source) => cachedByKey.get(source.key))
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== undefined);
+
+  if (cachedPlayableSources.length > 0 && cachedPlayableSources.every((entry) => entry.total_episodes > 0)) {
+    onStart?.({ total: cachedPlayableSources.length });
+
+    for (const entry of cachedPlayableSources) {
+      onResult?.({
+        id: entry.id,
+        key: entry.resourceKey,
+        name: entry.name,
+        quality: entry.quality || undefined,
+        source_name: entry.name,
+        total_episodes: entry.total_episodes,
+      });
+    }
+
+    return {
+      completed: cachedPlayableSources.length,
+      total: cachedPlayableSources.length,
+    };
+  }
+
   onStart?.({ total: sources.length });
 
-  const cachedByKey = new Map(cachedEntries.map((entry) => [entry.resourceKey, entry]));
   let completed = 0;
   const cachedResults: PlaybackSourceItem[] = [];
 

@@ -29,9 +29,9 @@ function createHashStore(initialValues: Record<string, Record<string, string>> =
     }
 
     if (scriptText.includes("HSET")) {
-      for (let index = 0; index < (runOptions.args ?? []).length - 1; index += 2) {
-        const currentField = runOptions.args?.[index];
-        const currentValue = runOptions.args?.[index + 1];
+      for (let index = 0; index < (options.args ?? []).length - 1; index += 2) {
+        const currentField = options.args?.[index];
+        const currentValue = options.args?.[index + 1];
 
         if (typeof currentField === "string" && typeof currentValue === "string") {
           hash[currentField] = currentValue;
@@ -233,6 +233,48 @@ describe("playback source service", () => {
         description: "detail",
       }),
     });
+    const searcher = vi.fn();
+    const detailFetcher = vi.fn();
+    const onResult = vi.fn();
+
+    const summary = await getPlaybackSources(
+      { index: "2026:anime:深空彼岸" },
+      {
+        cacheStore,
+        detailFetcher,
+        indexCacheStore: indexStore,
+        onResult,
+        searcher,
+        siteConfigStore: createSiteConfigStore(false),
+        videoSourceStore: createSourceStore(),
+      },
+    );
+
+    expect(searcher).not.toHaveBeenCalled();
+    expect(detailFetcher).not.toHaveBeenCalled();
+    expect(onResult).toHaveBeenCalledWith({
+      id: "80474",
+      key: "alpha",
+      name: "Alpha Source",
+      quality: "1080P",
+      source_name: "Alpha Source",
+      total_episodes: 2,
+    });
+    expect(summary).toEqual({ completed: 1, total: 1 });
+  });
+
+  it("uses cached source search entries with episode counts before loading live details", async () => {
+    const indexStore = createHashStore({
+      "2026:anime:深空彼岸": {
+        alpha: JSON.stringify({
+          id: "80474",
+          name: "Alpha Source",
+          quality: "1080P",
+          total_episodes: 2,
+        }),
+      },
+    });
+    const cacheStore = createValueStore();
     const searcher = vi.fn();
     const detailFetcher = vi.fn();
     const onResult = vi.fn();

@@ -2,9 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { saveMediaSearchCacheEntries, type MediaSearchCacheStore } from "./media-search-cache-service";
 
 describe("media search cache service", () => {
-  it("stores results in a source hash with a seven day ttl", async () => {
-    const script = vi.fn(async () => undefined);
-    const store = { script } satisfies Pick<MediaSearchCacheStore, "script">;
+  it("stores results in a source hash with episode count and a one hour ttl", async () => {
+    const script = vi.fn(async () => undefined) as unknown as MediaSearchCacheStore["script"];
+    const store = {
+      del: vi.fn(async () => undefined),
+      get: vi.fn(async () => null),
+      script,
+      set: vi.fn(async () => undefined),
+    } satisfies MediaSearchCacheStore;
 
     await saveMediaSearchCacheEntries(
       "2024:tv:庆余年第二季",
@@ -14,6 +19,7 @@ describe("media search cache service", () => {
           quality: "1080p",
           resourceKey: "alpha",
           name: "电影天堂资源",
+          total_episodes: 12,
         },
       ],
       { store },
@@ -29,8 +35,9 @@ describe("media search cache service", () => {
             id: "movie-1",
             quality: "1080p",
             name: "电影天堂资源",
+            total_episodes: 12,
           }),
-          604800,
+          3600,
         ],
         keys: ["2024:tv:庆余年第二季"],
       },

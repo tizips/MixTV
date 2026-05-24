@@ -6,11 +6,12 @@ export interface MediaSearchCacheEntry {
   quality: string;
   resourceKey: string;
   name: string;
+  total_episodes: number;
 }
 
 export type MediaSearchCacheStore = DbPort<unknown, string>;
 
-const mediaSearchCacheTtlSeconds = 7 * 24 * 60 * 60;
+const mediaSearchCacheTtlSeconds = 60 * 60;
 let mediaSearchCacheStore: MediaSearchCacheStore | null = null;
 
 const saveMediaSearchCacheScript = `
@@ -91,6 +92,7 @@ export async function saveMediaSearchCacheEntries(
         id: entry.id,
         quality: entry.quality,
         name: entry.name,
+        total_episodes: entry.total_episodes,
       }), mediaSearchCacheTtlSeconds],
       keys: [cacheKey],
     });
@@ -128,7 +130,8 @@ export async function readMediaSearchCacheEntries(
         if (
           typeof entry.id !== "string" ||
           typeof entry.quality !== "string" ||
-          typeof entry.name !== "string"
+          typeof entry.name !== "string" ||
+          (typeof entry.total_episodes !== "number" && entry.total_episodes !== undefined)
         ) {
           return null;
         }
@@ -138,6 +141,7 @@ export async function readMediaSearchCacheEntries(
           name: entry.name,
           quality: entry.quality,
           resourceKey,
+          total_episodes: entry.total_episodes ?? 0,
         };
       } catch {
         return null;
