@@ -1,5 +1,6 @@
 {
   "name": "mixtv",
+  "description": "MixTV - 影视聚合播放平台",
   "version": "0.1.0",
   "private": true,
   "scripts": {
