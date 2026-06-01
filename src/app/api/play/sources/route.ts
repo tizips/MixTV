@@ -9,7 +9,7 @@ import {
 import { createPlaybackProgressStore } from "@/modules/playback/server/playback-progress-service";
 import { recordApiRequest } from "@/modules/stats";
 
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 const encoder = new TextEncoder();
 

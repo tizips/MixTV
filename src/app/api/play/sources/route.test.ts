@@ -28,7 +28,7 @@ vi.mock("@/modules/stats", () => ({
 }));
 
 describe("/api/play/sources route", () => {
-  it("uses the Node.js runtime", () => {
-    expect(runtime).toBe("nodejs");
+  it("uses the Edge runtime for Pages-compatible streaming", () => {
+    expect(runtime).toBe("edge");
   });
 });
