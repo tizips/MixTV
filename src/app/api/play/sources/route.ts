@@ -9,12 +9,31 @@ import {
 import { createPlaybackProgressStore } from "@/modules/playback/server/playback-progress-service";
 import { recordApiRequest } from "@/modules/stats";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const encoder = new TextEncoder();
+const playbackSourcesTimeoutMs = 15_000;
 
 function encodeSseEvent(event: string, data: unknown) {
   return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+function createPlaybackSourcesTimeout() {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const promise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error("Playback source lookup timed out."));
+    }, playbackSourcesTimeoutMs);
+  });
+
+  return {
+    cancel() {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    },
+    promise,
+  };
 }
 
 export async function GET(request: Request) {
@@ -43,15 +62,26 @@ export async function GET(request: Request) {
 
   const stream = new ReadableStream({
     async start(controller) {
+      const timeout = createPlaybackSourcesTimeout();
+      let isClosed = false;
+      const enqueueEvent = (event: string, data: unknown) => {
+        if (!isClosed) {
+          controller.enqueue(encodeSseEvent(event, data));
+        }
+      };
+
       try {
-        const summary = await getPlaybackSources(
-          { index },
-          {
-            onResult: (result) => controller.enqueue(encodeSseEvent("result", result)),
-            onStart: (result) => controller.enqueue(encodeSseEvent("start", result)),
-          },
-        );
-        controller.enqueue(encodeSseEvent("complete", summary));
+        const summary = await Promise.race([
+          getPlaybackSources(
+            { index },
+            {
+              onResult: (result) => enqueueEvent("result", result),
+              onStart: (result) => enqueueEvent("start", result),
+            },
+          ),
+          timeout.promise,
+        ]);
+        enqueueEvent("complete", summary);
         void recordApiRequest({
           durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
           ok: true,
@@ -60,12 +90,14 @@ export async function GET(request: Request) {
         const message = error instanceof PlaybackSourcesValidationError || error instanceof Error
           ? error.message
           : "Failed to load playback sources.";
-        controller.enqueue(encodeSseEvent("error", { message }));
+        enqueueEvent("error", { message });
         void recordApiRequest({
           durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
           ok: false,
         });
       } finally {
+        timeout.cancel();
+        isClosed = true;
         controller.close();
       }
     },

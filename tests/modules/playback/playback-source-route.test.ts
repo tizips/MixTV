@@ -67,6 +67,8 @@ describe("playback source API route", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
+
     if (originalStorageType === undefined) {
       delete process.env.STORAGE_TYPE;
       return;
@@ -107,6 +109,20 @@ describe("playback source API route", () => {
         onStart: expect.any(Function),
       }),
     );
+  });
+
+  it("streams an error event when playback source lookup times out", async () => {
+    vi.useFakeTimers();
+    authMock.mockResolvedValue({ user: { id: "user-1" } });
+    getPlaybackSourcesMock.mockImplementation(async () => new Promise(() => undefined));
+
+    const response = await route.GET(new Request("http://localhost/api/play/sources?index=2026:anime:深空彼岸"));
+    const bodyPromise = response.text();
+
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    await expect(bodyPromise).resolves.toContain("event: error");
+    await expect(bodyPromise).resolves.toContain("Playback source lookup timed out.");
   });
 
   it("requires authentication", async () => {
