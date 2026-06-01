@@ -40,6 +40,21 @@ export interface FavoriteServiceOptions {
   videoSourceStore?: VideoSourceStore;
 }
 
+export interface MigrateFavoriteInput {
+  current: {
+    id: string;
+    source: string;
+  };
+  target: {
+    id: string;
+    source: string;
+  };
+}
+
+export interface MigrateFavoriteOptions extends FavoriteServiceOptions {
+  detail?: Awaited<ReturnType<typeof getVideoSourceDetail>>;
+}
+
 export type FavoriteStore = DbPort<unknown, string>;
 
 export class FavoriteValidationError extends Error {
@@ -68,6 +83,16 @@ return ARGV[2]
 const deleteFavoriteScript = `
 redis.call("HDEL", KEYS[1], ARGV[1])
 return redis.call("HGETALL", KEYS[1])
+`;
+
+const migrateFavoriteScript = `
+local current = redis.call("HGET", KEYS[1], ARGV[1])
+if not current then
+  return nil
+end
+redis.call("HSET", KEYS[1], ARGV[2], ARGV[3])
+redis.call("HDEL", KEYS[1], ARGV[1])
+return ARGV[3]
 `;
 
 export function createFavoriteStore(): FavoriteStore {
@@ -265,6 +290,84 @@ export async function createFavorite(input: unknown, options: FavoriteServiceOpt
   });
 
   return { id, source: sourceKey, ...record };
+}
+
+export async function migrateFavoriteRecord(
+  input: MigrateFavoriteInput,
+  options: MigrateFavoriteOptions,
+) {
+  const current = {
+    id: input.current.id.trim(),
+    source: input.current.source.trim(),
+  };
+  const target = {
+    id: input.target.id.trim(),
+    source: input.target.source.trim(),
+  };
+
+  if (!current.id || !current.source || !target.id || !target.source) {
+    throw new FavoriteValidationError("current and target favorite keys are required.");
+  }
+
+  if (current.id === target.id && current.source === target.source) {
+    return null;
+  }
+
+  const store = options.store ?? createFavoriteStore();
+  const userFavoriteHashKey = createUserFavoriteHashKey(options.userId);
+  const currentFavoriteKey = createFavoriteKey(current.source, current.id);
+  const targetFavoriteKey = createFavoriteKey(target.source, target.id);
+  const currentRawFavorite = await store.script<string | null>(readFavoriteScript, {
+    args: [currentFavoriteKey],
+    keys: [userFavoriteHashKey],
+    readOnly: true,
+  });
+
+  if (!currentRawFavorite) {
+    return null;
+  }
+
+  const currentFavorite = parseStoredFavorite(currentRawFavorite);
+
+  if (!currentFavorite) {
+    return null;
+  }
+
+  const videoSourceStore = options.videoSourceStore ?? createVideoSourceStore();
+  const source = await findSource(target.source, videoSourceStore);
+  const detail = options.detail ?? await (options.detailFetcher ?? getVideoSourceDetail)(source, target.id, {
+    ...(options.fetcher ? { fetcher: options.fetcher } : {}),
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+  });
+  const episodeCount = detail.episodes.length;
+  const record: StoredFavoriteRecord = {
+    cover: detail.posterUrl,
+    douban_id: currentFavorite.douban_id,
+    index: createFavoriteIndex({
+      className: detail.className,
+      title: detail.title,
+      typeName: detail.typeName,
+      year: detail.year,
+    }),
+    original_episodes: episodeCount,
+    remarks: detail.remarks || (episodeCount > 0 ? `更新至${episodeCount}集` : ""),
+    save_time: currentFavorite.save_time,
+    search_title: currentFavorite.search_title,
+    source_name: detail.sourceName,
+    title: detail.title,
+    year: detail.year,
+  };
+
+  const migratedFavorite = await store.script<string | null>(migrateFavoriteScript, {
+    args: [currentFavoriteKey, targetFavoriteKey, JSON.stringify(record)],
+    keys: [userFavoriteHashKey],
+  });
+
+  if (!migratedFavorite) {
+    return null;
+  }
+
+  return { id: target.id, source: target.source, ...record };
 }
 
 export async function listFavorites(userId: string, { store = createFavoriteStore() }: { store?: FavoriteStore } = {}) {

@@ -641,6 +641,7 @@ export function PlayPageShell({
 
     return `/api/play/progress/${encodeURIComponent(progressSource)}/${encodeURIComponent(progressId)}`;
   }, [playbackData]);
+  const progressEndpointRef = useRef(progressEndpoint);
   const playbackActionsRef = useRef<{
     skipPlayback: (seconds: number) => void;
     playNextEpisode: () => void;
@@ -648,6 +649,9 @@ export function PlayPageShell({
     skipPlayback: () => undefined,
     playNextEpisode: () => undefined,
   });
+  useEffect(() => {
+    progressEndpointRef.current = progressEndpoint;
+  }, [progressEndpoint]);
   const setPlaybackPosterVisible = useCallback(
     (art: Artplayer, visible: boolean) => {
       const posterElement = artContainerRef.current?.querySelector(
@@ -707,9 +711,10 @@ export function PlayPageShell({
   }, [danmakuPreferences]);
   const uploadPlaybackProgress = useCallback(() => {
     const art = artPlayerRef.current;
+    const currentProgressEndpoint = progressEndpointRef.current;
 
     if (
-      !progressEndpoint ||
+      !currentProgressEndpoint ||
       hasPlaybackPlaceholderError ||
       !art ||
       !playbackData
@@ -724,7 +729,7 @@ export function PlayPageShell({
       Math.max(0, art.duration || currentPlaybackDurationRef.current),
     );
 
-    void fetch(progressEndpoint, {
+    void fetch(currentProgressEndpoint, {
       body: JSON.stringify({
         play_episodes: activeEpisodeRef.current,
         play_time: playTime,
@@ -733,7 +738,7 @@ export function PlayPageShell({
       headers: { "Content-Type": "application/json" },
       method: "POST",
     }).catch(() => undefined);
-  }, [hasPlaybackPlaceholderError, playbackData, progressEndpoint]);
+  }, [hasPlaybackPlaceholderError, playbackData]);
   useEffect(() => {
     if (!playbackData?.index) {
       return;
@@ -865,6 +870,7 @@ export function PlayPageShell({
           id: data.progress.id,
           source: data.progress.source,
         });
+        progressEndpointRef.current = `/api/play/progress/${encodeURIComponent(data.progress.source)}/${encodeURIComponent(data.progress.id)}`;
 
         setPlaybackData((current) => {
           if (!current) {

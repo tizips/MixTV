@@ -10,13 +10,31 @@ type ProgressStore = DbPort<unknown, string> & {
   dumpHash: (key: string) => Record<string, string>;
 };
 
-function createProgressStore(initialValues: Record<string, Record<string, string>> = {}): ProgressStore {
+type HashStore = DbPort<unknown, string> & {
+  dumpHash: (key: string) => Record<string, string>;
+};
+
+function createHashStore(initialValues: Record<string, Record<string, string>> = {}): HashStore {
   const values = new Map(Object.entries(initialValues).map(([key, record]) => [key, { ...record }]));
-  const script: ProgressStore["script"] = async <TResult = unknown>(scriptText: string, options: DbScriptOptions<string> = {}) => {
+  const script: HashStore["script"] = async <TResult = unknown>(scriptText: string, options: DbScriptOptions<string> = {}) => {
     const key = options.keys?.[0] ?? "";
     const field = String(options.args?.[0] ?? "");
     const value = String(options.args?.[1] ?? "");
+    const thirdValue = String(options.args?.[2] ?? "");
     const hash = values.get(key) ?? {};
+
+    if (scriptText.includes("HGET") && scriptText.includes("HSET") && scriptText.includes("HDEL")) {
+      const storedValue = hash[field];
+
+      if (storedValue === undefined) {
+        return null as TResult;
+      }
+
+      hash[value] = thirdValue;
+      delete hash[field];
+      values.set(key, hash);
+      return thirdValue as TResult;
+    }
 
     if (scriptText.includes("HGET")) {
       return (hash[field] ?? null) as TResult;
@@ -47,9 +65,13 @@ function createProgressStore(initialValues: Record<string, Record<string, string
       return { ...(values.get(key) ?? {}) };
     },
     get: vi.fn(async () => null),
-    script: vi.fn(script) as ProgressStore["script"],
+    script: vi.fn(script) as HashStore["script"],
     set: vi.fn(async () => undefined),
   };
+}
+
+function createProgressStore(initialValues: Record<string, Record<string, string>> = {}): ProgressStore {
+  return createHashStore(initialValues);
 }
 
 function createVideoSourceStore(): VideoSourceStore {
@@ -158,5 +180,53 @@ describe("playback source switch service", () => {
     expect(result.sources).toHaveLength(3);
     expect(progressStore.dumpHash("user-1:pr")["alpha:80474"]).toBeDefined();
     expect(progressStore.dumpHash("user-1:pr")["beta:80473"]).toBeUndefined();
+  });
+
+  it("moves an existing favorite to the switched source", async () => {
+    const progressStore = createProgressStore();
+    const favoriteStore = createHashStore({
+      "user-1:fav": {
+        "beta:80473": JSON.stringify({
+          cover: "https://image.test/old.jpg",
+          douban_id: 0,
+          original_episodes: 12,
+          remarks: "更新至12集",
+          save_time: 1768535315661,
+          search_title: "",
+          source_name: "Beta Source",
+          title: "深空彼岸",
+          year: "2026",
+        }),
+      },
+    });
+    const detailFetcher = vi.fn(async () => createDetail());
+
+    await switchPlaybackSource(
+      {
+        current: { id: "80473", source: "beta" },
+        play_episodes: 2,
+        play_time: 125,
+        target: { id: "80474", source: "alpha" },
+        total_time: 2708,
+      },
+      {
+        cacheStore: createHashStore(),
+        detailFetcher,
+        favoriteStore,
+        progressStore,
+        userId: "user-1",
+        videoSourceStore: createVideoSourceStore(),
+      },
+    );
+
+    const favorites = favoriteStore.dumpHash("user-1:fav");
+
+    expect(favorites["beta:80473"]).toBeUndefined();
+    expect(JSON.parse(favorites["alpha:80474"])).toMatchObject({
+      cover: "https://image.test/poster.jpg",
+      original_episodes: 3,
+      source_name: "Alpha Source",
+      title: "深空彼岸",
+    });
   });
 });

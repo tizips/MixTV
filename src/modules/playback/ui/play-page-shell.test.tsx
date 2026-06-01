@@ -1066,6 +1066,114 @@ describe("PlayPageShell client playback cover", () => {
     });
   });
 
+  it("uploads progress to the new playback resource after switching sources", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+      if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}`) {
+        return new Response(
+          'event: start\ndata: {"total":1}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","quality":"1080P","source_name":"Alpha Source","total_episodes":1}\n\nevent: complete\ndata: {"completed":1,"total":1}\n\n',
+          { headers: { "Content-Type": "text/event-stream" } },
+        );
+      }
+
+      if (url === "/api/play/sources" && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({
+            episodes: [{ duration: "未知", number: 1, title: "第1集" }],
+            progress: {
+              id: "80474",
+              play_episodes: 1,
+              play_time: 125,
+              source: "alpha",
+              total_time: 2708,
+            },
+            source_name: "Alpha Source",
+            sources: [
+              {
+                id: "episode-1",
+                latency: "在线播放",
+                name: "第1集",
+                quality: "HLS",
+                status: "流畅",
+                url: "https://media.test/alpha-1.m3u8",
+              },
+            ],
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      return new Response(JSON.stringify({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={createInitialData()} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const initialArt = artplayerState.instances[0];
+
+    if (!initialArt) {
+      throw new Error("Artplayer was not initialized");
+    }
+
+    const sourcesTab = [...host.querySelectorAll('button[role="tab"]')]
+      .find((button) => button.textContent?.includes("换源")) as HTMLButtonElement | undefined;
+
+    if (!sourcesTab) {
+      throw new Error("Playback sources tab was not rendered");
+    }
+
+    await act(async () => {
+      sourcesTab.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const sourceButton = [...host.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("Alpha Source")) as HTMLButtonElement | undefined;
+
+    if (!sourceButton) {
+      throw new Error("Playback source button was not rendered");
+    }
+
+    await act(async () => {
+      sourceButton.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    initialArt.currentTime = 180;
+    initialArt.duration = 2708;
+
+    await act(async () => {
+      initialArt.emit("video:pause");
+      await Promise.resolve();
+    });
+
+    const progressCalls = fetchMock.mock.calls.filter(([input, init]) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      return url.startsWith("/api/play/progress/") && init?.method === "POST";
+    });
+
+    expect(progressCalls.map(([input]) => input)).toEqual([
+      "/api/play/progress/alpha/80474",
+    ]);
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
   it("shows source switch failures through message without rendering page error text", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;

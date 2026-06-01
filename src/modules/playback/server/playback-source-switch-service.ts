@@ -5,6 +5,10 @@ import {
   type VideoSourceStore,
 } from "@/modules/admin/server/video-source-service";
 import {
+  migrateFavoriteRecord,
+  type FavoriteStore,
+} from "@/modules/favorites/server/favorite-service";
+import {
   migratePlaybackProgressRecord,
   type PlaybackProgressStore,
 } from "@/modules/playback/server/playback-progress-service";
@@ -42,6 +46,7 @@ export interface PlaybackSourceSwitchInput {
 export interface PlaybackSourceSwitchOptions {
   cacheStore?: PlaybackCacheStore;
   detailFetcher?: typeof getVideoSourceDetail;
+  favoriteStore?: FavoriteStore;
   fetcher?: VideoSourceAdapterOptions["fetcher"];
   progressStore?: PlaybackProgressStore;
   timeoutMs?: number;
@@ -137,6 +142,7 @@ export async function switchPlaybackSource(
   {
     cacheStore = createPlaybackCacheStore(),
     detailFetcher = getVideoSourceDetail,
+    favoriteStore,
     fetcher,
     progressStore,
     timeoutMs,
@@ -191,6 +197,28 @@ export async function switchPlaybackSource(
       videoSourceStore,
     },
   );
+
+  if (currentSource !== targetSource || currentId !== targetId) {
+    try {
+      await migrateFavoriteRecord(
+        {
+          current: { id: currentId, source: currentSource },
+          target: { id: targetId, source: targetSource },
+        },
+        {
+          detail,
+          ...(detailFetcher !== getVideoSourceDetail ? { detailFetcher } : {}),
+          ...(favoriteStore ? { store: favoriteStore } : {}),
+          ...(fetcher ? { fetcher } : {}),
+          ...(timeoutMs === undefined ? {} : { timeoutMs }),
+          userId,
+          videoSourceStore,
+        },
+      );
+    } catch {
+      // Source switching and progress migration should still succeed if favorite migration is unavailable.
+    }
+  }
 
   return {
     episodes: createPlaybackEpisodes(detail.episodes, detail.episodeTitles ?? []),
