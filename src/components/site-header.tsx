@@ -1,13 +1,8 @@
 "use client";
 
 import {
-  AppstoreOutlined,
   HomeFilled,
-  LaptopOutlined,
-  PlaySquareFilled,
   SearchOutlined,
-  StarFilled,
-  VideoCameraOutlined,
 } from "@ant-design/icons";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -29,36 +24,37 @@ const navItems: Array<{
     Icon: SearchOutlined,
     iconClass: "text-muted",
   },
-  {
-    label: "源浏览器",
-    href: "/sources",
-    Icon: AppstoreOutlined,
-    iconClass: "text-muted",
-  },
-  {
-    label: "电影",
-    href: "/movies",
-    Icon: VideoCameraOutlined,
-    iconClass: "text-muted",
-  },
-  {
-    label: "剧集",
-    href: "/series",
-    Icon: LaptopOutlined,
-    iconClass: "text-muted",
-  },
-  {
-    label: "动漫",
-    href: "/anime",
-    Icon: PlaySquareFilled,
-    iconClass: "text-muted",
-  },
-  {
-    label: "综艺",
-    href: "/variety",
-    Icon: StarFilled,
-    iconClass: "text-muted",
-  },
+  // Temporarily hidden:
+  // {
+  //   label: "源浏览器",
+  //   href: "/sources",
+  //   Icon: AppstoreOutlined,
+  //   iconClass: "text-muted",
+  // },
+  // {
+  //   label: "电影",
+  //   href: "/movies",
+  //   Icon: VideoCameraOutlined,
+  //   iconClass: "text-muted",
+  // },
+  // {
+  //   label: "剧集",
+  //   href: "/series",
+  //   Icon: LaptopOutlined,
+  //   iconClass: "text-muted",
+  // },
+  // {
+  //   label: "动漫",
+  //   href: "/anime",
+  //   Icon: PlaySquareFilled,
+  //   iconClass: "text-muted",
+  // },
+  // {
+  //   label: "综艺",
+  //   href: "/variety",
+  //   Icon: StarFilled,
+  //   iconClass: "text-muted",
+  // },
 ];
 
 type SiteHeaderProps = {
