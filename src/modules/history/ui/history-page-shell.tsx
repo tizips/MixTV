@@ -150,8 +150,8 @@ function HistoryPoster({
         />
         <div className="absolute inset-0 bg-linear-to-b from-black/25 via-transparent to-black/85 opacity-85 transition-opacity group-hover:opacity-100" />
         <div className="absolute inset-x-0 top-0 h-16 bg-linear-to-b from-black/45 to-transparent" />
-        <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/18 text-xl text-white opacity-0 shadow-lg ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover:scale-105 group-hover:opacity-100">
-          <PlayCircleFilled className="translate-x-px" />
+        <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid h-10 w-10 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/18 text-[2.5rem] text-white opacity-0 shadow-lg ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover:scale-105 group-hover:opacity-100">
+          <PlayCircleFilled />
         </span>
         <div className="absolute left-2.5 top-2.5 z-20 inline-flex overflow-hidden rounded-full shadow-sm ring-1 ring-white/20 backdrop-blur-md">
           <span className="bg-red-500 px-2.5 py-1 text-[11px] font-semibold leading-none text-white">

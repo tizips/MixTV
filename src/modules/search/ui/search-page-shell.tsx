@@ -362,8 +362,8 @@ function SearchResultItem({
             <Tag color="default" className="absolute bottom-2.5 left-2.5">
               {result.sourceTotal}源
             </Tag>
-            <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/20 text-xl text-white opacity-0 shadow-lg ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover:scale-105 group-hover:opacity-100">
-              <PlayCircleFilled className="translate-x-px" />
+            <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid h-10 w-10 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/18 text-[2.5rem] text-white opacity-0 shadow-lg ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover:scale-105 group-hover:opacity-100">
+              <PlayCircleFilled />
             </span>
           </Link>
           <FavoriteButton
@@ -438,13 +438,13 @@ function SearchResultItem({
       </Link>
       <Link
         aria-label={`播放 ${result.title}`}
-        className="hidden h-11 w-11 shrink-0 place-items-center rounded-full bg-accent text-lg text-accent-foreground shadow-md outline-none transition-transform group-hover:scale-105 focus-visible:ring-2 focus-visible:ring-accent sm:grid"
+        className="hidden h-11 w-11 shrink-0 place-items-center rounded-full bg-accent text-[2.75rem] text-accent-foreground shadow-md outline-none transition-transform group-hover:scale-105 focus-visible:ring-2 focus-visible:ring-accent sm:grid"
         href={createPlayHref(result)}
         rel="noreferrer"
         target="_blank"
         prefetch={false}
       >
-        <PlayCircleFilled className="translate-x-px" />
+        <PlayCircleFilled />
       </Link>
     </article>
   );
