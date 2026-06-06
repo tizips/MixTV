@@ -61,6 +61,8 @@ export class MediaSearchValidationError extends Error {
   }
 }
 
+const defaultMediaSearchConcurrency = 16;
+
 function readQuery(input: MediaSearchInput) {
   const query = input.query.trim();
 
@@ -146,40 +148,56 @@ export async function searchMediaSources(
 
   let completed = 0;
   const aggregatedByKey = new Map<string, AggregatedMediaSearchResult>();
+  let nextSourceIndex = 0;
+  const searchNextSource = async () => {
+    while (nextSourceIndex < sources.length) {
+      const source = sources[nextSourceIndex];
+      nextSourceIndex += 1;
 
-  for (const source of sources) {
-    const changedResults: MediaSearchResult[] = [];
-
-    try {
-      const results = await searcher(toSearchEndpoint(source), query, {
-        ...(fetcher ? { fetcher } : {}),
-        ...(maxPages === undefined ? {} : { maxPages }),
-        ...(timeoutMs === undefined ? {} : { timeoutMs }),
-      });
-
-      for (const result of results) {
-        const key = createAggregationKey(result);
-        const current = aggregatedByKey.get(key);
-        const aggregated = current
-          ? mergeMediaSearchResult(current, result)
-          : { ...createMediaSearchResult(key, result), sourceKeys: new Set([result.sourceKey]) };
-
-        aggregated.sourceKeys.add(result.sourceKey);
-        aggregated.source_total = aggregated.sourceKeys.size;
-
-        aggregatedByKey.set(key, aggregated);
-
-        const { sourceKeys, ...publicResult } = aggregated;
-        void sourceKeys;
-        changedResults.push(publicResult);
+      if (!source) {
+        return;
       }
-    } catch {
-      // One slow or broken third-party source should not fail the full aggregate search.
-    }
 
-    completed += 1;
-    onResult?.({ results: changedResults, source });
-  }
+      const changedResults: MediaSearchResult[] = [];
+
+      try {
+        const results = await searcher(toSearchEndpoint(source), query, {
+          ...(fetcher ? { fetcher } : {}),
+          ...(maxPages === undefined ? {} : { maxPages }),
+          ...(timeoutMs === undefined ? {} : { timeoutMs }),
+        });
+
+        for (const result of results) {
+          const key = createAggregationKey(result);
+          const current = aggregatedByKey.get(key);
+          const aggregated = current
+            ? mergeMediaSearchResult(current, result)
+            : { ...createMediaSearchResult(key, result), sourceKeys: new Set([result.sourceKey]) };
+
+          aggregated.sourceKeys.add(result.sourceKey);
+          aggregated.source_total = aggregated.sourceKeys.size;
+
+          aggregatedByKey.set(key, aggregated);
+
+          const { sourceKeys, ...publicResult } = aggregated;
+          void sourceKeys;
+          changedResults.push(publicResult);
+        }
+      } catch {
+        // One slow or broken third-party source should not fail the full aggregate search.
+      }
+
+      completed += 1;
+      onResult?.({ results: changedResults, source });
+    }
+  };
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(defaultMediaSearchConcurrency, sources.length) },
+      () => searchNextSource(),
+    ),
+  );
 
   return {
     completed,

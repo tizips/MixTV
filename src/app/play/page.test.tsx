@@ -5,10 +5,30 @@ import { PlayPageShell } from "@/modules/playback";
 import PlayPage, { runtime } from "./page";
 
 const authMock = vi.hoisted(() => vi.fn());
+const getPlaybackPageDataMock = vi.hoisted(() => vi.fn());
+const createPlaybackProgressStoreMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/auth", () => ({
   auth: authMock,
 }));
+
+vi.mock("@/modules/playback", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/playback")>();
+
+  return {
+    ...actual,
+    getPlaybackPageData: getPlaybackPageDataMock,
+  };
+});
+
+vi.mock("@/modules/playback/server/playback-progress-service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/playback/server/playback-progress-service")>();
+
+  return {
+    ...actual,
+    createPlaybackProgressStore: createPlaybackProgressStoreMock,
+  };
+});
 
 function createInitialData(): PlayPageData {
     return {
@@ -45,6 +65,12 @@ describe("PlayPage", () => {
   beforeEach(() => {
     authMock.mockReset();
     authMock.mockResolvedValue({ user: { id: "user-1" } });
+    getPlaybackPageDataMock.mockReset();
+    getPlaybackPageDataMock.mockResolvedValue({
+      error: "缺少 source 或 id 参数，无法加载播放信息。",
+      status: "error",
+    });
+    createPlaybackProgressStoreMock.mockReset();
   });
 
   it("renders the playback layout sections", () => {
@@ -74,6 +100,31 @@ describe("PlayPage", () => {
 
     expect(html).toContain("请先登录后再播放。");
     expect(html).not.toContain("aria-label=\"播放进度\"");
+  });
+
+  it("creates a progress store without a storage backend switch", async () => {
+    const progressStore = {
+      del: vi.fn(),
+      get: vi.fn(),
+      script: vi.fn(),
+      set: vi.fn(),
+    };
+    createPlaybackProgressStoreMock.mockReturnValue(progressStore);
+    getPlaybackPageDataMock.mockResolvedValue({
+      data: createInitialData(),
+      status: "ready",
+    });
+
+    renderToStaticMarkup(await PlayPage({ searchParams: Promise.resolve({ id: "80474", source: "dyttzyapi.com" }) }));
+
+    expect(createPlaybackProgressStoreMock).toHaveBeenCalledTimes(1);
+    expect(getPlaybackPageDataMock).toHaveBeenCalledWith(
+      { id: "80474", source: "dyttzyapi.com" },
+      expect.objectContaining({
+        progressStore,
+        userId: "user-1",
+      }),
+    );
   });
 
   it("renders the selected episode from initial data", () => {

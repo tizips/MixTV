@@ -100,21 +100,38 @@ function createValueStore(initialValues: Record<string, unknown> = {}): ValueSto
   };
 }
 
-function createSourceStore(): VideoSourceStore {
-  const script: VideoSourceStore["script"] = async <TResult = unknown>() => ({
-    alpha: JSON.stringify({
-      adult: false,
+function createSourceStore(
+  sources: Array<{
+    apiUrl: string;
+    key: string;
+    name: string;
+    no: number;
+  }> = [
+    {
       apiUrl: "https://alpha.test/api.php/provide/vod",
       key: "alpha",
       name: "Alpha Source",
       no: 1,
-      status: "enabled",
-      type: "normal",
-      updatedAt: null,
-      validity: "valid",
-      weight: 10,
-    }),
-  } as TResult);
+    },
+  ],
+): VideoSourceStore {
+  const script: VideoSourceStore["script"] = async <TResult = unknown>() => Object.fromEntries(
+    sources.map((source) => [
+      source.key,
+      JSON.stringify({
+        adult: false,
+        apiUrl: source.apiUrl,
+        key: source.key,
+        name: source.name,
+        no: source.no,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "valid",
+        weight: 10,
+      }),
+    ]),
+  ) as TResult;
 
   return {
     del: vi.fn(async () => undefined),
@@ -354,5 +371,56 @@ describe("playback source service", () => {
     expect(detailFetcher).toHaveBeenCalledOnce();
     expect(cacheStore.dumpValue("cache:video:alpha:80474")).toContain('"id":"80474"');
     expect(summary).toEqual({ completed: 1, total: 1 });
+  });
+
+  it("looks up playback sources concurrently when cache entries are missing", async () => {
+    const indexStore = createHashStore();
+    const cacheStore = createValueStore();
+    const sources = ["alpha", "beta", "gamma"].map((key, index) => ({
+      apiUrl: `https://${key}.test/api.php/provide/vod`,
+      key,
+      name: `${key} Source`,
+      no: index + 1,
+    }));
+    let activeSearches = 0;
+    let maxActiveSearches = 0;
+    const searcher = vi.fn(async (source) => {
+      activeSearches += 1;
+      maxActiveSearches = Math.max(maxActiveSearches, activeSearches);
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      activeSearches -= 1;
+      return [
+        createDetail({
+          id: `${source.key}-id`,
+          sourceKey: source.key,
+          sourceName: source.name,
+        }),
+      ];
+    });
+    const detailFetcher = vi.fn(async (source) =>
+      createDetail({
+        id: `${source.key}-id`,
+        sourceKey: source.key,
+        sourceName: source.name,
+      }));
+
+    const summary = await getPlaybackSources(
+      { index: "2026:anime:深空彼岸" },
+      {
+        cacheStore,
+        detailFetcher,
+        indexCacheStore: indexStore,
+        searcher,
+        siteConfigStore: createSiteConfigStore(false),
+        videoSourceStore: createSourceStore(sources),
+      },
+    );
+
+    expect(searcher).toHaveBeenCalledTimes(3);
+    expect(detailFetcher).toHaveBeenCalledTimes(3);
+    expect(maxActiveSearches).toBeGreaterThan(1);
+    expect(summary).toEqual({ completed: 3, total: 3 });
   });
 });

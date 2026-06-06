@@ -182,6 +182,33 @@ describe("media search service", () => {
     expect(summary).toEqual({ completed: 2, total: 2 });
   });
 
+  it("searches video sources concurrently to keep streaming responsive", async () => {
+    let activeSearches = 0;
+    let maxActiveSearches = 0;
+    const searcher = vi.fn(async (source) => {
+      activeSearches += 1;
+      maxActiveSearches = Math.max(maxActiveSearches, activeSearches);
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      activeSearches -= 1;
+      return [createResource(source.key)];
+    });
+
+    const summary = await searchMediaSources(
+      { query: "movie" },
+      {
+        searcher,
+        siteConfigStore: createSiteConfigStore(true),
+        videoSourceStore: createVideoSourceStore(),
+      },
+    );
+
+    expect(searcher).toHaveBeenCalledTimes(2);
+    expect(maxActiveSearches).toBeGreaterThan(1);
+    expect(summary).toEqual({ completed: 2, total: 2 });
+  });
+
   it("aggregates the same title and year across multiple sources", async () => {
     const onResult = vi.fn();
     const searcher = vi.fn(async (source) => [

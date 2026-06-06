@@ -61,6 +61,8 @@ export class PlaybackSourcesValidationError extends Error {
   }
 }
 
+const defaultPlaybackSourceLookupConcurrency = 16;
+
 function readIndex(input: PlaybackSourcesInput) {
   const index = input.index.trim();
 
@@ -185,72 +187,113 @@ export async function getPlaybackSources(
   onStart?.({ total: sources.length });
 
   let completed = 0;
-  const cachedResults: PlaybackSourceItem[] = [];
+  const cachedResultsBySourceIndex = new Map<number, PlaybackSourceItem>();
+  let nextSourceIndex = 0;
+  let cacheWriteQueue = Promise.resolve();
+  const enqueueCacheWrite = async (operation: () => Promise<void>) => {
+    const result = cacheWriteQueue.then(operation, operation);
+    cacheWriteQueue = result.then(() => undefined, () => undefined);
+    await result;
+  };
+  const lookupNextSource = async () => {
+    while (nextSourceIndex < sources.length) {
+      const sourceIndex = nextSourceIndex;
+      const source = sources[sourceIndex];
+      nextSourceIndex += 1;
 
-  for (const source of sources) {
-    const cachedEntry = cachedByKey.get(source.key);
-    const cacheKey = cachedEntry ? createPlaybackCacheKey(source.key, cachedEntry.id) : "";
-    let detail = cachedEntry
-      ? await readPlaybackCacheEntry(cacheStore, cacheKey)
-      : null;
+      if (!source) {
+        return;
+      }
 
-    if (!detail) {
-      try {
-        if (!cachedEntry) {
-          const results = await searcher(toEndpoint(source), searchTitle, {
-            ...(fetcher ? { fetcher } : {}),
-            ...(maxPages === undefined ? {} : { maxPages }),
-            ...(timeoutMs === undefined ? {} : { timeoutMs }),
-          });
+      const cachedEntry = cachedByKey.get(source.key);
+      const cacheKey = cachedEntry ? createPlaybackCacheKey(source.key, cachedEntry.id) : "";
+      let detail = cachedEntry
+        ? await readPlaybackCacheEntry(cacheStore, cacheKey)
+        : null;
 
-          const firstMatch = results[0];
+      if (!detail) {
+        try {
+          if (!cachedEntry) {
+            const results = await searcher(toEndpoint(source), searchTitle, {
+              ...(fetcher ? { fetcher } : {}),
+              ...(maxPages === undefined ? {} : { maxPages }),
+              ...(timeoutMs === undefined ? {} : { timeoutMs }),
+            });
 
-          if (!firstMatch) {
-            await deleteMediaSearchCacheEntry(index, source.key, { store: indexCacheStore });
+            const firstMatch = results[0];
+
+            if (!firstMatch) {
+              await enqueueCacheWrite(() => deleteMediaSearchCacheEntry(index, source.key, { store: indexCacheStore }));
+              continue;
+            }
+
+            const item = toPublicSourceItem(source.name, firstMatch, firstMatch.id, firstMatch.quality);
+
+            try {
+              await enqueueCacheWrite(() => saveMediaSearchCacheEntries(index, toIndexCacheEntry(item), { store: indexCacheStore }));
+            } catch {
+              // Cache writes must not block playback source resolution.
+            }
+            detail = await detailFetcher(toEndpoint(source), item.id, {
+              ...(fetcher ? { fetcher } : {}),
+              ...(timeoutMs === undefined ? {} : { timeoutMs }),
+            });
+          } else {
+            detail = await detailFetcher(toEndpoint(source), cachedEntry.id, {
+              ...(fetcher ? { fetcher } : {}),
+              ...(timeoutMs === undefined ? {} : { timeoutMs }),
+            });
+          }
+
+          const resolvedDetail = detail;
+
+          if (!resolvedDetail) {
             continue;
           }
 
-          const item = toPublicSourceItem(source.name, firstMatch, firstMatch.id, firstMatch.quality);
-
-          try {
-            await saveMediaSearchCacheEntries(index, toIndexCacheEntry(item), { store: indexCacheStore });
-          } catch {
-            // Cache writes must not block playback source resolution.
+          if (!resolvedDetail.episodes.length) {
+            await enqueueCacheWrite(async () => {
+              if (cacheKey) {
+                await cacheStore.del(cacheKey);
+              }
+              await deleteMediaSearchCacheEntry(index, source.key, { store: indexCacheStore });
+            });
+            continue;
           }
-          detail = await detailFetcher(toEndpoint(source), item.id, {
-            ...(fetcher ? { fetcher } : {}),
-            ...(timeoutMs === undefined ? {} : { timeoutMs }),
-          });
-        } else {
-          detail = await detailFetcher(toEndpoint(source), cachedEntry.id, {
-            ...(fetcher ? { fetcher } : {}),
-            ...(timeoutMs === undefined ? {} : { timeoutMs }),
-          });
-        }
 
-        if (!detail.episodes.length) {
-          if (cacheKey) {
-            await cacheStore.del(cacheKey);
-          }
-          await deleteMediaSearchCacheEntry(index, source.key, { store: indexCacheStore });
+          await enqueueCacheWrite(() => savePlaybackCacheEntry(cacheStore, createPlaybackCacheKey(source.key, resolvedDetail.id), resolvedDetail));
+        } catch {
+          await enqueueCacheWrite(async () => {
+            if (cacheKey) {
+              await cacheStore.del(cacheKey);
+            }
+            await deleteMediaSearchCacheEntry(index, source.key, { store: indexCacheStore });
+          });
           continue;
         }
+      }
 
-        await savePlaybackCacheEntry(cacheStore, createPlaybackCacheKey(source.key, detail.id), detail);
-      } catch {
-        if (cacheKey) {
-          await cacheStore.del(cacheKey);
-        }
-        await deleteMediaSearchCacheEntry(index, source.key, { store: indexCacheStore });
+      if (!detail) {
         continue;
       }
-    }
 
-    const result = toPublicSourceItem(source.name, detail, cachedEntry?.id ?? detail.id, cachedEntry?.quality);
-    onResult?.(result);
-    cachedResults.push(result);
-    completed += 1;
-  }
+      const result = toPublicSourceItem(source.name, detail, cachedEntry?.id ?? detail.id, cachedEntry?.quality);
+      onResult?.(result);
+      cachedResultsBySourceIndex.set(sourceIndex, result);
+      completed += 1;
+    }
+  };
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(defaultPlaybackSourceLookupConcurrency, sources.length) },
+      () => lookupNextSource(),
+    ),
+  );
+
+  const cachedResults = [...cachedResultsBySourceIndex.entries()]
+    .sort(([leftIndex], [rightIndex]) => leftIndex - rightIndex)
+    .map(([, result]) => result);
 
   await savePlaybackSourcesCacheEntry(cacheStore, playbackSourcesCacheKey, cachedResults);
 

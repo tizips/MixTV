@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { auth } from "@/auth";
 import { resolveSafeNextPath } from "@/modules/auth/server/redirect";
+import { getRuntimeEnv } from "@/shared/runtime-env";
 
 type ProxyRequest = Request & {
   auth?: {
@@ -20,8 +21,19 @@ type AuthCheck = {
   hasSecret: boolean;
 };
 
-function readAuthSecret() {
-  return process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "";
+const proxyDebugEnvNames = [
+  "AUTH_SECRET",
+  "AUTH_URL",
+  "NEXTAUTH_SECRET",
+  "NEXTAUTH_URL",
+  "PASSWORD",
+  "USERNAME",
+];
+
+async function readAuthSecret() {
+  const runtimeEnv = await getRuntimeEnv(["AUTH_SECRET", "NEXTAUTH_SECRET"]);
+
+  return runtimeEnv.AUTH_SECRET || runtimeEnv.NEXTAUTH_SECRET || "";
 }
 
 function listAuthCookieNames(request: ProxyRequest) {
@@ -34,53 +46,37 @@ function listAuthCookieNames(request: ProxyRequest) {
     .join(",");
 }
 
-function hasEnv(name: string) {
-  return process.env[name] ? "set" : "unset";
+function hasEnv(env: Record<string, string | undefined>, name: string) {
+  return env[name] ? "set" : "unset";
 }
 
-function safeEnvKeys() {
-  return Object.keys(process.env)
-    .filter((key) => key.startsWith("NEXT_") || [
-      "AUTH_SECRET",
-      "AUTH_URL",
-      "NEXTAUTH_SECRET",
-      "NEXTAUTH_URL",
-      "NODE_ENV",
-      "PASSWORD",
-      "REDIS_URL",
-      "STORAGE_TYPE",
-      "UPSTASH_REDIS_REST_TOKEN",
-      "UPSTASH_REDIS_REST_URL",
-      "USERNAME",
-    ].includes(key))
+function safeEnvKeys(env: Record<string, string | undefined>) {
+  return proxyDebugEnvNames
+    .filter((key) => env[key])
     .sort()
     .join(",");
 }
 
-function addEnvDebugHeaders(response: NextResponse, request: ProxyRequest) {
+async function addEnvDebugHeaders(response: NextResponse, request: ProxyRequest) {
   if (request.nextUrl.searchParams.get("__proxy_debug") !== "env") {
     return response;
   }
 
-  response.headers.set("x-mixtv-env-keys", safeEnvKeys());
-  response.headers.set("x-mixtv-env-auth-secret", hasEnv("AUTH_SECRET"));
-  response.headers.set("x-mixtv-env-nextauth-secret", hasEnv("NEXTAUTH_SECRET"));
-  response.headers.set("x-mixtv-env-auth-url", hasEnv("AUTH_URL"));
-  response.headers.set("x-mixtv-env-nextauth-url", hasEnv("NEXTAUTH_URL"));
-  response.headers.set("x-mixtv-env-username", hasEnv("USERNAME"));
-  response.headers.set("x-mixtv-env-password", hasEnv("PASSWORD"));
-  response.headers.set("x-mixtv-env-storage-type", hasEnv("STORAGE_TYPE"));
-  response.headers.set("x-mixtv-env-redis-url", hasEnv("REDIS_URL"));
-  response.headers.set("x-mixtv-env-upstash-url", hasEnv("UPSTASH_REDIS_REST_URL"));
-  response.headers.set("x-mixtv-env-upstash-token", hasEnv("UPSTASH_REDIS_REST_TOKEN"));
-  response.headers.set("x-mixtv-env-next-public-site-name", hasEnv("NEXT_PUBLIC_SITE_NAME"));
-  response.headers.set("x-mixtv-env-node-env", hasEnv("NODE_ENV"));
+  const runtimeEnv = await getRuntimeEnv(proxyDebugEnvNames);
+
+  response.headers.set("x-mixtv-env-keys", safeEnvKeys(runtimeEnv));
+  response.headers.set("x-mixtv-env-auth-secret", hasEnv(runtimeEnv, "AUTH_SECRET"));
+  response.headers.set("x-mixtv-env-nextauth-secret", hasEnv(runtimeEnv, "NEXTAUTH_SECRET"));
+  response.headers.set("x-mixtv-env-auth-url", hasEnv(runtimeEnv, "AUTH_URL"));
+  response.headers.set("x-mixtv-env-nextauth-url", hasEnv(runtimeEnv, "NEXTAUTH_URL"));
+  response.headers.set("x-mixtv-env-username", hasEnv(runtimeEnv, "USERNAME"));
+  response.headers.set("x-mixtv-env-password", hasEnv(runtimeEnv, "PASSWORD"));
 
   return response;
 }
 
-function addDebugHeaders(response: NextResponse, request: ProxyRequest, authCheck: AuthCheck) {
-  addEnvDebugHeaders(response, request);
+async function addDebugHeaders(response: NextResponse, request: ProxyRequest, authCheck: AuthCheck) {
+  await addEnvDebugHeaders(response, request);
 
   if (request.nextUrl.searchParams.get("__proxy_debug") !== "1") {
     return response;
@@ -97,6 +93,17 @@ function addDebugHeaders(response: NextResponse, request: ProxyRequest, authChec
   return response;
 }
 
+async function checkApiSession(request: ProxyRequest) {
+  const sessionResponse = await fetch(new URL("/api/auth/proxy-session", request.url).toString(), {
+    cache: "no-store",
+    headers: {
+      cookie: request.headers.get("cookie") ?? "",
+    },
+  });
+
+  return sessionResponse.ok;
+}
+
 async function checkAuthenticatedSession(request: ProxyRequest): Promise<AuthCheck> {
   if (request.auth?.user) {
     return {
@@ -104,24 +111,19 @@ async function checkAuthenticatedSession(request: ProxyRequest): Promise<AuthChe
       authenticated: true,
       hasPlainToken: false,
       hasRequestAuth: true,
-      hasSecret: Boolean(readAuthSecret()),
+      hasSecret: Boolean(await readAuthSecret()),
       hasSecureToken: false,
     };
   }
 
-  const secret = readAuthSecret();
+  const secret = await readAuthSecret();
 
   if (!secret) {
-    const sessionResponse = await fetch(new URL("/api/auth/proxy-session", request.url).toString(), {
-      cache: "no-store",
-      headers: {
-        cookie: request.headers.get("cookie") ?? "",
-      },
-    });
+    const hasApiSession = await checkApiSession(request);
 
     return {
-      hasApiSession: sessionResponse.ok,
-      authenticated: sessionResponse.ok,
+      hasApiSession,
+      authenticated: hasApiSession,
       hasPlainToken: false,
       hasRequestAuth: false,
       hasSecret: false,
@@ -152,10 +154,23 @@ async function checkAuthenticatedSession(request: ProxyRequest): Promise<AuthChe
     secureCookie: false,
   });
 
+  if (!token) {
+    const hasApiSession = await checkApiSession(request);
+
+    return {
+      hasApiSession,
+      authenticated: hasApiSession,
+      hasPlainToken: false,
+      hasRequestAuth: false,
+      hasSecret: true,
+      hasSecureToken: false,
+    };
+  }
+
   return {
     hasApiSession: false,
-    authenticated: Boolean(token),
-    hasPlainToken: Boolean(token),
+    authenticated: true,
+    hasPlainToken: true,
     hasRequestAuth: false,
     hasSecret: true,
     hasSecureToken: false,

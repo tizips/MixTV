@@ -823,7 +823,7 @@ describe("PlayPageShell client playback cover", () => {
     });
   });
 
-  it("uploads playback progress periodically while playing", async () => {
+  it("uploads playback progress every 30 seconds while playing", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ progress: {} })));
     vi.stubGlobal("fetch", fetchMock);
@@ -852,11 +852,86 @@ describe("PlayPageShell client playback cover", () => {
       art.emit("video:play");
     });
     await act(async () => {
-      vi.advanceTimersByTime(20000);
+      vi.advanceTimersByTime(29999);
+    });
+
+    const progressCallsBeforeInterval = fetchMock.mock.calls.filter(([input, init]) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      return url.startsWith("/api/play/progress/") && init?.method === "POST";
+    });
+
+    expect(progressCallsBeforeInterval).toHaveLength(0);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
     });
 
     expect(fetchMock).toHaveBeenCalledWith("/api/play/progress/dyttzyapi.com/80474", {
       body: JSON.stringify({ play_episodes: 1, play_time: 25, total_time: 1247 }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("debounces playback progress uploads after repeated seek operations", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ progress: {} })));
+    vi.stubGlobal("fetch", fetchMock);
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={createInitialData()} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const art = artplayerState.instances[0];
+
+    if (!art) {
+      throw new Error("Artplayer was not initialized");
+    }
+
+    art.duration = 1247;
+
+    await act(async () => {
+      art.currentTime = 25;
+      art.emit("video:seeked");
+      vi.advanceTimersByTime(400);
+      art.currentTime = 45;
+      art.emit("video:seeked");
+      vi.advanceTimersByTime(400);
+      art.currentTime = 65;
+      art.emit("video:seeked");
+    });
+
+    const progressCallsBeforeDebounce = fetchMock.mock.calls.filter(([input, init]) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      return url.startsWith("/api/play/progress/") && init?.method === "POST";
+    });
+
+    expect(progressCallsBeforeDebounce).toHaveLength(0);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    const progressCalls = fetchMock.mock.calls.filter(([input, init]) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      return url.startsWith("/api/play/progress/") && init?.method === "POST";
+    });
+
+    expect(progressCalls).toHaveLength(1);
+    expect(progressCalls[0]?.[0]).toBe("/api/play/progress/dyttzyapi.com/80474");
+    expect(progressCalls[0]?.[1]).toMatchObject({
+      body: JSON.stringify({ play_episodes: 1, play_time: 65, total_time: 1247 }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });

@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
+import { ensureEdgeOneKvBindingsForNode } from "@/infrastructure/edgeone/node-kv-bindings";
 import { checkVideoSourceValidities } from "@/modules/admin/server/video-source-service";
 import { recordApiRequest } from "@/modules/stats";
 
 const encoder = new TextEncoder();
+
+export const runtime = "nodejs";
 
 function encodeSseEvent(event: string, data: unknown) {
   return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
 export async function GET(request: Request) {
+  ensureEdgeOneKvBindingsForNode();
+
   const startedAt = performance.now();
   const { searchParams } = new URL(request.url);
   const keyword = searchParams.get("keyword") ?? "";

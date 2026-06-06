@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureEdgeOneKvBindingsForNode } from "@/infrastructure/edgeone/node-kv-bindings";
 import { saveConfigFilesSubscriptionPull } from "@/modules/admin";
 import {
   configSubscriptionPullRequestSchema,
@@ -13,6 +14,8 @@ function badRequest(message: string) {
 }
 
 export const POST = withApiTraffic(async function POST(request: Request) {
+  ensureEdgeOneKvBindingsForNode();
+
   let payload: unknown;
 
   try {

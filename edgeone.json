@@ -1,0 +1,6 @@
+{
+  "buildCommand": "bun run build",
+  "installCommand": "bun install --frozen-lockfile",
+  "nodeVersion": "22.11.0",
+  "outputDirectory": ".next"
+}

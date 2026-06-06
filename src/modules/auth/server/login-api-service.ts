@@ -1,4 +1,5 @@
 import { jwtVerify, SignJWT } from "jose";
+import { getRuntimeEnv } from "@/shared/runtime-env";
 
 const LOGIN_JWT_TTL_SECONDS = 15 * 24 * 60 * 60;
 
@@ -21,7 +22,7 @@ type AccountInfo = {
   name: string;
 };
 
-function readLoginConfig(env: EnvLike = process.env): LoginConfig {
+function readLoginConfig(env: EnvLike): LoginConfig {
   const username = env.USERNAME?.trim() ?? "";
   const password = env.PASSWORD ?? "";
   const authSecret = env.AUTH_SECRET ?? "";
@@ -35,6 +36,10 @@ function readLoginConfig(env: EnvLike = process.env): LoginConfig {
     password,
     username,
   };
+}
+
+async function resolveLoginEnv(env?: EnvLike) {
+  return env ?? await getRuntimeEnv(["AUTH_SECRET", "PASSWORD", "USERNAME"]);
 }
 
 export async function issueLoginJwt(
@@ -55,9 +60,9 @@ export async function issueLoginJwt(
 
 export async function authenticateLoginRequest(
   input: LoginRequest,
-  env: EnvLike = process.env,
+  env?: EnvLike,
 ): Promise<{ jwt: string } | null> {
-  const config = readLoginConfig(env);
+  const config = readLoginConfig(await resolveLoginEnv(env));
 
   if (input.username === config.username) {
     if (input.password !== config.password) {
@@ -75,9 +80,9 @@ export async function authenticateLoginRequest(
 
 export async function getAccountByJwt(
   jwt: string,
-  env: EnvLike = process.env,
+  env?: EnvLike,
 ): Promise<AccountInfo | null> {
-  const config = readLoginConfig(env);
+  const config = readLoginConfig(await resolveLoginEnv(env));
 
   try {
     const { payload } = await jwtVerify(jwt, new TextEncoder().encode(config.authSecret));

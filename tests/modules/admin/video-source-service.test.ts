@@ -263,6 +263,69 @@ describe("video source service", () => {
     });
   });
 
+  it("checks video source validities concurrently to avoid long route runs", async () => {
+    const store = createFakeStore({
+      alpha: JSON.stringify({
+        adult: false,
+        apiUrl: "https://alpha.test/api",
+        key: "alpha",
+        name: "Alpha",
+        no: 1,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "warning",
+        weight: 10,
+      }),
+      beta: JSON.stringify({
+        adult: false,
+        apiUrl: "https://beta.test/api",
+        key: "beta",
+        name: "Beta",
+        no: 2,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "warning",
+        weight: 10,
+      }),
+      gamma: JSON.stringify({
+        adult: false,
+        apiUrl: "https://gamma.test/api",
+        key: "gamma",
+        name: "Gamma",
+        no: 3,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "warning",
+        weight: 10,
+      }),
+    });
+    let activeFetches = 0;
+    let maxActiveFetches = 0;
+    const fetcher = vi.fn(async () => {
+      activeFetches += 1;
+      maxActiveFetches = Math.max(maxActiveFetches, activeFetches);
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      activeFetches -= 1;
+      return new Response(JSON.stringify({ list: [{ vod_name: "Movie" }] }), { status: 200 });
+    });
+
+    await checkVideoSourceValidities(
+      { keyword: "movie" },
+      {
+        fetcher,
+        store,
+      },
+    );
+
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(maxActiveFetches).toBeGreaterThan(1);
+  });
+
   it("deletes invalid video sources when configured to remove failed checks", async () => {
     const store = createFakeStore({
       alpha: JSON.stringify({

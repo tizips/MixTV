@@ -21,20 +21,36 @@ vi.mock("next-auth/providers/credentials", () => ({
 
 describe("NextAuth config", () => {
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.unstubAllEnvs();
     vi.resetModules();
     nextAuthMock.mockClear();
   });
 
-  it("uses secure cookies in production so proxy reads the same session token set by HTTPS callbacks", async () => {
+  it("does not read process env during synchronous auth initialization", async () => {
+    vi.stubEnv("AUTH_SECRET", "process-secret");
     vi.stubEnv("NODE_ENV", "production");
 
     await import("@/auth");
 
     expect(nextAuthMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        useSecureCookies: true,
+        secret: "mixtv-development-auth-secret",
       }),
     );
+    expect(nextAuthMock.mock.calls[0]?.[0]).not.toHaveProperty("useSecureCookies");
+  });
+
+  it("does not require process to exist during synchronous auth initialization", async () => {
+    vi.stubGlobal("process", undefined);
+
+    await import("@/auth");
+
+    expect(nextAuthMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret: "mixtv-development-auth-secret",
+      }),
+    );
+    expect(nextAuthMock.mock.calls[0]?.[0]).not.toHaveProperty("useSecureCookies");
   });
 });

@@ -9,7 +9,7 @@ type CredentialsInput = Partial<Record<"password" | "username", unknown>>;
 
 export async function authorizeCredentials(
   credentials: CredentialsInput,
-  env: EnvLike = process.env,
+  env?: EnvLike,
 ) {
   const username = typeof credentials.username === "string" ? credentials.username.trim() : "";
   const password = typeof credentials.password === "string" ? credentials.password : "";

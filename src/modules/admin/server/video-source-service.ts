@@ -47,6 +47,7 @@ export interface VideoSourceValidityCheckOptions {
 
 const storeNamespace = "admin";
 const videoSourcesKey = "sources";
+const defaultValidityCheckConcurrency = 16;
 
 const sourceStatuses = new Set<VideoSourceStatus>(["enabled", "disabled"]);
 const sourceTypes = new Set<VideoSourceType>(["normal", "short-drama"]);
@@ -491,24 +492,49 @@ export async function checkVideoSourceValidities(
   const checkedSources: VideoSourceItem[] = [];
   onStart?.({ total: current.length });
 
-  for (const source of current) {
-    const validity = await detectVideoSourceValidity(source, keyword, fetcher);
-    const checkedSource = normalizeVideoSource({ ...source, validity }, source);
+  let nextSourceIndex = 0;
+  let writeQueue = Promise.resolve();
+  const enqueueWrite = async (operation: () => Promise<void>) => {
+    const result = writeQueue.then(operation, operation);
+    writeQueue = result.then(() => undefined, () => undefined);
+    await result;
+  };
+  const checkNextSource = async () => {
+    while (nextSourceIndex < current.length) {
+      const source = current[nextSourceIndex];
+      nextSourceIndex += 1;
 
-    if (removeInvalidSources && validity === "invalid") {
-      await deleteVideoSourceRecord(source.key, store);
-    } else {
-      await saveVideoSourceRecord(checkedSource, store);
-      checkedSources.push(checkedSource);
+      if (!source) {
+        return;
+      }
+
+      const validity = await detectVideoSourceValidity(source, keyword, fetcher);
+      const checkedSource = normalizeVideoSource({ ...source, validity }, source);
+
+      await enqueueWrite(async () => {
+        if (removeInvalidSources && validity === "invalid") {
+          await deleteVideoSourceRecord(source.key, store);
+        } else {
+          await saveVideoSourceRecord(checkedSource, store);
+          checkedSources.push(checkedSource);
+        }
+
+        onResult?.({
+          apiUrl: checkedSource.apiUrl,
+          key: checkedSource.key,
+          name: checkedSource.name,
+          validity,
+        });
+      });
     }
+  };
 
-    onResult?.({
-      apiUrl: checkedSource.apiUrl,
-      key: checkedSource.key,
-      name: checkedSource.name,
-      validity,
-    });
-  }
+  await Promise.all(
+    Array.from(
+      { length: Math.min(defaultValidityCheckConcurrency, current.length) },
+      () => checkNextSource(),
+    ),
+  );
 
   return toVideoSourceCollection(checkedSources);
 }

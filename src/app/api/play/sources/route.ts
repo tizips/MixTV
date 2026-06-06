@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { ensureEdgeOneKvBindingsForNode } from "@/infrastructure/edgeone/node-kv-bindings";
 import { deleteHistoryPlaybackProgress } from "@/modules/history/server/history-service";
 import { PlaybackSourcesValidationError, getPlaybackSources } from "@/modules/playback/server/playback-source-service";
 import {
@@ -13,6 +14,8 @@ export const runtime = "nodejs";
 
 const encoder = new TextEncoder();
 const playbackSourcesTimeoutMs = 15_000;
+const playbackSourcesMaxPages = 1;
+const playbackSourcesProviderTimeoutMs = 5_000;
 
 function encodeSseEvent(event: string, data: unknown) {
   return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -37,6 +40,8 @@ function createPlaybackSourcesTimeout() {
 }
 
 export async function GET(request: Request) {
+  ensureEdgeOneKvBindingsForNode();
+
   const session = await auth();
   const userId = typeof session?.user?.id === "string" ? session.user.id : "";
   const startedAt = performance.now();
@@ -75,8 +80,10 @@ export async function GET(request: Request) {
           getPlaybackSources(
             { index },
             {
+              maxPages: playbackSourcesMaxPages,
               onResult: (result) => enqueueEvent("result", result),
               onStart: (result) => enqueueEvent("start", result),
+              timeoutMs: playbackSourcesProviderTimeoutMs,
             },
           ),
           timeout.promise,
@@ -158,6 +165,8 @@ function readNumber(payload: Record<string, unknown>, key: string) {
 }
 
 export async function POST(request: Request) {
+  ensureEdgeOneKvBindingsForNode();
+
   const session = await auth();
   const userId = typeof session?.user?.id === "string" ? session.user.id : "";
   const startedAt = performance.now();
@@ -211,7 +220,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const progressStore = process.env.STORAGE_TYPE ? createPlaybackProgressStore() : undefined;
+    const progressStore = createPlaybackProgressStore();
     const result = await switchPlaybackSource(
       {
         current,
@@ -221,21 +230,19 @@ export async function POST(request: Request) {
         total_time,
       },
       {
-        ...(progressStore ? { progressStore } : {}),
+        progressStore,
         userId,
       },
     );
 
-    if (progressStore) {
-      try {
-        await deleteHistoryPlaybackProgress(
-          userId,
-          { id: current.id, source: current.source },
-          { store: progressStore },
-        );
-      } catch {
-        // Keep the switch result even if cleanup fails.
-      }
+    try {
+      await deleteHistoryPlaybackProgress(
+        userId,
+        { id: current.id, source: current.source },
+        { store: progressStore },
+      );
+    } catch {
+      // Keep the switch result even if cleanup fails.
     }
 
     void recordApiRequest({

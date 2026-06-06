@@ -210,10 +210,6 @@ async function recordStat(
   input: { countDelta?: number; durationMs?: number; ok?: boolean },
   timestamp = now(),
 ) {
-  if (process.env.NODE_ENV === "test") {
-    return;
-  }
-
   const { dayKey, minuteKey } = toUtcMinuteParts(timestamp);
   const countDelta = Math.trunc(input.countDelta ?? 0);
   const durationDelta = normalizeDurationMs(input.durationMs);
@@ -327,34 +323,6 @@ async function readTrafficDayRecord(dayKey: string) {
 }
 
 export async function getTrafficSnapshot(timestamp = now()): Promise<TrafficSnapshot> {
-  if (process.env.NODE_ENV === "test") {
-    return {
-      checkedAt: timestamp.toISOString(),
-      minuteKey: `${toUtcMinuteParts(timestamp).dayKey} ${toUtcMinuteParts(timestamp).minuteKey}`,
-      page: {
-        averageDurationMs: 0,
-        count: 0,
-        failCount: 0,
-        successCount: 0,
-        totalDurationMs: 0,
-      },
-      api: {
-        averageDurationMs: 0,
-        count: 0,
-        failCount: 0,
-        successCount: 0,
-        totalDurationMs: 0,
-      },
-      thirdParty: {
-        averageDurationMs: 0,
-        count: 0,
-        failCount: 0,
-        successCount: 0,
-        totalDurationMs: 0,
-      },
-    };
-  }
-
   try {
     const { dayKey, minuteKey } = toUtcMinuteParts(timestamp);
     const record = toHashRecord(
@@ -417,48 +385,51 @@ export async function getTrafficOverview({
   const safeTimelineMinutes = Math.max(1, Math.floor(timelineMinutes));
   const currentMinute = await getTrafficSnapshot(current);
 
-  if (process.env.NODE_ENV === "test") {
-    return {
-      checkedAt: current.toISOString(),
-      currentMinute,
-      dailySummaries: Array.from({ length: safeDayCount }, (_, index) => {
-        const dayOffset = safeDayCount - index - 1;
-        const date = new Date(current.getTime() - dayOffset * 24 * 60 * 60 * 1000);
-        const { dayKey } = getUtcDateParts(date);
-
-        return {
-          dayKey,
-          label: getDayLabel(dayKey),
-          page: createEmptyMetric(),
-          api: createEmptyMetric(),
-          thirdParty: createEmptyMetric(),
-        };
-      }),
-      timeline: Array.from({ length: safeTimelineMinutes }, (_, index) => {
-        const minuteOffset = safeTimelineMinutes - index - 1;
-        const date = new Date(current.getTime() - minuteOffset * 60 * 1000);
-        const { dayKey } = getUtcDateParts(date);
-        const minuteKey = getUtcMinuteLabel(date);
-
-        return {
-          dayKey,
-          label: minuteKey,
-          minuteKey,
-          page: createEmptyMetric(),
-          api: createEmptyMetric(),
-          thirdParty: createEmptyMetric(),
-        };
-      }),
-    };
-  }
-
   const dayKeys = Array.from({ length: safeDayCount }, (_, index) => {
     const dayOffset = safeDayCount - index - 1;
     const date = new Date(current.getTime() - dayOffset * 24 * 60 * 60 * 1000);
     return getUtcDateParts(date).dayKey;
   });
+  const createEmptyOverview = () => {
+    const dailySummaries = dayKeys.map((dayKey) => ({
+      dayKey,
+      label: getDayLabel(dayKey),
+      page: createEmptyMetric(),
+      api: createEmptyMetric(),
+      thirdParty: createEmptyMetric(),
+    }));
+    const timeline = Array.from({ length: safeTimelineMinutes }, (_, index) => {
+      const minuteOffset = safeTimelineMinutes - index - 1;
+      const date = new Date(current.getTime() - minuteOffset * 60 * 1000);
+      const { dayKey } = getUtcDateParts(date);
+      const minuteKey = getUtcMinuteLabel(date);
 
-  const dayRecords = await Promise.all(dayKeys.map(async (dayKey) => [dayKey, await readTrafficDayRecord(dayKey)] as const));
+      return {
+        dayKey,
+        label: minuteKey,
+        minuteKey,
+        page: createEmptyMetric(),
+        api: createEmptyMetric(),
+        thirdParty: createEmptyMetric(),
+      };
+    });
+
+    return {
+      checkedAt: current.toISOString(),
+      currentMinute,
+      dailySummaries,
+      timeline,
+    };
+  };
+
+  let dayRecords: Array<readonly [string, Record<string, string>]>;
+
+  try {
+    dayRecords = await Promise.all(dayKeys.map(async (dayKey) => [dayKey, await readTrafficDayRecord(dayKey)] as const));
+  } catch {
+    return createEmptyOverview();
+  }
+
   const dayRecordMap = new Map(dayRecords);
   const dailySummaries = dayKeys.map((dayKey) => aggregateDaySummary(dayKey, dayRecordMap.get(dayKey) ?? {}));
 

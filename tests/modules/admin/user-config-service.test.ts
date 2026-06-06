@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { EdgeOneKvBinding } from "@/infrastructure/db/edgeone-kv-db-adapter";
+import { resetRuntimeEnvCacheForTest } from "@/shared/runtime-env";
 
 const createDbAdapterMock = vi.hoisted(() =>
   vi.fn(() => ({
@@ -23,6 +25,34 @@ import {
   verifyUserPassword,
   type UserConfigStore,
 } from "@/modules/admin/server/user-config-service";
+
+class FakeEnvKvBinding implements EdgeOneKvBinding {
+  constructor(private readonly values: Record<string, string>) {}
+
+  async delete(key: string) {
+    delete this.values[key];
+  }
+
+  async get(key: string) {
+    return this.values[key] ?? null;
+  }
+
+  async list() {
+    return {
+      keys: Object.keys(this.values).map((name) => ({ name })),
+      list_complete: true,
+    };
+  }
+
+  async put(key: string, value: string) {
+    this.values[key] = value;
+  }
+}
+
+afterEach(() => {
+  delete (globalThis as typeof globalThis & { env?: EdgeOneKvBinding }).env;
+  resetRuntimeEnvCacheForTest();
+});
 
 const createFakeStore = (initial: Record<string, string> = {}): UserConfigStore => {
   const hash = new Map(Object.entries(initial));
@@ -171,25 +201,22 @@ describe("user config service", () => {
     await expect(updateUser("grace", [{ unknown: true }], store)).rejects.toThrow("user patch key is invalid.");
   });
 
-  it("rejects creating a user that conflicts with the env admin username", async () => {
-    const originalUsername = process.env.USERNAME;
-    process.env.USERNAME = "admin";
+  it("rejects creating a user that conflicts with the EdgeOne env KV admin username", async () => {
+    (globalThis as typeof globalThis & { env?: EdgeOneKvBinding }).env = new FakeEnvKvBinding({
+      USERNAME: "admin",
+    });
 
-    try {
-      await expect(
-        createUser(
-          {
-            password: "Secret@123",
-            role: "user",
-            status: "active",
-            username: " admin ",
-          },
-          createFakeStore(),
-        ),
-      ).rejects.toThrow("username conflicts with the configured admin user.");
-    } finally {
-      process.env.USERNAME = originalUsername;
-    }
+    await expect(
+      createUser(
+        {
+          password: "Secret@123",
+          role: "user",
+          status: "active",
+          username: " admin ",
+        },
+        createFakeStore(),
+      ),
+    ).rejects.toThrow("username conflicts with the configured admin user.");
   });
 
   it("updates a user's password without exposing it in the response", async () => {

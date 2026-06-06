@@ -10,9 +10,14 @@ import { createScriptSearchHistoryStore } from "./search-history-test-store";
 const createDbAdapterMock = vi.hoisted(() => vi.fn());
 const searchMediaSourcesMock = vi.hoisted(() => vi.fn());
 const authMock = vi.hoisted(() => vi.fn());
+const ensureEdgeOneKvBindingsForNodeMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/infrastructure/db/db-adapter", () => ({
   createDbAdapter: createDbAdapterMock,
+}));
+
+vi.mock("@/infrastructure/edgeone/node-kv-bindings", () => ({
+  ensureEdgeOneKvBindingsForNode: ensureEdgeOneKvBindingsForNodeMock,
 }));
 
 vi.mock("@/auth", () => ({
@@ -28,6 +33,7 @@ describe("media search API route", () => {
   beforeEach(async () => {
     authMock.mockReset();
     authMock.mockResolvedValue({ user: { id: "user-1" } });
+    ensureEdgeOneKvBindingsForNodeMock.mockReset();
     searchMediaSourcesMock.mockReset();
     createDbAdapterMock.mockReset();
     createDbAdapterMock.mockReturnValue(createScriptSearchHistoryStore());
@@ -114,10 +120,13 @@ describe("media search API route", () => {
     expect(searchMediaSourcesMock).toHaveBeenCalledWith(
       { query: "movie" },
       expect.objectContaining({
+        maxPages: 1,
         onResult: expect.any(Function),
         onStart: expect.any(Function),
+        timeoutMs: expect.any(Number),
       }),
     );
+    expect(ensureEdgeOneKvBindingsForNodeMock).toHaveBeenCalled();
 
     const historyResponse = await searchHistoriesRoute.GET();
 

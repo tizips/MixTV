@@ -44,6 +44,7 @@ vi.mock("@/infrastructure/db/db-adapter", () => ({
 
 import {
   formatDurationMs,
+  getTrafficOverview,
   getTrafficSnapshot,
   recordApiRequest,
   recordPageVisit,
@@ -52,7 +53,6 @@ import {
 } from "./stats-service";
 
 beforeEach(() => {
-  vi.stubEnv("NODE_ENV", "production");
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-05-16T10:20:30.000Z"));
   scriptMock.mockClear();
@@ -61,7 +61,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
-  vi.unstubAllEnvs();
 });
 
 describe("stats-service", () => {
@@ -124,6 +123,21 @@ describe("stats-service", () => {
       successCount: 3,
       totalDurationMs: 2600,
     });
+  });
+
+  it("returns an empty traffic overview when KV reads fail", async () => {
+    scriptMock.mockRejectedValue(new Error("KV binding is unavailable."));
+
+    const overview = await getTrafficOverview({
+      dayCount: 2,
+      timelineMinutes: 3,
+    });
+
+    expect(overview.currentMinute.page.count).toBe(0);
+    expect(overview.dailySummaries).toHaveLength(2);
+    expect(overview.timeline).toHaveLength(3);
+    expect(overview.dailySummaries[0]?.page.count).toBe(0);
+    expect(overview.timeline[0]?.api.count).toBe(0);
   });
 
   it("formats durations for the admin dashboard", () => {

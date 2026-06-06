@@ -12,8 +12,6 @@ export interface PerformanceMetric {
   tone: string;
 }
 
-const cpuSampleMs = 80;
-
 function formatBytes(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
     return "0 B";
@@ -41,31 +39,11 @@ function getCpuModel() {
   return firstCpu?.model.trim() ?? "Unknown CPU";
 }
 
-async function sampleProcessCpuPercent(cpuCount: number) {
-  const startUsage = process.cpuUsage();
-  const startTime = process.hrtime.bigint();
-
-  await new Promise((resolve) => setTimeout(resolve, cpuSampleMs));
-
-  const elapsedMicroseconds =
-    Number(process.hrtime.bigint() - startTime) / 1_000;
-  const usage = process.cpuUsage(startUsage);
-  const usedMicroseconds = usage.user + usage.system;
-
-  if (elapsedMicroseconds <= 0 || cpuCount <= 0) {
-    return 0;
-  }
-
-  return (usedMicroseconds / (elapsedMicroseconds * cpuCount)) * 100;
-}
-
 export async function getPerformanceMetrics() {
   const checkedAt = now();
   const trafficSnapshot = await getTrafficSnapshot();
   const cpus = os.cpus();
   const cpuCount = cpus.length || os.availableParallelism?.() || 1;
-  const cpuPercent = await sampleProcessCpuPercent(cpuCount);
-  const memory = process.memoryUsage();
   const totalMemory = os.totalmem();
   const freeMemory = os.freemem();
   const usedMemory = Math.max(0, totalMemory - freeMemory);
@@ -73,20 +51,11 @@ export async function getPerformanceMetrics() {
     totalMemory > 0 ? (usedMemory / totalMemory) * 100 : 0;
   const metrics: PerformanceMetric[] = [
     {
-      key: "process-cpu",
+      key: "system-cpu",
       icon: "cpu",
-      title: "进程 CPU",
-      value: formatPercent(cpuPercent),
+      title: "系统 CPU",
+      value: `${cpuCount} 核`,
       detail: `${cpuCount} 核 · ${getCpuModel()}`,
-      tone: "text-accent",
-    },
-    {
-      key: "process-memory",
-      icon: "memory",
-      title: "进程内存",
-      value: formatBytes(memory.rss),
-      detail: `RSS: ${formatBytes(memory.rss)}`,
-      detailAccent: `堆内存: ${formatBytes(memory.heapUsed)} / ${formatBytes(memory.heapTotal)}`,
       tone: "text-accent",
     },
     {

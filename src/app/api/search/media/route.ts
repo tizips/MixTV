@@ -1,16 +1,23 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { ensureEdgeOneKvBindingsForNode } from "@/infrastructure/edgeone/node-kv-bindings";
 import { MediaSearchValidationError, searchMediaSources } from "@/modules/search/server/media-search-service";
 import { addSearchHistory } from "@/modules/search/server/search-history-service";
 import { recordApiRequest } from "@/modules/stats";
 
 const encoder = new TextEncoder();
+const mediaSearchMaxPages = 1;
+const mediaSearchProviderTimeoutMs = 5_000;
+
+export const runtime = "nodejs";
 
 function encodeSseEvent(event: string, data: unknown) {
   return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
 export async function GET(request: Request) {
+  ensureEdgeOneKvBindingsForNode();
+
   const session = await auth();
   const userId = typeof session?.user?.id === "string" ? session.user.id : "";
   const startedAt = performance.now();
@@ -43,8 +50,10 @@ export async function GET(request: Request) {
           const summary = await searchMediaSources(
             { query },
             {
+              maxPages: mediaSearchMaxPages,
               onResult: (result) => controller.enqueue(encodeSseEvent("result", result.results)),
               onStart: (summary) => controller.enqueue(encodeSseEvent("start", summary)),
+              timeoutMs: mediaSearchProviderTimeoutMs,
             },
           );
           controller.enqueue(encodeSseEvent("complete", summary));

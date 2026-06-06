@@ -8,6 +8,12 @@ import {
   saveConfigFilesSubscriptionPull,
 } from "@/modules/admin";
 
+const ensureEdgeOneKvBindingsForNodeMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/infrastructure/edgeone/node-kv-bindings", () => ({
+  ensureEdgeOneKvBindingsForNode: ensureEdgeOneKvBindingsForNodeMock,
+}));
+
 vi.mock("@/modules/admin", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/admin")>();
 
@@ -74,6 +80,32 @@ describe("config files API routes", () => {
     await expect(response.json()).resolves.toEqual({ message: "请输入有效的订阅链接。" });
     expect(response.status).toBe(400);
     expect(saveConfigFilesSubscriptionPull).not.toHaveBeenCalled();
+  });
+
+  it("initializes EdgeOne KV bindings before pulling remote subscription config", async () => {
+    const url = "https://pz.v88.qzz.io?format=2&source=jingjian";
+    const subscription = {
+      autoUpdate: false,
+      updatedAt: "2026-06-06T18:23:49.088Z",
+      url,
+    };
+
+    vi.mocked(saveConfigFilesSubscriptionPull).mockResolvedValue(subscription);
+
+    const response = await pullRoute.POST(
+      new Request("http://localhost/api/admin/files/subscription/pull", {
+        body: JSON.stringify({ url }),
+        method: "POST",
+      }),
+    );
+
+    await expect(response.json()).resolves.toEqual(subscription);
+    expect(response.status).toBe(200);
+    expect(ensureEdgeOneKvBindingsForNodeMock).toHaveBeenCalledOnce();
+    expect(saveConfigFilesSubscriptionPull).toHaveBeenCalledWith(url);
+    expect(ensureEdgeOneKvBindingsForNodeMock.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(saveConfigFilesSubscriptionPull).mock.invocationCallOrder[0] ?? 0,
+    );
   });
 
   it("rejects unsupported auto-update fields before saving", async () => {

@@ -28,7 +28,7 @@ vi.mock("@/modules/stats", () => ({
 }));
 
 describe("/api/play/sources route", () => {
-  it("uses the Node.js runtime for Redis-backed playback source lookup", () => {
+  it("uses the Node.js runtime for KV-backed playback source lookup", () => {
     expect(runtime).toBe("nodejs");
   });
 });

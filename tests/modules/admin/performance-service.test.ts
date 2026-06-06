@@ -10,17 +10,11 @@ describe("performance service", () => {
 
     const metricsByKey = new Map(result.metrics.map((metric) => [metric.key, metric]));
 
-    expect(metricsByKey.get("process-cpu")).toMatchObject({
+    expect(metricsByKey.get("system-cpu")).toMatchObject({
       detail: expect.stringContaining("核"),
-      title: "进程 CPU",
+      title: "系统 CPU",
     });
-    expect(metricsByKey.get("process-cpu")?.value).toMatch(/^\d+(\.\d)?%$/);
-
-    expect(metricsByKey.get("process-memory")).toMatchObject({
-      detail: expect.stringContaining("RSS"),
-      title: "进程内存",
-    });
-    expect(metricsByKey.get("process-memory")?.detailAccent).toContain("堆内存");
+    expect(metricsByKey.get("system-cpu")?.value).toContain("核");
 
     expect(metricsByKey.get("system-memory")).toMatchObject({
       detail: expect.stringContaining("总共"),

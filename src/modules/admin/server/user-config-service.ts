@@ -1,5 +1,6 @@
 import { createDbAdapter } from "@/infrastructure/db/db-adapter";
 import type { DbPort } from "@/shared/db/db-port";
+import { getRuntimeEnv } from "@/shared/runtime-env";
 import {
   usernamePattern,
   usernamePatternMessage,
@@ -110,8 +111,10 @@ function readString(payload: Record<string, unknown>, key: string, required = tr
   return value.trim();
 }
 
-function readConfiguredAdminUsername() {
-  return process.env.USERNAME?.trim() ?? "";
+async function readConfiguredAdminUsername() {
+  const runtimeEnv = await getRuntimeEnv(["USERNAME"]);
+
+  return runtimeEnv.USERNAME?.trim() ?? "";
 }
 
 function validateUsername(username: string) {
@@ -385,7 +388,7 @@ export async function createUser(input: unknown, store: UserConfigStore = create
   if (!isOneOf(status, userStatuses)) {
     throw new UserConfigValidationError("status is invalid.");
   }
-  if (username === readConfiguredAdminUsername()) {
+  if (username === await readConfiguredAdminUsername()) {
     throw new UserConfigValidationError("username conflicts with the configured admin user.");
   }
 

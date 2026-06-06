@@ -31,10 +31,6 @@ export function PageActivityTracker() {
   const flushedRef = useRef(false);
 
   useEffect(() => {
-    if (process.env.NODE_ENV === "test") {
-      return;
-    }
-
     if (!pathname || pathname === "/login") {
       return;
     }

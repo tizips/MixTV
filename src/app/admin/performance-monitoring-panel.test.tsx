@@ -40,19 +40,10 @@ describe("PerformanceMonitoringPanel", () => {
           {
             detail: "4 核 · Apple M4",
             icon: "cpu",
-            key: "process-cpu",
-            title: "进程 CPU",
+            key: "system-cpu",
+            title: "系统 CPU",
             tone: "text-accent",
-            value: "3.2%",
-          },
-          {
-            detail: "RSS: 124 MB",
-            detailAccent: "堆内存: 72 MB / 96 MB",
-            icon: "memory",
-            key: "process-memory",
-            title: "进程内存",
-            tone: "text-accent",
-            value: "124 MB",
+            value: "4 核",
           },
         ],
       }),
@@ -67,8 +58,8 @@ describe("PerformanceMonitoringPanel", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith("/api/admin/performance");
-    expect(host.textContent).toContain("3.2%");
-    expect(host.textContent).toContain("RSS: 124 MB");
+    expect(host.textContent).toContain("4 核");
+    expect(host.textContent).toContain("Apple M4");
     expect(host.textContent).toContain("最后刷新 08:00:00");
 
     act(() => {

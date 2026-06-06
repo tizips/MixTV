@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { EdgeOneKvBinding } from "@/infrastructure/db/edgeone-kv-db-adapter";
+import { resetRuntimeEnvCacheForTest } from "@/shared/runtime-env";
 import proxy, { config } from "./proxy";
 
 const authMock = vi.hoisted(() => vi.fn((handler: unknown) => handler));
@@ -12,6 +14,33 @@ vi.mock("@/auth", () => ({
 vi.mock("next-auth/jwt", () => ({
   getToken: getTokenMock,
 }));
+
+class FakeEnvKvBinding implements EdgeOneKvBinding {
+  constructor(private readonly values: Record<string, string>) {}
+
+  async delete(key: string) {
+    delete this.values[key];
+  }
+
+  async get(key: string) {
+    return this.values[key] ?? null;
+  }
+
+  async list() {
+    return {
+      keys: Object.keys(this.values).map((name) => ({ name })),
+      list_complete: true,
+    };
+  }
+
+  async put(key: string, value: string) {
+    this.values[key] = value;
+  }
+}
+
+function setEnvKv(values: Record<string, string>) {
+  (globalThis as typeof globalThis & { env?: EdgeOneKvBinding }).env = new FakeEnvKvBinding(values);
+}
 
 function createRequest(pathname: string, authState: unknown = null) {
   const url = new URL(pathname, "http://localhost");
@@ -31,6 +60,8 @@ async function runProxy(pathname: string, authState: unknown = null) {
 describe("proxy", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
+    delete (globalThis as typeof globalThis & { env?: EdgeOneKvBinding }).env;
+    resetRuntimeEnvCacheForTest();
     authMock.mockClear();
     getTokenMock.mockReset();
     getTokenMock.mockResolvedValue(null);
@@ -56,7 +87,7 @@ describe("proxy", () => {
   });
 
   it("allows page requests when the Auth.js session token is valid", async () => {
-    vi.stubEnv("AUTH_SECRET", "test-secret");
+    setEnvKv({ AUTH_SECRET: "test-secret" });
     getTokenMock.mockResolvedValue({ id: "user-1" });
 
     const response = await runProxy("/", null);
@@ -65,8 +96,48 @@ describe("proxy", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
+  it("reads AUTH_SECRET from the EdgeOne env KV binding when proxy env is unavailable", async () => {
+    setEnvKv({ AUTH_SECRET: "kv-secret" });
+    getTokenMock.mockResolvedValue({ id: "user-1" });
+
+    const response = await runProxy("/", null);
+
+    expect(response.status).toBe(200);
+    expect(getTokenMock).toHaveBeenCalledWith(expect.objectContaining({
+      secret: "kv-secret",
+      secureCookie: true,
+    }));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the API session checker when KV auth secret does not validate the cookie", async () => {
+    setEnvKv({ AUTH_SECRET: "kv-secret" });
+    getTokenMock.mockResolvedValue(null);
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    const response = await proxy({
+      ...createRequest("/?__proxy_debug=1", null),
+      headers: new Headers({
+        cookie: "__Secure-authjs.session-token=redacted",
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL("/api/auth/proxy-session", "http://localhost").toString(),
+      {
+        cache: "no-store",
+        headers: {
+          cookie: "__Secure-authjs.session-token=redacted",
+        },
+      },
+    );
+    expect(response.headers.get("x-mixtv-proxy-auth-api")).toBe("1");
+    expect(response.headers.get("x-mixtv-proxy-auth-secret")).toBe("set");
+  });
+
   it("checks both secure and non-secure Auth.js session cookie names", async () => {
-    vi.stubEnv("AUTH_SECRET", "test-secret");
+    setEnvKv({ AUTH_SECRET: "test-secret" });
     getTokenMock.mockResolvedValueOnce(null);
     getTokenMock.mockResolvedValueOnce({ id: "user-1" });
 
@@ -77,7 +148,6 @@ describe("proxy", () => {
     expect(getTokenMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ secureCookie: true }));
     expect(getTokenMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ secureCookie: false }));
     expect(fetchMock).not.toHaveBeenCalled();
-    vi.unstubAllEnvs();
   });
 
   it("falls back to the API session checker when auth env is unavailable", async () => {
@@ -105,7 +175,7 @@ describe("proxy", () => {
   });
 
   it("adds proxy auth diagnostics when requested", async () => {
-    vi.stubEnv("AUTH_SECRET", "test-secret");
+    setEnvKv({ AUTH_SECRET: "test-secret" });
     getTokenMock.mockResolvedValueOnce(null);
     getTokenMock.mockResolvedValueOnce({ id: "user-1" });
 
@@ -126,20 +196,17 @@ describe("proxy", () => {
   });
 
   it("adds sanitized environment diagnostics when requested", async () => {
-    vi.stubEnv("AUTH_SECRET", "test-secret");
-    vi.stubEnv("USERNAME", "admin");
-    vi.stubEnv("NEXT_PUBLIC_SITE_NAME", "MixTV");
+    setEnvKv({
+      AUTH_SECRET: "test-secret",
+      USERNAME: "admin",
+    });
 
     const response = await runProxy("/?__proxy_debug=env", null);
 
     expect(response.headers.get("x-mixtv-env-auth-secret")).toBe("set");
     expect(response.headers.get("x-mixtv-env-username")).toBe("set");
     expect(response.headers.get("x-mixtv-env-password")).toBe("unset");
-    expect(response.headers.get("x-mixtv-env-next-public-site-name")).toBe("set");
     expect(response.headers.get("x-mixtv-env-keys")).toContain("AUTH_SECRET");
-    expect(response.headers.get("x-mixtv-env-keys")).toContain("NEXT_PUBLIC_SITE_NAME");
-
-    vi.unstubAllEnvs();
   });
 
   it("passes protected api requests through to route-level auth", async () => {

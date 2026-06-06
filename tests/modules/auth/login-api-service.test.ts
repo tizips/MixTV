@@ -1,13 +1,87 @@
 import { jwtVerify } from "jose";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import type { EdgeOneKvBinding } from "@/infrastructure/db/edgeone-kv-db-adapter";
 import {
   authenticateLoginRequest,
   getAccountByJwt,
   issueLoginJwt,
   LOGIN_JWT_TTL_SECONDS,
 } from "@/modules/auth/server/login-api-service";
+import { resetRuntimeEnvCacheForTest } from "@/shared/runtime-env";
+
+class FakeEnvKvBinding implements EdgeOneKvBinding {
+  constructor(private readonly values: Record<string, string>) {}
+
+  async delete(key: string) {
+    delete this.values[key];
+  }
+
+  async get(key: string) {
+    return this.values[key] ?? null;
+  }
+
+  async list() {
+    return {
+      keys: Object.keys(this.values).map((name) => ({ name })),
+      list_complete: true,
+    };
+  }
+
+  async put(key: string, value: string) {
+    this.values[key] = value;
+  }
+}
 
 describe("authenticateLoginRequest", () => {
+  afterEach(() => {
+    delete (globalThis as typeof globalThis & { env?: EdgeOneKvBinding }).env;
+    resetRuntimeEnvCacheForTest();
+  });
+
+  it("reads login config from the EdgeOne env KV binding when no env is provided", async () => {
+    (globalThis as typeof globalThis & { env?: EdgeOneKvBinding }).env = new FakeEnvKvBinding({
+      AUTH_SECRET: "kv-jwt-secret",
+      PASSWORD: "secret@pass",
+      USERNAME: "admin",
+    });
+
+    const result = await authenticateLoginRequest({
+      password: "secret@pass",
+      username: "admin",
+    });
+
+    expect(result).not.toBeNull();
+
+    const { payload } = await jwtVerify(
+      result!.jwt,
+      new TextEncoder().encode("kv-jwt-secret"),
+    );
+
+    expect(payload.username).toBe("admin");
+  });
+
+  it("reads login config from lowercase remote KV env keys", async () => {
+    (globalThis as typeof globalThis & { env?: EdgeOneKvBinding }).env = new FakeEnvKvBinding({
+      auth_secret: "kv-jwt-secret",
+      password: "secret@pass",
+      username: "admin",
+    });
+
+    const result = await authenticateLoginRequest({
+      password: "secret@pass",
+      username: "admin",
+    });
+
+    expect(result).not.toBeNull();
+
+    const { payload } = await jwtVerify(
+      result!.jwt,
+      new TextEncoder().encode("kv-jwt-secret"),
+    );
+
+    expect(payload.username).toBe("admin");
+  });
+
   it("returns a signed jwt when username and password match env config", async () => {
     const result = await authenticateLoginRequest(
       {

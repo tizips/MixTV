@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureEdgeOneKvBindingsForNode } from "@/infrastructure/edgeone/node-kv-bindings";
 import { z } from "zod";
 import { authenticateLoginRequest } from "@/modules/auth/server/login-api-service";
 import { withApiTraffic } from "@/modules/stats";
@@ -18,6 +19,8 @@ function badRequest(message: string) {
 }
 
 export const POST = withApiTraffic(async function POST(request: Request) {
+  ensureEdgeOneKvBindingsForNode();
+
   let payload: unknown;
 
   try {

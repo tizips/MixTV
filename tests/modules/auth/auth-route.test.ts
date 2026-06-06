@@ -9,7 +9,7 @@ vi.mock("@/auth", () => ({
 }));
 
 describe("NextAuth route", () => {
-  it("uses the Edge runtime for Cloudflare Pages request compatibility", () => {
-    expect(authRoute.runtime).toBe("edge");
+  it("uses the Node runtime so EdgeOne KV bindings can be prepared for NextAuth", () => {
+    expect(authRoute.runtime).toBe("nodejs");
   });
 });

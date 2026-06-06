@@ -27,7 +27,7 @@ export default async function PlayPage({ searchParams }: PlayPageProps) {
     return <PlayPageShell playbackPlaceholderError="请先登录后再播放。" />;
   }
 
-  const progressStore = process.env.STORAGE_TYPE ? createPlaybackProgressStore() : undefined;
+  const progressStore = createPlaybackProgressStore();
   const result = await getPlaybackPageData(resolvedSearchParams, { progressStore, userId });
 
   if (result.status === "error") {

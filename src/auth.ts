@@ -44,10 +44,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       name: "Credentials",
     }),
   ],
-  secret: process.env.AUTH_SECRET || "mixtv-development-auth-secret",
+  secret: "mixtv-development-auth-secret",
   session: {
     strategy: "jwt",
   },
   trustHost: true,
-  useSecureCookies: process.env.NODE_ENV === "production",
 });

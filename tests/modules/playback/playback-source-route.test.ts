@@ -6,9 +6,14 @@ const getPlaybackSourcesMock = vi.hoisted(() => vi.fn());
 const switchPlaybackSourceMock = vi.hoisted(() => vi.fn());
 const createPlaybackProgressStoreMock = vi.hoisted(() => vi.fn());
 const deleteHistoryPlaybackProgressMock = vi.hoisted(() => vi.fn());
+const ensureEdgeOneKvBindingsForNodeMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/auth", () => ({
   auth: authMock,
+}));
+
+vi.mock("@/infrastructure/edgeone/node-kv-bindings", () => ({
+  ensureEdgeOneKvBindingsForNode: ensureEdgeOneKvBindingsForNodeMock,
 }));
 
 vi.mock("@/modules/playback/server/playback-progress-service", async (importOriginal) => {
@@ -55,26 +60,17 @@ describe("playback source API route", () => {
     set: vi.fn(async () => undefined),
   };
 
-  const originalStorageType = process.env.STORAGE_TYPE;
-
   beforeEach(() => {
     authMock.mockReset();
     getPlaybackSourcesMock.mockReset();
     switchPlaybackSourceMock.mockReset();
     createPlaybackProgressStoreMock.mockReset();
     deleteHistoryPlaybackProgressMock.mockReset();
-    process.env.STORAGE_TYPE = "upstash";
+    ensureEdgeOneKvBindingsForNodeMock.mockReset();
   });
 
   afterEach(() => {
     vi.useRealTimers();
-
-    if (originalStorageType === undefined) {
-      delete process.env.STORAGE_TYPE;
-      return;
-    }
-
-    process.env.STORAGE_TYPE = originalStorageType;
   });
 
   it("streams playback source results as SSE", async () => {
@@ -105,10 +101,13 @@ describe("playback source API route", () => {
     expect(getPlaybackSourcesMock).toHaveBeenCalledWith(
       { index: "2026:anime:深空彼岸" },
       expect.objectContaining({
+        maxPages: 1,
         onResult: expect.any(Function),
         onStart: expect.any(Function),
+        timeoutMs: expect.any(Number),
       }),
     );
+    expect(ensureEdgeOneKvBindingsForNodeMock).toHaveBeenCalled();
   });
 
   it("streams an error event when playback source lookup times out", async () => {
@@ -200,6 +199,7 @@ describe("playback source API route", () => {
       },
       expect.objectContaining({ userId: "user-1" }),
     );
+    expect(ensureEdgeOneKvBindingsForNodeMock).toHaveBeenCalled();
   });
 
   it("accepts a JSON body that was stringified twice", async () => {
@@ -305,6 +305,48 @@ describe("playback source API route", () => {
       "user-1",
       { id: "80473", source: "beta" },
       expect.objectContaining({ store: progressStore }),
+    );
+  });
+
+  it("creates a progress store without a storage backend switch", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } });
+    createPlaybackProgressStoreMock.mockReturnValue(progressStore);
+    switchPlaybackSourceMock.mockResolvedValue({
+      episodes: [],
+      progress: {
+        id: "80474",
+        play_episodes: 2,
+        play_time: 125,
+        source: "alpha",
+        total_time: 2708,
+      },
+      source_name: "Alpha Source",
+      sources: [],
+    });
+
+    const response = await route.POST(
+      new Request("http://localhost/api/play/sources", {
+        body: JSON.stringify({
+          currentId: "80473",
+          currentSource: "beta",
+          play_episodes: 2,
+          play_time: 125,
+          targetId: "80474",
+          targetSource: "alpha",
+          total_time: 2708,
+        }),
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(createPlaybackProgressStoreMock).toHaveBeenCalledTimes(1);
+    expect(switchPlaybackSourceMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        progressStore,
+        userId: "user-1",
+      }),
     );
   });
 });

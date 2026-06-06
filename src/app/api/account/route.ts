@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureEdgeOneKvBindingsForNode } from "@/infrastructure/edgeone/node-kv-bindings";
 import { getAccountByJwt } from "@/modules/auth/server/login-api-service";
 import { withApiTraffic } from "@/modules/stats";
 
@@ -15,6 +16,8 @@ function readBearerToken(request: Request): string {
 }
 
 export const GET = withApiTraffic(async function GET(request: Request) {
+  ensureEdgeOneKvBindingsForNode();
+
   const jwt = readBearerToken(request);
 
   if (!jwt) {

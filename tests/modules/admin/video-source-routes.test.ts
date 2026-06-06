@@ -7,6 +7,11 @@ import * as itemRoute from "@/app/api/admin/video-sources/[key]/route";
 const createVideoSourceMock = vi.hoisted(() => vi.fn());
 const batchUpdateVideoSourcesMock = vi.hoisted(() => vi.fn());
 const checkVideoSourceValiditiesMock = vi.hoisted(() => vi.fn());
+const ensureEdgeOneKvBindingsForNodeMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/infrastructure/edgeone/node-kv-bindings", () => ({
+  ensureEdgeOneKvBindingsForNode: ensureEdgeOneKvBindingsForNodeMock,
+}));
 
 vi.mock("@/modules/admin/server/video-source-service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/admin/server/video-source-service")>();
@@ -143,5 +148,6 @@ describe("video source API routes", () => {
         onStart: expect.any(Function),
       }),
     );
+    expect(ensureEdgeOneKvBindingsForNodeMock).toHaveBeenCalled();
   });
 });

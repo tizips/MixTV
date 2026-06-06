@@ -37,6 +37,8 @@ import { createPlaybackDanmakuUrl } from "../domain/playback-danmaku";
 
 const episodeGroupSize = 50;
 const playbackDurationSeconds = 45 * 60 + 8;
+const playbackProgressUploadIntervalMs = 30000;
+const playbackProgressInteractionDebounceMs = 1000;
 const defaultPlaybackVolume: number = 50;
 const playbackVolumeStorageKey = "mixtv.playback.volume";
 const playbackDanmakuStorageKey = "mixtv.playback.danmaku";
@@ -652,6 +654,7 @@ export function PlayPageShell({
   useEffect(() => {
     progressEndpointRef.current = progressEndpoint;
   }, [progressEndpoint]);
+  const progressUploadDebounceTimeoutRef = useRef<number | null>(null);
   const setPlaybackPosterVisible = useCallback(
     (art: Artplayer, visible: boolean) => {
       const posterElement = artContainerRef.current?.querySelector(
@@ -739,6 +742,25 @@ export function PlayPageShell({
       method: "POST",
     }).catch(() => undefined);
   }, [hasPlaybackPlaceholderError, playbackData]);
+  const clearPendingPlaybackProgressUpload = useCallback(() => {
+    if (progressUploadDebounceTimeoutRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(progressUploadDebounceTimeoutRef.current);
+    progressUploadDebounceTimeoutRef.current = null;
+  }, []);
+  const schedulePlaybackProgressUpload = useCallback(() => {
+    clearPendingPlaybackProgressUpload();
+    progressUploadDebounceTimeoutRef.current = window.setTimeout(() => {
+      progressUploadDebounceTimeoutRef.current = null;
+      uploadPlaybackProgress();
+    }, playbackProgressInteractionDebounceMs);
+  }, [clearPendingPlaybackProgressUpload, uploadPlaybackProgress]);
+  const flushPlaybackProgressUpload = useCallback(() => {
+    clearPendingPlaybackProgressUpload();
+    uploadPlaybackProgress();
+  }, [clearPendingPlaybackProgressUpload, uploadPlaybackProgress]);
   useEffect(() => {
     if (!playbackData?.index) {
       return;
@@ -997,7 +1019,8 @@ export function PlayPageShell({
     const nextTime = clamp(art.currentTime + seconds, 0, maxSeconds);
     art.currentTime = nextTime;
     currentPlaybackSecondsRef.current = nextTime;
-  }, []);
+    schedulePlaybackProgressUpload();
+  }, [schedulePlaybackProgressUpload]);
   useEffect(() => {
     playbackActionsRef.current = {
       skipPlayback,
@@ -1196,7 +1219,7 @@ export function PlayPageShell({
         art.on("video:loadeddata", () => capturePlaybackCover(art));
         art.on("video:seeked", () => {
           capturePlaybackCover(art);
-          uploadPlaybackProgress();
+          schedulePlaybackProgressUpload();
         });
         art.on("video:play", () => {
           setPlaybackError(null);
@@ -1207,10 +1230,10 @@ export function PlayPageShell({
         });
         art.on("video:pause", () => {
           setIsPlaying(false);
-          uploadPlaybackProgress();
+          flushPlaybackProgressUpload();
         });
         art.on("video:ended", () => {
-          uploadPlaybackProgress();
+          flushPlaybackProgressUpload();
           playNextEpisode();
         });
         art.on("video:canplay", () => {
@@ -1267,7 +1290,9 @@ export function PlayPageShell({
     playbackCoverDefaultUrl,
     playNextEpisode,
     setPlaybackPosterVisible,
+    flushPlaybackProgressUpload,
     uploadPlaybackProgress,
+    schedulePlaybackProgressUpload,
   ]);
 
   useEffect(() => {
@@ -1283,7 +1308,10 @@ export function PlayPageShell({
       return;
     }
 
-    const intervalId = window.setInterval(uploadPlaybackProgress, 20000);
+    const intervalId = window.setInterval(
+      uploadPlaybackProgress,
+      playbackProgressUploadIntervalMs,
+    );
 
     return () => {
       window.clearInterval(intervalId);
@@ -1291,10 +1319,10 @@ export function PlayPageShell({
   }, [isPlaying, uploadPlaybackProgress]);
 
   useEffect(() => {
-    const handlePageHide = () => uploadPlaybackProgress();
+    const handlePageHide = () => flushPlaybackProgressUpload();
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        uploadPlaybackProgress();
+        flushPlaybackProgressUpload();
       }
     };
 
@@ -1305,7 +1333,13 @@ export function PlayPageShell({
       window.removeEventListener("pagehide", handlePageHide);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [uploadPlaybackProgress]);
+  }, [flushPlaybackProgressUpload]);
+
+  useEffect(() => {
+    return () => {
+      clearPendingPlaybackProgressUpload();
+    };
+  }, [clearPendingPlaybackProgressUpload]);
 
   useEffect(() => {
     volumeRef.current = volume;
