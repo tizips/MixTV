@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   clearCache,
+  cleanupExpiredCacheKvEntries,
   getCacheData,
   refreshCacheStats,
   type AdminModulesStore,
@@ -35,5 +36,23 @@ describe("cache management service", () => {
 
     const clearedAll = await clearCache({ key: null }, store);
     expect(clearedAll.categories.every((category) => category.items === 0 && category.sizeKb === 0)).toBe(true);
+  });
+
+  it("cleans expired records from the cache KV namespace", async () => {
+    const currentTime = 1768435200000;
+    const store = createFakeStore();
+    const scriptMock = vi.fn(async () => ({ deleted: 2, scanned: 4 })) as AdminModulesStore["script"];
+
+    store.script = scriptMock;
+
+    await expect(cleanupExpiredCacheKvEntries({ now: () => currentTime, store })).resolves.toEqual({
+      completedAt: "2026-01-15T00:00:00.000Z",
+      deleted: 2,
+      scanned: 4,
+    });
+    expect(scriptMock).toHaveBeenCalledWith(expect.stringContaining('redis.call("SCAN"'), {
+      args: ["*", 1000, currentTime],
+      readOnly: false,
+    });
   });
 });

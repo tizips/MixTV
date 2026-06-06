@@ -1,13 +1,15 @@
 # GitHub Actions Cron Notes
 
-This repository uses three separate workflows under [.github/workflows/](/Users/orange/Developer/Project/nextjs/MixTV/.github/workflows) to trigger the scheduled API jobs:
+This repository uses separate workflows under [.github/workflows/](/Users/orange/Developer/Project/nextjs/MixTV/.github/workflows) to trigger the scheduled API jobs:
 
+- `/api/cron/cache-cleanup`
 - `/api/cron/history`
 - `/api/cron/subscription`
 - `/api/cron/source-check`
 
 Workflow files:
 
+- [.github/workflows/cron-cache-cleanup.yml](/Users/orange/Developer/Project/nextjs/MixTV/.github/workflows/cron-cache-cleanup.yml)
 - [.github/workflows/cron-history.yml](/Users/orange/Developer/Project/nextjs/MixTV/.github/workflows/cron-history.yml)
 - [.github/workflows/cron-subscription.yml](/Users/orange/Developer/Project/nextjs/MixTV/.github/workflows/cron-subscription.yml)
 - [.github/workflows/cron-source-check.yml](/Users/orange/Developer/Project/nextjs/MixTV/.github/workflows/cron-source-check.yml)
@@ -26,7 +28,7 @@ That pattern means the request usually reached the endpoint and the server retur
 
 ## Current mitigation
 
-All three cron workflows now use the same pattern:
+All cron workflows now use the same pattern:
 
 - write the response body to a temporary file
 - check for HTTP `200`
