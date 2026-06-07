@@ -14,7 +14,6 @@ import type { MenuProps } from "antd";
 import { Button, Divider, Dropdown, Modal, Tag, Typography } from "antd";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { signOut } from "next-auth/react";
 import Link from "next/link";
 
 type UserMenuProps = {
@@ -153,7 +152,16 @@ export function UserMenu({ userName, isAdmin = false }: UserMenuProps) {
 
   const handleConfirmLogout = () => {
     setIsLogoutDialogOpen(false);
-    void signOut({ redirectTo: "/login" });
+
+    void (async () => {
+      try {
+        await fetch("/api/logout", {
+          method: "POST",
+        });
+      } finally {
+        globalThis.location.assign("/login");
+      }
+    })();
   };
 
   return (

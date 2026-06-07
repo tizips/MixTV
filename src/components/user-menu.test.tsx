@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
+import { signOut } from "next-auth/react";
 import { UserMenu } from "./user-menu";
 
 vi.mock("next/link", () => ({
@@ -150,6 +151,67 @@ describe("UserMenu", () => {
     expect(host.querySelector('a[data-prefetch="false"][href="/settings"]')).not.toBeNull();
     expect(host.querySelector('a[data-prefetch="false"][href="/history"]')).not.toBeNull();
     expect(host.querySelector('a[data-prefetch="false"][href="/favorites"]')).not.toBeNull();
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("logs out through the local logout API instead of NextAuth client signOut", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/history/update-count") {
+        return new Response(JSON.stringify({ history: 0 }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      if (String(input) === "/api/logout") {
+        return new Response(null, { status: 204 });
+      }
+
+      throw new Error(`Unexpected fetch: ${String(input)}`);
+    });
+    const locationAssignMock = vi.fn();
+
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("location", { assign: locationAssignMock });
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(<UserMenu userName="橘子" isAdmin />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const logoutButton = Array.from(host.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("登出") && !button.textContent?.includes("确认"),
+    );
+
+    expect(logoutButton).not.toBeUndefined();
+
+    await act(async () => {
+      logoutButton?.click();
+      await Promise.resolve();
+    });
+
+    const confirmButton = Array.from(host.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("确认登出"),
+    );
+
+    expect(confirmButton).not.toBeUndefined();
+
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/logout", { method: "POST" });
+    expect(locationAssignMock).toHaveBeenCalledWith("/login");
+    expect(signOut).not.toHaveBeenCalled();
 
     act(() => {
       root.unmount();
