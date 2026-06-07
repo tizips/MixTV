@@ -4,6 +4,11 @@ import * as loginRoute from "@/app/api/login/route";
 const authenticateLoginRequestMock = vi.hoisted(() => vi.fn());
 const getAccountByJwtMock = vi.hoisted(() => vi.fn());
 const encodeMock = vi.hoisted(() => vi.fn());
+const ensureEdgeOneKvBindingsForNodeMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/infrastructure/edgeone/node-kv-bindings", () => ({
+  ensureEdgeOneKvBindingsForNode: ensureEdgeOneKvBindingsForNodeMock,
+}));
 
 vi.mock("@/modules/auth/server/login-api-service", () => ({
   authenticateLoginRequest: authenticateLoginRequestMock,
@@ -19,6 +24,7 @@ describe("login API route", () => {
     authenticateLoginRequestMock.mockReset();
     getAccountByJwtMock.mockReset();
     encodeMock.mockReset();
+    ensureEdgeOneKvBindingsForNodeMock.mockReset();
     getAccountByJwtMock.mockResolvedValue({
       admin: true,
       id: "admin",
@@ -27,8 +33,8 @@ describe("login API route", () => {
     encodeMock.mockResolvedValue("auth-session-token");
   });
 
-  it("uses the Edge runtime so EdgeOne reads login request bodies through Web APIs", () => {
-    expect(loginRoute.runtime).toBe("edge");
+  it("uses the Node.js runtime so EdgeOne KV bindings can be prepared for login config", () => {
+    expect(loginRoute.runtime).toBe("nodejs");
   });
 
   it("rejects invalid JSON before authenticating", async () => {
@@ -124,6 +130,26 @@ describe("login API route", () => {
       password: "Secret@123",
       username: "admin",
     });
+  });
+
+  it("initializes EdgeOne KV bindings before authenticating credentials", async () => {
+    authenticateLoginRequestMock.mockResolvedValue({ jwt: "signed.jwt" });
+
+    const response = await loginRoute.POST(
+      new Request("http://localhost/api/login", {
+        body: JSON.stringify({
+          password: "Secret@123",
+          username: "admin",
+        }),
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(ensureEdgeOneKvBindingsForNodeMock).toHaveBeenCalledOnce();
+    expect(ensureEdgeOneKvBindingsForNodeMock.mock.invocationCallOrder[0]).toBeLessThan(
+      authenticateLoginRequestMock.mock.invocationCallOrder[0],
+    );
   });
 
   it("sets an Auth.js session cookie when credentials are accepted", async () => {

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { ensureEdgeOneKvBindingsForNode } from "@/infrastructure/edgeone/node-kv-bindings";
 import { z } from "zod";
 import { authenticateLoginRequest, getAccountByJwt } from "@/modules/auth/server/login-api-service";
 import { createAuthSessionCookie } from "@/modules/auth/server/session-cookie";
 import { usernamePattern, userPasswordPattern } from "@/shared/user-credentials";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const loginRequestSchema = z
   .object({
@@ -18,6 +19,8 @@ function badRequest(message: string) {
 }
 
 export async function POST(request: Request) {
+  ensureEdgeOneKvBindingsForNode();
+
   let payload: unknown;
 
   try {
