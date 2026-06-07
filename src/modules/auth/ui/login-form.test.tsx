@@ -14,6 +14,7 @@ const routerState = vi.hoisted(() => ({
 const authState = vi.hoisted(() => ({
   signIn: vi.fn(),
 }));
+const fetchMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
   useRouter: () => routerState,
@@ -39,23 +40,23 @@ function renderLoginForm() {
 
 beforeEach(() => {
   authState.signIn.mockReset();
+  fetchMock.mockReset();
   routerState.refresh.mockReset();
   routerState.replace.mockReset();
+  vi.stubGlobal("fetch", fetchMock);
 });
 
 afterEach(() => {
   document.body.innerHTML = "";
+  vi.unstubAllGlobals();
 });
 
 describe("LoginForm", () => {
   it("shows an inline error when credentials are rejected", async () => {
-    authState.signIn.mockResolvedValue({
-      code: "credentials",
-      error: "CredentialsSignin",
-      ok: true,
-      status: 200,
-      url: null,
-    });
+    fetchMock.mockResolvedValue(new Response(
+      JSON.stringify({ message: "Invalid username or password." }),
+      { status: 401 },
+    ));
 
     const { host, root } = renderLoginForm();
     const form = host.querySelector("form");
@@ -79,12 +80,17 @@ describe("LoginForm", () => {
       form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
 
-    expect(authState.signIn).toHaveBeenCalledWith("credentials", {
-      password: "test",
-      redirect: false,
-      redirectTo: "/search",
-      username: "test",
+    expect(fetchMock).toHaveBeenCalledWith("/api/login", {
+      body: JSON.stringify({
+        password: "test",
+        username: "test",
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
     });
+    expect(authState.signIn).not.toHaveBeenCalled();
     const currentUsername = host.querySelector("#login-username") as HTMLInputElement | null;
     const currentPassword = host.querySelector("#login-password") as HTMLInputElement | null;
 
@@ -100,13 +106,10 @@ describe("LoginForm", () => {
   });
 
   it("navigates when sign-in succeeds", async () => {
-    authState.signIn.mockResolvedValue({
-      code: undefined,
-      error: undefined,
-      ok: true,
-      status: 200,
-      url: "/search",
-    });
+    fetchMock.mockResolvedValue(new Response(
+      JSON.stringify({ jwt: "signed.jwt" }),
+      { status: 200 },
+    ));
 
     const { host, root } = renderLoginForm();
     const form = host.querySelector("form");
@@ -130,6 +133,17 @@ describe("LoginForm", () => {
       form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
 
+    expect(fetchMock).toHaveBeenCalledWith("/api/login", {
+      body: JSON.stringify({
+        password: "secret",
+        username: "orange",
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
+    expect(authState.signIn).not.toHaveBeenCalled();
     expect(routerState.replace).toHaveBeenCalledWith("/search");
     expect(routerState.refresh).not.toHaveBeenCalled();
     expect(host.textContent).not.toContain("Incorrect username or password.");

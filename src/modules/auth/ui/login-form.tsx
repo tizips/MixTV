@@ -3,7 +3,6 @@
 import { ApiOutlined, StarFilled } from "@ant-design/icons";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
 import { Button, Card, Col, Form, Input, Row, Typography } from "antd";
 import { env } from "@/shared/env";
 
@@ -22,14 +21,18 @@ export function LoginForm({ nextPath }: LoginFormProps) {
 
     void (async () => {
       try {
-        const result = await signIn("credentials", {
-          password: values.password,
-          redirect: false,
-          redirectTo: nextPath,
-          username: values.username,
+        const response = await fetch("/api/login", {
+          body: JSON.stringify({
+            password: values.password,
+            username: values.username,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+          method: "POST",
         });
 
-        if (result?.error || !result?.ok) {
+        if (!response.ok) {
           setError("Incorrect username or password.");
           return;
         }

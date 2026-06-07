@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { authorizeCredentials } from "@/modules/auth/server/credentials-authorize";
+import { authSessionSecret } from "@/modules/auth/server/session-cookie";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
@@ -44,7 +45,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       name: "Credentials",
     }),
   ],
-  secret: "mixtv-development-auth-secret",
+  secret: authSessionSecret,
   session: {
     strategy: "jwt",
   },

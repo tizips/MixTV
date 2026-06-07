@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { ensureEdgeOneKvBindingsForNode } from "@/infrastructure/edgeone/node-kv-bindings";
 import { z } from "zod";
-import { authenticateLoginRequest } from "@/modules/auth/server/login-api-service";
+import { authenticateLoginRequest, getAccountByJwt } from "@/modules/auth/server/login-api-service";
+import { createAuthSessionCookie } from "@/modules/auth/server/session-cookie";
 import { withApiTraffic } from "@/modules/stats";
 import { usernamePattern, userPasswordPattern } from "@/shared/user-credentials";
 
@@ -54,7 +55,21 @@ export const POST = withApiTraffic(async function POST(request: Request) {
       return NextResponse.json({ message: "Invalid username or password." }, { status: 401 });
     }
 
-    return NextResponse.json(result);
+    const account = await getAccountByJwt(result.jwt);
+
+    if (!account) {
+      return NextResponse.json({ message: "Invalid username or password." }, { status: 401 });
+    }
+
+    const response = NextResponse.json(result);
+    const sessionCookie = await createAuthSessionCookie(request, {
+      ...account,
+      accessToken: result.jwt,
+    });
+
+    response.cookies.set(sessionCookie.name, sessionCookie.value, sessionCookie.options);
+
+    return response;
   } catch {
     return NextResponse.json({ message: "Login service is not configured." }, { status: 500 });
   }
