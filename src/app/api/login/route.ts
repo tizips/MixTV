@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
-import { ensureEdgeOneKvBindingsForNode } from "@/infrastructure/edgeone/node-kv-bindings";
 import { z } from "zod";
 import { authenticateLoginRequest, getAccountByJwt } from "@/modules/auth/server/login-api-service";
 import { createAuthSessionCookie } from "@/modules/auth/server/session-cookie";
-import { withApiTraffic } from "@/modules/stats";
 import { usernamePattern, userPasswordPattern } from "@/shared/user-credentials";
 
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 const loginRequestSchema = z
   .object({
@@ -19,9 +17,7 @@ function badRequest(message: string) {
   return NextResponse.json({ message }, { status: 400 });
 }
 
-export const POST = withApiTraffic(async function POST(request: Request) {
-  ensureEdgeOneKvBindingsForNode();
-
+export async function POST(request: Request) {
   let payload: unknown;
 
   try {
@@ -73,4 +69,4 @@ export const POST = withApiTraffic(async function POST(request: Request) {
   } catch {
     return NextResponse.json({ message: "Login service is not configured." }, { status: 500 });
   }
-});
+}

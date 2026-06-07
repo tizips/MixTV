@@ -27,8 +27,28 @@ describe("login API route", () => {
     encodeMock.mockResolvedValue("auth-session-token");
   });
 
-  it("uses the Node.js runtime", () => {
-    expect(loginRoute.runtime).toBe("nodejs");
+  it("uses the Edge runtime so EdgeOne reads login request bodies through Web APIs", () => {
+    expect(loginRoute.runtime).toBe("edge");
+  });
+
+  it("rejects invalid JSON before authenticating", async () => {
+    authenticateLoginRequestMock.mockResolvedValue({ jwt: "signed.jwt" });
+
+    const response = await loginRoute.POST(
+      new Request("http://localhost/api/login", {
+        body: "username=admin&password=Secret@123",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      }),
+    );
+
+    await expect(response.json()).resolves.toEqual({
+      message: "Request body must be valid JSON.",
+    });
+    expect(response.status).toBe(400);
+    expect(authenticateLoginRequestMock).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported login payload fields before authenticating", async () => {
