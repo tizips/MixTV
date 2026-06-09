@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { searchMediaSources, type MediaSearchOptions } from "./media-search-service";
 import type { SiteConfigStore } from "@/modules/admin/server/site-config-service";
 import type { VideoSourceStore } from "@/modules/admin/server/video-source-service";
+import { createEdgeOneKvHashStore } from "../../../../tests/helpers/fake-edgeone-kv";
 
-function createSiteConfigStore(): Pick<SiteConfigStore, "script"> {
-  return {
-    script: vi.fn(async () => ({
+function createSiteConfigStore(): Promise<SiteConfigStore> {
+  return createEdgeOneKvHashStore({
+    site: {
       siteName: "MixTV",
       siteAnnouncement: "",
       doubanDataProxyMode: "direct",
@@ -16,13 +17,13 @@ function createSiteConfigStore(): Pick<SiteConfigStore, "script"> {
       enableKeywordFilter: "true",
       enableStreamingSearch: "true",
       showAdultContent: "false",
-    })),
-  };
+    },
+  }, { namespace: "admin" });
 }
 
-function createVideoSourceStore(): Pick<VideoSourceStore, "script"> {
-  return {
-    script: vi.fn(async () => ({
+function createVideoSourceStore(): Promise<VideoSourceStore> {
+  return createEdgeOneKvHashStore({
+    sources: {
       alpha: JSON.stringify({
         adult: false,
         apiUrl: "https://source.test/api",
@@ -34,14 +35,14 @@ function createVideoSourceStore(): Pick<VideoSourceStore, "script"> {
         validity: "valid",
         weight: 50,
       }),
-    })),
-  };
+    },
+  }, { namespace: "admin" });
 }
 
 describe("media search service", () => {
   it("aggregates results with a year:type:title index", async () => {
-    const siteConfigStore = createSiteConfigStore();
-    const videoSourceStore = createVideoSourceStore();
+    const siteConfigStore = await createSiteConfigStore();
+    const videoSourceStore = await createVideoSourceStore();
     const searcher: NonNullable<MediaSearchOptions["searcher"]> = vi.fn(async () => [
       {
         className: "电视剧",

@@ -1,19 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { EdgeOneKvBinding } from "@/infrastructure/db/edgeone-kv-db-adapter";
+import { afterEach, describe, expect, it } from "vitest";
+import { readEdgeOneKvHash, type EdgeOneKvBinding, writeEdgeOneKvHash } from "@/infrastructure/db/edgeone-kv-db-adapter";
 import { resetRuntimeEnvCacheForTest } from "@/shared/runtime-env";
-
-const createDbAdapterMock = vi.hoisted(() =>
-  vi.fn(() => ({
-    del: vi.fn(async () => undefined),
-    get: vi.fn(async () => null),
-    script: vi.fn(async <TResult = unknown>() => ({} as TResult)),
-    set: vi.fn(async () => undefined),
-  })),
-);
-
-vi.mock("@/infrastructure/db/db-adapter", () => ({
-  createDbAdapter: createDbAdapterMock,
-}));
+import { FakeEdgeOneKvBinding } from "../../helpers/fake-edgeone-kv";
 
 import {
   createUser,
@@ -51,65 +39,34 @@ class FakeEnvKvBinding implements EdgeOneKvBinding {
 
 afterEach(() => {
   delete (globalThis as typeof globalThis & { env?: EdgeOneKvBinding }).env;
+  delete (globalThis as typeof globalThis & { cfg?: EdgeOneKvBinding }).cfg;
   resetRuntimeEnvCacheForTest();
 });
 
-const createFakeStore = (initial: Record<string, string> = {}): UserConfigStore => {
-  const hash = new Map(Object.entries(initial));
+const createFakeStore = async (initial: Record<string, string> = {}): Promise<UserConfigStore> => {
+  const store = new FakeEdgeOneKvBinding();
 
-  return {
-    del: vi.fn(async () => undefined),
-    get: vi.fn(async () => null),
-    script: vi.fn(async <TResult = unknown>(script: string, options = {}) => {
-      const runOptions = options as { args?: unknown[] };
+  if (Object.keys(initial).length > 0) {
+    await writeEdgeOneKvHash(store, "users", initial, { namespace: "admin" });
+  }
 
-      if (script.includes("HGETALL")) {
-        return Object.fromEntries(hash) as TResult;
-      }
-
-      if (script.includes("HSET")) {
-        const [id, rawUser] = runOptions.args ?? [];
-
-        if (typeof id === "string" && typeof rawUser === "string") {
-          hash.set(id, rawUser);
-        }
-
-        return 1 as TResult;
-      }
-
-      if (script.includes("HDEL")) {
-        const [username] = runOptions.args ?? [];
-
-        if (typeof username === "string") {
-          hash.delete(username);
-        }
-
-        return 1 as TResult;
-      }
-
-      return {} as TResult;
-    }) as UserConfigStore["script"],
-    set: vi.fn(async () => undefined),
-  };
+  return store;
 };
 
 describe("user config service", () => {
   it("creates the user config store with the admin namespace", () => {
-    createUserConfigStore();
+    const binding = new FakeEdgeOneKvBinding();
+    (globalThis as typeof globalThis & { cfg?: EdgeOneKvBinding }).cfg = binding;
 
-    expect(createDbAdapterMock).toHaveBeenCalledWith({ namespace: "admin" });
+    expect(createUserConfigStore()).toBe(binding);
   });
 
   it("returns an empty collection when the redis hash is empty", async () => {
-    const store = createFakeStore();
+    const store = await createFakeStore();
 
     await expect(getUsers(store)).resolves.toEqual({
       updatedAt: null,
       users: [],
-    });
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HGETALL"), {
-      keys: ["users"],
-      readOnly: true,
     });
   });
 
@@ -121,7 +78,7 @@ describe("user config service", () => {
       createdAt: "2026-05-14T01:00:00.000Z",
       updatedAt: null,
     };
-    const store = createFakeStore({ [user.username]: JSON.stringify(user) });
+    const store = await createFakeStore({ [user.username]: JSON.stringify(user) });
 
     await expect(getUsers(store)).resolves.toEqual({
       updatedAt: user.createdAt,
@@ -130,7 +87,7 @@ describe("user config service", () => {
   });
 
   it("creates, updates, and deletes users through redis hash commands", async () => {
-    const store = createFakeStore();
+    const store = await createFakeStore();
     const created = await createUser(
       {
         password: "Secret@123",
@@ -143,38 +100,23 @@ describe("user config service", () => {
 
     expect(created.username).toBe("dave");
     expect(created).not.toHaveProperty("id");
-    expect(store.set).not.toHaveBeenCalledWith("users", expect.anything());
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: [created.username, expect.not.stringContaining('"id"')],
-      keys: ["users"],
-    });
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: [created.username, expect.stringContaining('"passwordHash"')],
-      keys: ["users"],
-    });
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: [created.username, expect.not.stringContaining('"password"')],
-      keys: ["users"],
-    });
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: [created.username, expect.not.stringContaining("secret")],
-      keys: ["users"],
-    });
+    const createdRecord = (await readEdgeOneKvHash(store, "users", { namespace: "admin" }))[created.username] ?? "";
+    expect(createdRecord).not.toContain('"id"');
+    expect(createdRecord).toContain('"passwordHash"');
+    expect(createdRecord).not.toContain('"password"');
+    expect(createdRecord).not.toContain("secret");
 
     const updated = await updateUser(created.username, [{ role: "owner" }], store);
     expect(updated.users.find((user) => user.username === created.username)?.role).toBe("owner");
 
     const deleted = await deleteUser(created.username, store);
     expect(deleted.users.some((user) => user.username === created.username)).toBe(false);
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HDEL"), {
-      args: [created.username],
-      keys: ["users"],
-    });
+    expect((await readEdgeOneKvHash(store, "users", { namespace: "admin" }))[created.username]).toBeUndefined();
     await expect(getUsers(store)).resolves.toEqual(deleted);
   });
 
   it("updates only keys supplied in user patch arrays", async () => {
-    const store = createFakeStore();
+    const store = await createFakeStore();
     await createUser(
       {
         password: "Oldsecret#1",
@@ -206,6 +148,8 @@ describe("user config service", () => {
       USERNAME: "admin",
     });
 
+    const store = await createFakeStore();
+
     await expect(
       createUser(
         {
@@ -214,13 +158,13 @@ describe("user config service", () => {
           status: "active",
           username: " admin ",
         },
-        createFakeStore(),
+        store,
       ),
     ).rejects.toThrow("username conflicts with the configured admin user.");
   });
 
   it("updates a user's password without exposing it in the response", async () => {
-    const store = createFakeStore();
+    const store = await createFakeStore();
     await createUser(
       {
         password: "Oldsecret@1",
@@ -238,22 +182,14 @@ describe("user config service", () => {
     expect(updatedUser).toBeDefined();
     expect(updatedUser).not.toHaveProperty("password");
     expect(updatedUser?.updatedAt).toEqual(expect.any(String));
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: ["erin", expect.stringContaining('"passwordHash"')],
-      keys: ["users"],
-    });
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: ["erin", expect.not.stringContaining('"password"')],
-      keys: ["users"],
-    });
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: ["erin", expect.not.stringContaining("Newsecret@1")],
-      keys: ["users"],
-    });
+    const updatedRecord = (await readEdgeOneKvHash(store, "users", { namespace: "admin" })).erin ?? "";
+    expect(updatedRecord).toContain('"passwordHash"');
+    expect(updatedRecord).not.toContain('"password"');
+    expect(updatedRecord).not.toContain("Newsecret@1");
   });
 
   it("verifies stored password hashes without requiring plaintext storage", async () => {
-    const store = createFakeStore();
+    const store = await createFakeStore();
     await createUser(
       {
         password: "Correct.1",
@@ -269,7 +205,7 @@ describe("user config service", () => {
   });
 
   it("rejects usernames and passwords outside the credential format rules", async () => {
-    const store = createFakeStore();
+    const store = await createFakeStore();
 
     await expect(
       createUser(

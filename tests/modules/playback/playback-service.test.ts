@@ -2,17 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 import type { VideoSourceResource } from "@/integrations/video-sources";
 import type { VideoSourceStore } from "@/modules/admin";
 import { getPlaybackPageData } from "@/modules/playback/server/playback-service";
-import type { DbPort, DbScriptOptions } from "@/shared/db/db-port";
+import {
+  createEdgeOneKvHashStore,
+  createEdgeOneKvStringStore,
+  dumpEdgeOneKvHash,
+  dumpEdgeOneKvString,
+} from "../../helpers/fake-edgeone-kv";
 
-function createStore(record: Record<string, string>): VideoSourceStore {
-  const script: VideoSourceStore["script"] = async <TResult = unknown>() => record as TResult;
-
-  return {
-    get: vi.fn(),
-    set: vi.fn(),
-    del: vi.fn(),
-    script: vi.fn(script) as VideoSourceStore["script"],
-  };
+function createStore(record: Record<string, string>): Promise<VideoSourceStore> {
+  return createEdgeOneKvHashStore({
+    sources: record,
+  }, { namespace: "admin" });
 }
 
 function createSource(overrides: Record<string, unknown> = {}) {
@@ -31,104 +31,20 @@ function createSource(overrides: Record<string, unknown> = {}) {
   });
 }
 
-function createCacheStore(initialValues: Record<string, unknown> = {}): DbPort<unknown, string> {
-  const values = new Map(Object.entries(initialValues).map(([key, value]) => [key, JSON.stringify(value)]));
-  const script: DbPort<unknown, string>["script"] = async <TResult = unknown>(
-    scriptText: string,
-    options: DbScriptOptions<string> = {},
-  ) => {
-    const key = options.keys?.[0] ?? "";
-
-    if (scriptText.includes("HGETALL")) {
-      return Object.entries(Object.fromEntries(values)).flat() as TResult;
-    }
-
-    if (scriptText.includes("GET")) {
-      return (values.get(key) ?? null) as TResult;
-    }
-
-    values.set(key, String(options.args?.[0] ?? ""));
-    return 1 as TResult;
-  };
-
-  return {
-    get: vi.fn(),
-    set: vi.fn(),
-    del: vi.fn(),
-    script: vi.fn(script) as DbPort<unknown, string>["script"],
-  };
+function createCacheStore(initialValues: Record<string, unknown> = {}) {
+  return createEdgeOneKvStringStore(initialValues);
 }
 
-type ScriptProgressStore = DbPort<unknown, string> & {
-  dumpHash: (key: string) => Record<string, string>;
-};
-
-type ScriptFavoriteStore = DbPort<unknown, string> & {
-  dumpHash: (key: string) => Record<string, string>;
-};
-
-function createProgressStore(initialValues: Record<string, unknown> = {}): ScriptProgressStore {
-  const values = new Map(
-    Object.entries(initialValues).map(([field, value]) => [field, typeof value === "string" ? value : JSON.stringify(value)]),
-  );
-  const script: ScriptProgressStore["script"] = async <TResult = unknown>(scriptText: string, options?: DbScriptOptions<string>) => {
-    const field = String(options?.args?.[0] ?? "");
-
-    if (scriptText.includes("HGETALL")) {
-      return Object.entries(Object.fromEntries(values)).flat() as TResult;
-    }
-
-    if (scriptText.includes("HGET")) {
-      return (values.get(field) ?? null) as TResult;
-    }
-
-    if (scriptText.includes("HSET")) {
-      values.set(field, String(options?.args?.[1] ?? ""));
-      return String(options?.args?.[1] ?? "") as TResult;
-    }
-
-    if (scriptText.includes("HDEL")) {
-      values.delete(field);
-      return 1 as TResult;
-    }
-
-    return null as TResult;
-  };
-
-  return {
-    del: vi.fn(),
-    dumpHash(key) {
-      return key === "user-1:pr" ? Object.fromEntries(values) : {};
-    },
-    get: vi.fn(),
-    set: vi.fn(),
-    script: vi.fn(script) as ScriptProgressStore["script"],
-  };
+function createProgressStore(initialValues: Record<string, unknown> = {}) {
+  return createEdgeOneKvHashStore({
+    "user-1:pr": initialValues,
+  }, { namespace: "user" });
 }
 
-function createFavoriteStore(initialValues: Record<string, unknown> = {}): ScriptFavoriteStore {
-  const values = new Map(
-    Object.entries(initialValues).map(([field, value]) => [field, typeof value === "string" ? value : JSON.stringify(value)]),
-  );
-  const script: ScriptFavoriteStore["script"] = async <TResult = unknown>(scriptText: string, options?: DbScriptOptions<string>) => {
-    const field = String(options?.args?.[0] ?? "");
-
-    if (scriptText.includes("HGET")) {
-      return (values.get(field) ?? null) as TResult;
-    }
-
-    return null as TResult;
-  };
-
-  return {
-    del: vi.fn(),
-    dumpHash(key) {
-      return key === "user-1:fav" ? Object.fromEntries(values) : {};
-    },
-    get: vi.fn(),
-    set: vi.fn(),
-    script: vi.fn(script) as ScriptFavoriteStore["script"],
-  };
+function createFavoriteStore(initialValues: Record<string, unknown> = {}) {
+  return createEdgeOneKvHashStore({
+    "user-1:fav": initialValues,
+  }, { namespace: "user" });
 }
 
 function createResource(overrides: Partial<VideoSourceResource> = {}): VideoSourceResource {
@@ -151,7 +67,7 @@ function createResource(overrides: Partial<VideoSourceResource> = {}): VideoSour
 
 describe("getPlaybackPageData", () => {
   it("returns a placeholder error when source is missing", async () => {
-    const result = await getPlaybackPageData({ id: "80474" }, { videoSourceStore: createStore({}) });
+    const result = await getPlaybackPageData({ id: "80474" }, { videoSourceStore: await createStore({}) });
 
     expect(result).toEqual({
       error: "缺少 source 或 id 参数，无法加载播放信息。",
@@ -160,7 +76,7 @@ describe("getPlaybackPageData", () => {
   });
 
   it("returns a placeholder error when id is missing", async () => {
-    const result = await getPlaybackPageData({ source: "dyttzyapi.com" }, { videoSourceStore: createStore({}) });
+    const result = await getPlaybackPageData({ source: "dyttzyapi.com" }, { videoSourceStore: await createStore({}) });
 
     expect(result).toEqual({
       error: "缺少 source 或 id 参数，无法加载播放信息。",
@@ -173,9 +89,9 @@ describe("getPlaybackPageData", () => {
     const result = await getPlaybackPageData(
       { id: "80474", source: "dyttzyapi.com" },
       {
-        cacheStore: createCacheStore(),
+        cacheStore: await createCacheStore(),
         detailFetcher,
-        videoSourceStore: createStore({ "dyttzyapi.com": createSource() }),
+        videoSourceStore: await createStore({ "dyttzyapi.com": createSource() }),
       },
     );
 
@@ -226,37 +142,31 @@ describe("getPlaybackPageData", () => {
 
   it("caches third-party detail for one hour by source key and resource id", async () => {
     const detailFetcher = vi.fn(async () => createResource({ doubanId: 34925294 }));
-    const cacheStore = createCacheStore();
+    const cacheStore = await createCacheStore();
 
     await getPlaybackPageData(
       { id: "80474", source: "dyttzyapi.com" },
       {
         cacheStore,
         detailFetcher,
-        videoSourceStore: createStore({ "dyttzyapi.com": createSource() }),
+        videoSourceStore: await createStore({ "dyttzyapi.com": createSource() }),
       },
     );
 
-    expect(cacheStore.script).toHaveBeenCalledWith(expect.stringContaining("EX"), {
-      args: [
-        JSON.stringify({
-          total_episodes: 2,
-          id: "80474",
-          idx: "douban:34925294",
-          key: "dyttzyapi.com",
-          cover: "https://image.test/poster.jpg",
-          source: "电影天堂资源",
-          title: "资源站标题",
-          year: "2026",
-          remarks: "更新至2集",
-          tag: "剧集",
-          episodes: ["https://media.test/1.m3u8", "https://media.test/2.m3u8"],
-          description: "播放详情简介",
-        }),
-        3600,
-      ],
-      keys: ["cache:video:dyttzyapi.com:80474"],
-    });
+    await expect(dumpEdgeOneKvString(cacheStore, "cache:video:dyttzyapi.com:80474")).resolves.toBe(JSON.stringify({
+      total_episodes: 2,
+      id: "80474",
+      idx: "douban:34925294",
+      key: "dyttzyapi.com",
+      cover: "https://image.test/poster.jpg",
+      source: "电影天堂资源",
+      title: "资源站标题",
+      year: "2026",
+      remarks: "更新至2集",
+      tag: "剧集",
+      episodes: ["https://media.test/1.m3u8", "https://media.test/2.m3u8"],
+      description: "播放详情简介",
+    }));
   });
 
   it("uses the third-party detail cache payload shape when reading cached resources", async () => {
@@ -264,7 +174,7 @@ describe("getPlaybackPageData", () => {
     const result = await getPlaybackPageData(
       { id: "80474", source: "dyttzyapi.com" },
       {
-        cacheStore: createCacheStore({
+        cacheStore: await createCacheStore({
           "cache:video:dyttzyapi.com:80474": {
             total_episodes: 2,
             id: "80474",
@@ -281,7 +191,7 @@ describe("getPlaybackPageData", () => {
           },
         }),
         detailFetcher,
-        videoSourceStore: createStore({ "dyttzyapi.com": createSource() }),
+        videoSourceStore: await createStore({ "dyttzyapi.com": createSource() }),
       },
     );
 
@@ -300,9 +210,9 @@ describe("getPlaybackPageData", () => {
     const result = await getPlaybackPageData(
       { id: "80474", source: "dyttzyapi.com" },
       {
-        cacheStore: createCacheStore({ "cache:video:dyttzyapi.com:80474": createResource({ title: "Cached Title" }) }),
+        cacheStore: await createCacheStore({ "cache:video:dyttzyapi.com:80474": createResource({ title: "Cached Title" }) }),
         detailFetcher,
-        videoSourceStore: createStore({ "dyttzyapi.com": createSource() }),
+        videoSourceStore: await createStore({ "dyttzyapi.com": createSource() }),
       },
     );
 
@@ -312,22 +222,22 @@ describe("getPlaybackPageData", () => {
 
   it("creates zero playback progress when a signed-in user opens a resource without existing progress", async () => {
     const detailFetcher = vi.fn(async () => createResource());
-    const progressStore = createProgressStore();
+    const progressStore = await createProgressStore();
 
     const result = await getPlaybackPageData(
       { id: "80474", source: "dyttzyapi.com" },
       {
-        cacheStore: createCacheStore(),
+        cacheStore: await createCacheStore(),
         detailFetcher,
         now: () => 1768535315661,
         progressStore,
         userId: "user-1",
-        videoSourceStore: createStore({ "dyttzyapi.com": createSource() }),
+        videoSourceStore: await createStore({ "dyttzyapi.com": createSource() }),
       },
     );
 
     expect(result.status).toBe("ready");
-    expect(JSON.parse(progressStore.dumpHash("user-1:pr")["dyttzyapi.com:80474"] ?? "{}")).toMatchObject({
+    expect(JSON.parse((await dumpEdgeOneKvHash(progressStore, "user-1:pr", { namespace: "user" }))["dyttzyapi.com:80474"] ?? "{}")).toMatchObject({
       play_episodes: 1,
       play_time: 0,
       total_time: 0,
@@ -335,7 +245,7 @@ describe("getPlaybackPageData", () => {
   });
 
   it("resumes from existing playback progress without overwriting it", async () => {
-    const progressStore = createProgressStore({
+    const progressStore = await createProgressStore({
       "dyttzyapi.com:80474": {
         cover: "https://image.test/poster.jpg",
         douban_id: 0,
@@ -356,22 +266,22 @@ describe("getPlaybackPageData", () => {
     const result = await getPlaybackPageData(
       { id: "80474", source: "dyttzyapi.com" },
       {
-        cacheStore: createCacheStore(),
+        cacheStore: await createCacheStore(),
         detailFetcher: vi.fn(async () => createResource()),
         now: () => 1768535319999,
         progressStore,
         userId: "user-1",
-        videoSourceStore: createStore({ "dyttzyapi.com": createSource() }),
+        videoSourceStore: await createStore({ "dyttzyapi.com": createSource() }),
       },
     );
 
     expect(result.status === "ready" ? result.data.play_episodes : null).toBe(2);
     expect(result.status === "ready" ? result.data.play_time : null).toBe(125);
-    expect(JSON.parse(progressStore.dumpHash("user-1:pr")["dyttzyapi.com:80474"] ?? "{}").save_time).toBe(1768535315661);
+    expect(JSON.parse((await dumpEdgeOneKvHash(progressStore, "user-1:pr", { namespace: "user" }))["dyttzyapi.com:80474"] ?? "{}").save_time).toBe(1768535315661);
   });
 
   it("keeps the requested playback source and migrates matching history to it", async () => {
-    const progressStore = createProgressStore({
+    const progressStore = await createProgressStore({
       "alpha:80474": {
         cover: "https://image.test/alpha.jpg",
         douban_id: 0,
@@ -421,11 +331,11 @@ describe("getPlaybackPageData", () => {
     const result = await getPlaybackPageData(
       { id: "90001", source: "beta" },
       {
-        cacheStore: createCacheStore(),
+        cacheStore: await createCacheStore(),
         detailFetcher,
         progressStore,
         userId: "user-1",
-        videoSourceStore: createStore({
+        videoSourceStore: await createStore({
           alpha: createSource({ key: "alpha", name: "Alpha Source" }),
           beta: createSource({ key: "beta", name: "Beta Source" }),
         }),
@@ -448,16 +358,17 @@ describe("getPlaybackPageData", () => {
       {},
     );
     expect(detailFetcher).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(progressStore.dumpHash("user-1:pr")["beta:90001"] ?? "{}")).toMatchObject({
+    const progressHash = await dumpEdgeOneKvHash(progressStore, "user-1:pr", { namespace: "user" });
+    expect(JSON.parse(progressHash["beta:90001"] ?? "{}")).toMatchObject({
       play_episodes: 2,
       play_time: 125,
       source_name: "Beta Source",
     });
-    expect(progressStore.dumpHash("user-1:pr")["alpha:80474"]).toBeUndefined();
+    expect(progressHash["alpha:80474"]).toBeUndefined();
   });
 
   it("returns the direct favorite state for the requested playback resource", async () => {
-    const favoriteStore = createFavoriteStore({
+    const favoriteStore = await createFavoriteStore({
       "dyttzyapi.com:80474": {
         cover: "https://image.test/poster.jpg",
         douban_id: 0,
@@ -475,20 +386,15 @@ describe("getPlaybackPageData", () => {
     const result = await getPlaybackPageData(
       { id: "80474", source: "dyttzyapi.com" },
       {
-        cacheStore: createCacheStore(),
+        cacheStore: await createCacheStore(),
         detailFetcher: vi.fn(async () => createResource()),
         favoriteStore,
-        progressStore: createProgressStore(),
+        progressStore: await createProgressStore(),
         userId: "user-1",
-        videoSourceStore: createStore({ "dyttzyapi.com": createSource() }),
+        videoSourceStore: await createStore({ "dyttzyapi.com": createSource() }),
       },
     );
 
     expect(result.status === "ready" ? result.data.is_favorite : null).toBe(true);
-    expect(favoriteStore.script).toHaveBeenCalledWith(expect.stringContaining("HGET"), {
-      args: ["dyttzyapi.com:80474"],
-      keys: ["user-1:fav"],
-      readOnly: true,
-    });
   });
 });

@@ -1,47 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const scriptMock = vi.fn(async (script: string) => {
-  if (script.includes("HGETALL")) {
-    return [
-      "page:10:20:count",
-      "2",
-      "page:10:20:duration",
-      "4500",
-      "page:10:20:success",
-      "0",
-      "page:10:20:fail",
-      "0",
-      "api:10:20:count",
-      "3",
-      "api:10:20:duration",
-      "900",
-      "api:10:20:success",
-      "2",
-      "api:10:20:fail",
-      "1",
-      "third-party:10:20:count",
-      "4",
-      "third-party:10:20:duration",
-      "2600",
-      "third-party:10:20:success",
-      "3",
-      "third-party:10:20:fail",
-      "1",
-    ];
-  }
-
-  return 1;
-});
-
-vi.mock("@/infrastructure/db/db-adapter", () => ({
-  createDbAdapter: () => ({
-    del: vi.fn(),
-    get: vi.fn(),
-    script: scriptMock,
-    set: vi.fn(),
-  }),
-}));
-
+import {
+  dumpEdgeOneKvHash,
+  FakeEdgeOneKvBinding,
+  seedEdgeOneKvHash,
+} from "../../../../tests/helpers/fake-edgeone-kv";
 import {
   formatDurationMs,
   getTrafficOverview,
@@ -52,14 +14,25 @@ import {
   resetStatsStoreForTest,
 } from "./stats-service";
 
+class FailingEdgeOneKvBinding extends FakeEdgeOneKvBinding {
+  async get() {
+    throw new Error("KV binding is unavailable.");
+  }
+}
+
+let cacheStore: FakeEdgeOneKvBinding;
+
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-05-16T10:20:30.000Z"));
-  scriptMock.mockClear();
+  cacheStore = new FakeEdgeOneKvBinding();
+  (globalThis as { cache?: FakeEdgeOneKvBinding }).cache = cacheStore;
   resetStatsStoreForTest();
 });
 
 afterEach(() => {
+  delete (globalThis as { cache?: FakeEdgeOneKvBinding }).cache;
+  resetStatsStoreForTest();
   vi.useRealTimers();
 });
 
@@ -67,38 +40,41 @@ describe("stats-service", () => {
   it("records page visits in the current minute bucket", async () => {
     await recordPageVisit();
 
-    expect(scriptMock).toHaveBeenCalledWith(
-      expect.stringContaining("HINCRBY"),
-      {
-        args: ["page:10:20", 1, 0, 0, 0, 691200],
-        keys: ["day:2026-05-16"],
-      },
-    );
+    await expect(dumpEdgeOneKvHash(cacheStore, "day:2026-05-16", { namespace: "stats" })).resolves.toMatchObject({
+      "page:10:20:count": "1",
+    });
   });
 
   it("records api and third-party request durations", async () => {
     await recordApiRequest({ durationMs: 123, ok: true });
     await recordThirdPartyRequest({ durationMs: 456, ok: false });
 
-    expect(scriptMock).toHaveBeenNthCalledWith(
-      1,
-      expect.stringContaining("HINCRBY"),
-      {
-        args: ["api:10:20", 1, 123, 1, 0, 691200],
-        keys: ["day:2026-05-16"],
-      },
-    );
-    expect(scriptMock).toHaveBeenNthCalledWith(
-      2,
-      expect.stringContaining("HINCRBY"),
-      {
-        args: ["third-party:10:20", 1, 456, 0, 1, 691200],
-        keys: ["day:2026-05-16"],
-      },
-    );
+    await expect(dumpEdgeOneKvHash(cacheStore, "day:2026-05-16", { namespace: "stats" })).resolves.toMatchObject({
+      "api:10:20:count": "1",
+      "api:10:20:duration": "123",
+      "api:10:20:success": "1",
+      "third-party:10:20:count": "1",
+      "third-party:10:20:duration": "456",
+      "third-party:10:20:fail": "1",
+    });
   });
 
-  it("reads the current minute snapshot from redis hash data", async () => {
+  it("reads the current minute snapshot from KV hash data", async () => {
+    await seedEdgeOneKvHash(cacheStore, "day:2026-05-16", {
+      "page:10:20:count": "2",
+      "page:10:20:duration": "4500",
+      "page:10:20:success": "0",
+      "page:10:20:fail": "0",
+      "api:10:20:count": "3",
+      "api:10:20:duration": "900",
+      "api:10:20:success": "2",
+      "api:10:20:fail": "1",
+      "third-party:10:20:count": "4",
+      "third-party:10:20:duration": "2600",
+      "third-party:10:20:success": "3",
+      "third-party:10:20:fail": "1",
+    }, { namespace: "stats" });
+
     const snapshot = await getTrafficSnapshot();
 
     expect(snapshot.minuteKey).toBe("2026-05-16 10:20");
@@ -126,7 +102,8 @@ describe("stats-service", () => {
   });
 
   it("returns an empty traffic overview when KV reads fail", async () => {
-    scriptMock.mockRejectedValue(new Error("KV binding is unavailable."));
+    (globalThis as { cache?: FailingEdgeOneKvBinding }).cache = new FailingEdgeOneKvBinding();
+    resetStatsStoreForTest();
 
     const overview = await getTrafficOverview({
       dayCount: 2,

@@ -7,83 +7,35 @@ import {
   savePlaybackProgress,
   PlaybackProgressValidationError,
 } from "@/modules/playback/server/playback-progress-service";
-import type { DbPort, DbScriptOptions } from "@/shared/db/db-port";
+import {
+  createEdgeOneKvHashStore,
+  dumpEdgeOneKvHash,
+  seedEdgeOneKvHash,
+} from "../../helpers/fake-edgeone-kv";
 
-type ScriptPlaybackProgressStore = DbPort<unknown, string> & {
-  dumpHash: (key: string) => Record<string, string>;
-};
-
-function createPlaybackProgressStore(initialValues: Record<string, unknown> = {}): ScriptPlaybackProgressStore {
-  const hashes = new Map<string, Record<string, string>>([
-    [
-      "user-1:pr",
-      Object.fromEntries(
-        Object.entries(initialValues).map(([field, value]) => [field, typeof value === "string" ? value : JSON.stringify(value)]),
-      ),
-    ],
-  ]);
-  const script: ScriptPlaybackProgressStore["script"] = async <TResult = unknown>(scriptText: string, options?: DbScriptOptions<string>) => {
-    const key = options?.keys?.[0] ?? "";
-    const field = String(options?.args?.[0] ?? "");
-    const value = String(options?.args?.[1] ?? "");
-    const hash = hashes.get(key) ?? {};
-
-    if (scriptText.includes("HGET")) {
-      return (hash[field] ?? null) as TResult;
-    }
-
-    if (scriptText.includes("HSET")) {
-      hash[field] = value;
-      hashes.set(key, hash);
-
-      return value as TResult;
-    }
-
-    if (scriptText.includes("HDEL")) {
-      delete hash[field];
-      hashes.set(key, hash);
-
-      return 1 as TResult;
-    }
-
-    return hash as TResult;
-  };
-
-  return {
-    del: vi.fn(async (key) => {
-      hashes.delete(key);
-    }),
-    dumpHash(key) {
-      return { ...(hashes.get(key) ?? {}) };
-    },
-    get: vi.fn(async () => null),
-    script: vi.fn(script) as ScriptPlaybackProgressStore["script"],
-    set: vi.fn(async () => undefined),
-  };
+function createPlaybackProgressStore(initialValues: Record<string, unknown> = {}) {
+  return createEdgeOneKvHashStore({
+    "user-1:pr": initialValues,
+  }, { namespace: "user" });
 }
 
-function createVideoSourceStore(): VideoSourceStore {
-  const script: VideoSourceStore["script"] = async <TResult = unknown>() => ({
-    alpha: JSON.stringify({
-      adult: false,
-      apiUrl: "https://alpha.test/api",
-      key: "alpha",
-      name: "Alpha Source",
-      no: 1,
-      status: "enabled",
-      type: "normal",
-      updatedAt: null,
-      validity: "valid",
-      weight: 10,
-    }),
-  } as TResult);
-
-  return {
-    del: vi.fn(async () => undefined),
-    get: vi.fn(async () => null),
-    script: vi.fn(script) as VideoSourceStore["script"],
-    set: vi.fn(async () => undefined),
-  };
+async function createVideoSourceStore(): Promise<VideoSourceStore> {
+  return createEdgeOneKvHashStore({
+    sources: {
+      alpha: JSON.stringify({
+        adult: false,
+        apiUrl: "https://alpha.test/api",
+        key: "alpha",
+        name: "Alpha Source",
+        no: 1,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "valid",
+        weight: 10,
+      }),
+    },
+  }, { namespace: "admin" });
 }
 
 function createDetail(overrides: Partial<VideoSourceResource> = {}): VideoSourceResource {
@@ -108,7 +60,7 @@ function createDetail(overrides: Partial<VideoSourceResource> = {}): VideoSource
 
 describe("playback progress service", () => {
   it("saves user-scoped playback progress from third-party detail data", async () => {
-    const store = createPlaybackProgressStore();
+    const store = await createPlaybackProgressStore();
     const detailFetcher = vi.fn(async () => createDetail());
 
     const progress = await savePlaybackProgress(
@@ -118,7 +70,7 @@ describe("playback progress service", () => {
         now: () => 1768535315661,
         store,
         userId: "user-1",
-        videoSourceStore: createVideoSourceStore(),
+        videoSourceStore: await createVideoSourceStore(),
       },
     );
 
@@ -144,7 +96,7 @@ describe("playback progress service", () => {
       total_time: 1247,
       year: "2026",
     });
-    expect(JSON.parse(store.dumpHash("user-1:pr")["alpha:100"] ?? "{}")).toEqual({
+    expect(JSON.parse((await dumpEdgeOneKvHash(store, "user-1:pr", { namespace: "user" }))["alpha:100"] ?? "{}")).toEqual({
       cover: "https://image.test/poster.jpg",
       douban_id: 0,
       index: "2026:unknown:alphamovie",
@@ -162,7 +114,7 @@ describe("playback progress service", () => {
   });
 
   it("creates zero progress when a record is missing", async () => {
-    const store = createPlaybackProgressStore();
+    const store = await createPlaybackProgressStore();
 
     const progress = await getOrCreateInitialPlaybackProgress(
       { detail: createDetail(), id: "100", source: "alpha" },
@@ -172,7 +124,7 @@ describe("playback progress service", () => {
     expect(progress.play_episodes).toBe(1);
     expect(progress.play_time).toBe(0);
     expect(progress.total_time).toBe(0);
-    expect(JSON.parse(store.dumpHash("user-1:pr")["alpha:100"] ?? "{}")).toMatchObject({
+    expect(JSON.parse((await dumpEdgeOneKvHash(store, "user-1:pr", { namespace: "user" }))["alpha:100"] ?? "{}")).toMatchObject({
       play_episodes: 1,
       play_time: 0,
       total_time: 0,
@@ -180,7 +132,7 @@ describe("playback progress service", () => {
   });
 
   it("returns existing initial progress without overwriting it", async () => {
-    const store = createPlaybackProgressStore();
+    const store = await createPlaybackProgressStore();
     await getOrCreateInitialPlaybackProgress(
       { detail: createDetail(), id: "100", source: "alpha" },
       { now: () => 1768535315661, store, userId: "user-1" },
@@ -198,36 +150,29 @@ describe("playback progress service", () => {
     await expect(
       savePlaybackProgress(
         { id: "100", play_episodes: 1, play_time: -1, source: "alpha", total_time: 1247 },
-        { store: createPlaybackProgressStore(), userId: "user-1", videoSourceStore: createVideoSourceStore() },
+        { store: await createPlaybackProgressStore(), userId: "user-1", videoSourceStore: await createVideoSourceStore() },
       ),
     ).rejects.toThrow(PlaybackProgressValidationError);
   });
 
   it("reads legacy stored progress records that still contain index", async () => {
-    const store = createPlaybackProgressStore();
-    await store.script(
-      "return redis.call(\"HSET\", KEYS[1], ARGV[1], ARGV[2])",
-      {
-        args: [
-          "alpha:100",
-          JSON.stringify({
-            cover: "https://image.test/poster.jpg",
-            douban_id: 0,
-            index: 2,
-            original_episodes: 3,
-            play_time: 1061,
-            remarks: "更新至3集",
-            save_time: 1768535315661,
-            search_title: "",
-            source_name: "Alpha Source",
-            title: "Alpha Movie",
-            total_time: 1247,
-            year: "2026",
-          }),
-        ],
-        keys: ["user-1:pr"],
+    const store = await createPlaybackProgressStore();
+    await seedEdgeOneKvHash(store, "user-1:pr", {
+      "alpha:100": {
+        cover: "https://image.test/poster.jpg",
+        douban_id: 0,
+        index: 2,
+        original_episodes: 3,
+        play_time: 1061,
+        remarks: "更新至3集",
+        save_time: 1768535315661,
+        search_title: "",
+        source_name: "Alpha Source",
+        title: "Alpha Movie",
+        total_time: 1247,
+        year: "2026",
       },
-    );
+    }, { namespace: "user" });
 
     const progress = await getOrCreateInitialPlaybackProgress(
       { detail: createDetail(), id: "100", source: "alpha" },
@@ -235,13 +180,13 @@ describe("playback progress service", () => {
     );
 
     expect(progress.play_episodes).toBe(2);
-    expect(JSON.parse(store.dumpHash("user-1:pr")["alpha:100"] ?? "{}")).toMatchObject({
+    expect(JSON.parse((await dumpEdgeOneKvHash(store, "user-1:pr", { namespace: "user" }))["alpha:100"] ?? "{}")).toMatchObject({
       play_episodes: 2,
     });
   });
 
   it("migrates playback progress to a new source and removes the old record", async () => {
-    const store = createPlaybackProgressStore({
+    const store = await createPlaybackProgressStore({
       "alpha:80474": JSON.stringify({
         cover: "https://image.test/alpha.jpg",
         douban_id: 0,
@@ -258,10 +203,8 @@ describe("playback progress service", () => {
         year: "2026",
       }),
     });
-    const videoSourceStore: VideoSourceStore = {
-      del: vi.fn(async () => undefined),
-      get: vi.fn(async () => null),
-      script: vi.fn(async () => ({
+    const videoSourceStore: VideoSourceStore = await createEdgeOneKvHashStore({
+      sources: {
         alpha: JSON.stringify({
           adult: false,
           apiUrl: "https://alpha.test/api",
@@ -286,9 +229,8 @@ describe("playback progress service", () => {
           validity: "valid",
           weight: 20,
         }),
-      })) as VideoSourceStore["script"],
-      set: vi.fn(async () => undefined),
-    };
+      },
+    }, { namespace: "admin" });
 
     const progress = await migratePlaybackProgressRecord(
       { id: "90001", play_episodes: 2, play_time: 125, source: "beta", total_time: 1247 },
@@ -311,11 +253,12 @@ describe("playback progress service", () => {
 
     expect(progress.source).toBe("beta");
     expect(progress.id).toBe("90001");
-    expect(JSON.parse(store.dumpHash("user-1:pr")["beta:90001"] ?? "{}")).toMatchObject({
+    const progressHash = await dumpEdgeOneKvHash(store, "user-1:pr", { namespace: "user" });
+    expect(JSON.parse(progressHash["beta:90001"] ?? "{}")).toMatchObject({
       play_episodes: 2,
       play_time: 125,
       source_name: "Beta Source",
     });
-    expect(store.dumpHash("user-1:pr")["alpha:80474"]).toBeUndefined();
+    expect(progressHash["alpha:80474"]).toBeUndefined();
   });
 });

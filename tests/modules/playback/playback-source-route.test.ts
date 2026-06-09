@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as route from "@/app/api/play/sources/route";
+import { FakeEdgeOneKvBinding } from "../../helpers/fake-edgeone-kv";
 
 const authMock = vi.hoisted(() => vi.fn());
 const getPlaybackSourcesMock = vi.hoisted(() => vi.fn());
@@ -53,12 +54,7 @@ vi.mock("@/modules/playback/server/playback-source-switch-service", async (impor
 });
 
 describe("playback source API route", () => {
-  const progressStore = {
-    del: vi.fn(async () => undefined),
-    get: vi.fn(async () => null),
-    script: vi.fn(async () => null),
-    set: vi.fn(async () => undefined),
-  };
+  const progressStore = new FakeEdgeOneKvBinding();
 
   beforeEach(() => {
     authMock.mockReset();

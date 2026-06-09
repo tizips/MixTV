@@ -1,47 +1,37 @@
 import { describe, expect, it, vi } from "vitest";
-import { runConfigFilesSubscriptionAutoUpdate } from "./config-files-service";
+import {
+  readEdgeOneKvJson,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
+import {
+  createEdgeOneKvHashStore,
+  FakeEdgeOneKvBinding,
+  seedEdgeOneKvHash,
+} from "../../../../tests/helpers/fake-edgeone-kv";
+import { runConfigFilesSubscriptionAutoUpdate, type ConfigFilesContent } from "./config-files-service";
 
-function createSubscriptionStore(subscription: Record<string, string>) {
-  return {
-    get: vi.fn(),
-    del: vi.fn(),
-    set: vi.fn(),
-    script: vi.fn(async (script: string) => {
-      if (script.includes("HGETALL")) {
-        return subscription;
-      }
-
-      return 1;
-    }),
-  };
+async function createSubscriptionStore(subscription: Record<string, string>) {
+  const store = new FakeEdgeOneKvBinding();
+  await seedEdgeOneKvHash(store, "subscription", subscription, { namespace: "admin" });
+  return store;
 }
 
 function createVideoSourceStore() {
-  return {
-    get: vi.fn(),
-    del: vi.fn(),
-    set: vi.fn(),
-    script: vi.fn(async (script: string) => {
-      if (script.includes("HGETALL")) {
-        return {};
-      }
-
-      return 1;
-    }),
-  };
+  return createEdgeOneKvHashStore({
+    sources: {},
+  }, { namespace: "admin" });
 }
 
 describe("runConfigFilesSubscriptionAutoUpdate", () => {
   it("skips the update when auto update is disabled", async () => {
-    const store = createSubscriptionStore({
+    const store = await createSubscriptionStore({
       autoUpdate: "false",
       updatedAt: "2026-05-15T10:20:30.000Z",
       url: "https://example.com/sub.json",
     });
     const fetchMock = vi.fn();
-    const videoSourceStore = createVideoSourceStore();
+    const videoSourceStore = await createVideoSourceStore();
 
-    const result = await runConfigFilesSubscriptionAutoUpdate(store as never, fetchMock as never, videoSourceStore as never);
+    const result = await runConfigFilesSubscriptionAutoUpdate(store, fetchMock as never, videoSourceStore);
 
     expect(result).toEqual({
       subscription: {
@@ -52,11 +42,11 @@ describe("runConfigFilesSubscriptionAutoUpdate", () => {
       updated: false,
     });
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(store.set).not.toHaveBeenCalled();
+    await expect(readEdgeOneKvJson(store, "subscriptions", { namespace: "admin" })).resolves.toBeNull();
   });
 
   it("pulls the subscription when auto update is enabled", async () => {
-    const store = createSubscriptionStore({
+    const store = await createSubscriptionStore({
       autoUpdate: "true",
       updatedAt: "2026-05-15T10:20:30.000Z",
       url: "https://example.com/sub.json",
@@ -65,14 +55,14 @@ describe("runConfigFilesSubscriptionAutoUpdate", () => {
       ok: true,
       text: async () => JSON.stringify({ api_site: {} }),
     }));
-    const videoSourceStore = createVideoSourceStore();
+    const videoSourceStore = await createVideoSourceStore();
 
-    const result = await runConfigFilesSubscriptionAutoUpdate(store as never, fetchMock as never, videoSourceStore as never);
+    const result = await runConfigFilesSubscriptionAutoUpdate(store, fetchMock as never, videoSourceStore);
 
     expect(fetchMock).toHaveBeenCalledWith("https://example.com/sub.json", {
       headers: { Accept: "application/json, text/plain;q=0.9, */*;q=0.8" },
     });
-    expect(store.set).toHaveBeenCalledWith("subscriptions", {
+    await expect(readEdgeOneKvJson<ConfigFilesContent>(store, "subscriptions", { namespace: "admin" })).resolves.toEqual({
       content: JSON.stringify({ api_site: {} }),
       updatedAt: expect.any(String),
     });

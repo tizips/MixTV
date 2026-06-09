@@ -3,66 +3,57 @@ import { searchMediaSources } from "@/modules/search/server/media-search-service
 import type { SiteConfigStore } from "@/modules/admin/server/site-config-service";
 import type { VideoSourceStore } from "@/modules/admin/server/video-source-service";
 import type { VideoSourceResource } from "@/integrations/video-sources";
+import { createEdgeOneKvHashStore } from "../../helpers/fake-edgeone-kv";
 
-function createSiteConfigStore(showAdultContent: boolean): SiteConfigStore {
-  const script: SiteConfigStore["script"] = async <TResult = unknown>() => ({
-    showAdultContent: String(showAdultContent),
-  } as TResult);
-
-  return {
-    del: vi.fn(async () => undefined),
-    get: vi.fn(async () => null),
-    script: vi.fn(script) as SiteConfigStore["script"],
-    set: vi.fn(async () => undefined),
-  };
+function createSiteConfigStore(showAdultContent: boolean): Promise<SiteConfigStore> {
+  return createEdgeOneKvHashStore({
+    site: {
+      showAdultContent: String(showAdultContent),
+    },
+  }, { namespace: "admin" });
 }
 
-function createVideoSourceStore(): VideoSourceStore {
-  const script: VideoSourceStore["script"] = async <TResult = unknown>() => ({
-    enabled: JSON.stringify({
-      adult: false,
-      apiUrl: "https://enabled.test/api",
-      key: "enabled",
-      name: "Enabled",
-      no: 1,
-      status: "enabled",
-      type: "normal",
-      updatedAt: null,
-      validity: "valid",
-      weight: 10,
-    }),
-    adult: JSON.stringify({
-      adult: true,
-      apiUrl: "https://adult.test/api",
-      key: "adult",
-      name: "Adult",
-      no: 2,
-      status: "enabled",
-      type: "normal",
-      updatedAt: null,
-      validity: "valid",
-      weight: 10,
-    }),
-    disabled: JSON.stringify({
-      adult: false,
-      apiUrl: "https://disabled.test/api",
-      key: "disabled",
-      name: "Disabled",
-      no: 3,
-      status: "disabled",
-      type: "normal",
-      updatedAt: null,
-      validity: "valid",
-      weight: 10,
-    }),
-  } as TResult);
-
-  return {
-    del: vi.fn(async () => undefined),
-    get: vi.fn(async () => null),
-    script: vi.fn(script) as VideoSourceStore["script"],
-    set: vi.fn(async () => undefined),
-  };
+function createVideoSourceStore(): Promise<VideoSourceStore> {
+  return createEdgeOneKvHashStore({
+    sources: {
+      enabled: JSON.stringify({
+        adult: false,
+        apiUrl: "https://enabled.test/api",
+        key: "enabled",
+        name: "Enabled",
+        no: 1,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "valid",
+        weight: 10,
+      }),
+      adult: JSON.stringify({
+        adult: true,
+        apiUrl: "https://adult.test/api",
+        key: "adult",
+        name: "Adult",
+        no: 2,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "valid",
+        weight: 10,
+      }),
+      disabled: JSON.stringify({
+        adult: false,
+        apiUrl: "https://disabled.test/api",
+        key: "disabled",
+        name: "Disabled",
+        no: 3,
+        status: "disabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "valid",
+        weight: 10,
+      }),
+    },
+  }, { namespace: "admin" });
 }
 
 function createResource(sourceKey: string, overrides: Partial<VideoSourceResource> = {}): VideoSourceResource {
@@ -93,8 +84,8 @@ describe("media search service", () => {
         onResult,
         onStart,
         searcher,
-        siteConfigStore: createSiteConfigStore(false),
-        videoSourceStore: createVideoSourceStore(),
+        siteConfigStore: await createSiteConfigStore(false),
+        videoSourceStore: await createVideoSourceStore(),
       },
     );
 
@@ -134,8 +125,8 @@ describe("media search service", () => {
       { query: "movie" },
       {
         searcher,
-        siteConfigStore: createSiteConfigStore(true),
-        videoSourceStore: createVideoSourceStore(),
+        siteConfigStore: await createSiteConfigStore(true),
+        videoSourceStore: await createVideoSourceStore(),
       },
     );
 
@@ -159,8 +150,8 @@ describe("media search service", () => {
       {
         onResult,
         searcher,
-        siteConfigStore: createSiteConfigStore(true),
-        videoSourceStore: createVideoSourceStore(),
+        siteConfigStore: await createSiteConfigStore(true),
+        videoSourceStore: await createVideoSourceStore(),
       },
     );
 
@@ -199,8 +190,8 @@ describe("media search service", () => {
       { query: "movie" },
       {
         searcher,
-        siteConfigStore: createSiteConfigStore(true),
-        videoSourceStore: createVideoSourceStore(),
+        siteConfigStore: await createSiteConfigStore(true),
+        videoSourceStore: await createVideoSourceStore(),
       },
     );
 
@@ -228,8 +219,8 @@ describe("media search service", () => {
       {
         onResult,
         searcher,
-        siteConfigStore: createSiteConfigStore(true),
-        videoSourceStore: createVideoSourceStore(),
+        siteConfigStore: await createSiteConfigStore(true),
+        videoSourceStore: await createVideoSourceStore(),
       },
     );
 

@@ -4,98 +4,36 @@ import type { VideoSourceStore } from "@/modules/admin/server/video-source-servi
 import {
   switchPlaybackSource,
 } from "@/modules/playback/server/playback-source-switch-service";
-import type { DbPort, DbScriptOptions } from "@/shared/db/db-port";
+import {
+  createEdgeOneKvHashStore,
+  dumpEdgeOneKvHash,
+} from "../../helpers/fake-edgeone-kv";
 
-type ProgressStore = DbPort<unknown, string> & {
-  dumpHash: (key: string) => Record<string, string>;
-};
+function createUserHashStore(initialValues: Record<string, Record<string, unknown>> = {}) {
+  return createEdgeOneKvHashStore(initialValues, { namespace: "user" });
+}
 
-type HashStore = DbPort<unknown, string> & {
-  dumpHash: (key: string) => Record<string, string>;
-};
+function createCacheStore() {
+  return createEdgeOneKvHashStore();
+}
 
-function createHashStore(initialValues: Record<string, Record<string, string>> = {}): HashStore {
-  const values = new Map(Object.entries(initialValues).map(([key, record]) => [key, { ...record }]));
-  const script: HashStore["script"] = async <TResult = unknown>(scriptText: string, options: DbScriptOptions<string> = {}) => {
-    const key = options.keys?.[0] ?? "";
-    const field = String(options.args?.[0] ?? "");
-    const value = String(options.args?.[1] ?? "");
-    const thirdValue = String(options.args?.[2] ?? "");
-    const hash = values.get(key) ?? {};
-
-    if (scriptText.includes("HGET") && scriptText.includes("HSET") && scriptText.includes("HDEL")) {
-      const storedValue = hash[field];
-
-      if (storedValue === undefined) {
-        return null as TResult;
-      }
-
-      hash[value] = thirdValue;
-      delete hash[field];
-      values.set(key, hash);
-      return thirdValue as TResult;
-    }
-
-    if (scriptText.includes("HGET")) {
-      return (hash[field] ?? null) as TResult;
-    }
-
-    if (scriptText.includes("HSET")) {
-      hash[field] = value;
-      values.set(key, hash);
-      return value as TResult;
-    }
-
-    if (scriptText.includes("HDEL")) {
-      delete hash[field];
-      if (Object.keys(hash).length === 0) {
-        values.delete(key);
-      } else {
-        values.set(key, hash);
-      }
-      return 1 as TResult;
-    }
-
-    return null as TResult;
-  };
-
-  return {
-    del: vi.fn(async () => undefined),
-    dumpHash(key) {
-      return { ...(values.get(key) ?? {}) };
+async function createVideoSourceStore(): Promise<VideoSourceStore> {
+  return createEdgeOneKvHashStore({
+    sources: {
+      alpha: JSON.stringify({
+        adult: false,
+        apiUrl: "https://alpha.test/api.php/provide/vod",
+        key: "alpha",
+        name: "Alpha Source",
+        no: 1,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "valid",
+        weight: 10,
+      }),
     },
-    get: vi.fn(async () => null),
-    script: vi.fn(script) as HashStore["script"],
-    set: vi.fn(async () => undefined),
-  };
-}
-
-function createProgressStore(initialValues: Record<string, Record<string, string>> = {}): ProgressStore {
-  return createHashStore(initialValues);
-}
-
-function createVideoSourceStore(): VideoSourceStore {
-  const script: VideoSourceStore["script"] = async <TResult = unknown>() => ({
-    alpha: JSON.stringify({
-      adult: false,
-      apiUrl: "https://alpha.test/api.php/provide/vod",
-      key: "alpha",
-      name: "Alpha Source",
-      no: 1,
-      status: "enabled",
-      type: "normal",
-      updatedAt: null,
-      validity: "valid",
-      weight: 10,
-    }),
-  } as TResult);
-
-  return {
-    del: vi.fn(async () => undefined),
-    get: vi.fn(async () => null),
-    script: vi.fn(script) as VideoSourceStore["script"],
-    set: vi.fn(async () => undefined),
-  };
+  }, { namespace: "admin" });
 }
 
 function createDetail(overrides: Partial<VideoSourceResource> = {}): VideoSourceResource {
@@ -121,7 +59,7 @@ function createDetail(overrides: Partial<VideoSourceResource> = {}): VideoSource
 
 describe("playback source switch service", () => {
   it("switches the user's progress to the new source and clamps the active episode", async () => {
-    const progressStore = createProgressStore({
+    const progressStore = await createUserHashStore({
       "user-1:pr": {
         "beta:80473": JSON.stringify({
           cover: "https://image.test/old.jpg",
@@ -139,12 +77,7 @@ describe("playback source switch service", () => {
         }),
       },
     });
-    const cacheStore = {
-      del: vi.fn(async () => undefined),
-      get: vi.fn(async () => null),
-      script: vi.fn(async () => null),
-      set: vi.fn(async () => undefined),
-    } as unknown as DbPort<unknown, string>;
+    const cacheStore = await createCacheStore();
     const detailFetcher = vi.fn(async () => createDetail());
 
     const result = await switchPlaybackSource(
@@ -160,7 +93,7 @@ describe("playback source switch service", () => {
         detailFetcher,
         progressStore,
         userId: "user-1",
-        videoSourceStore: createVideoSourceStore(),
+        videoSourceStore: await createVideoSourceStore(),
       },
     );
 
@@ -178,13 +111,14 @@ describe("playback source switch service", () => {
       total_time: 2708,
     });
     expect(result.sources).toHaveLength(3);
-    expect(progressStore.dumpHash("user-1:pr")["alpha:80474"]).toBeDefined();
-    expect(progressStore.dumpHash("user-1:pr")["beta:80473"]).toBeUndefined();
+    const progressHash = await dumpEdgeOneKvHash(progressStore, "user-1:pr", { namespace: "user" });
+    expect(progressHash["alpha:80474"]).toBeDefined();
+    expect(progressHash["beta:80473"]).toBeUndefined();
   });
 
   it("moves an existing favorite to the switched source", async () => {
-    const progressStore = createProgressStore();
-    const favoriteStore = createHashStore({
+    const progressStore = await createUserHashStore();
+    const favoriteStore = await createUserHashStore({
       "user-1:fav": {
         "beta:80473": JSON.stringify({
           cover: "https://image.test/old.jpg",
@@ -210,16 +144,16 @@ describe("playback source switch service", () => {
         total_time: 2708,
       },
       {
-        cacheStore: createHashStore(),
+        cacheStore: await createCacheStore(),
         detailFetcher,
         favoriteStore,
         progressStore,
         userId: "user-1",
-        videoSourceStore: createVideoSourceStore(),
+        videoSourceStore: await createVideoSourceStore(),
       },
     );
 
-    const favorites = favoriteStore.dumpHash("user-1:fav");
+    const favorites = await dumpEdgeOneKvHash(favoriteStore, "user-1:fav", { namespace: "user" });
 
     expect(favorites["beta:80473"]).toBeUndefined();
     expect(JSON.parse(favorites["alpha:80474"])).toMatchObject({

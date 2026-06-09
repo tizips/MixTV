@@ -1,10 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { listPlaybackHistory } from "@/modules/history/server/history-service";
 import { savePlaybackProgress } from "./playback-progress-service";
+import {
+  createEdgeOneKvHashStore,
+  dumpEdgeOneKvHash,
+  FakeEdgeOneKvBinding,
+  seedEdgeOneKvHash,
+} from "../../../../tests/helpers/fake-edgeone-kv";
 
 function createVideoSourceStore() {
-  return {
-    script: vi.fn(async () => ({
+  return createEdgeOneKvHashStore({
+    sources: {
       alpha: JSON.stringify({
         adult: false,
         apiUrl: "https://example.com/api",
@@ -17,22 +23,13 @@ function createVideoSourceStore() {
         weight: 1,
         updatedAt: null,
       }),
-    })),
-  };
+    },
+  }, { namespace: "admin" });
 }
 
 describe("playback progress storage", () => {
   it("stores index on saved playback progress records", async () => {
-    const writes: Array<{ field: string; payload: string }> = [];
-    const store = {
-      script: vi.fn(async (_script: string, options: { args?: string[] }) => {
-        if (options.args) {
-          writes.push({ field: options.args[0], payload: options.args[1] });
-        }
-
-        return null;
-      }),
-    };
+    const store = new FakeEdgeOneKvBinding();
 
     const result = await savePlaybackProgress(
       {
@@ -55,19 +52,14 @@ describe("playback progress storage", () => {
             year: "2026",
           }) as never,
         now: () => 123456789,
-        store: store as never,
+        store,
         userId: "user-1",
-        videoSourceStore: createVideoSourceStore() as never,
+        videoSourceStore: await createVideoSourceStore(),
       },
     );
 
-    expect(writes).toHaveLength(1);
-    expect(writes[0]).toEqual({
-      field: "alpha:resource-1",
-      payload: expect.any(String),
-    });
-
-    expect(JSON.parse(writes[0].payload)).toEqual(
+    const progressHash = await dumpEdgeOneKvHash(store, "user-1:pr", { namespace: "user" });
+    expect(JSON.parse(progressHash["alpha:resource-1"] ?? "{}")).toEqual(
       expect.objectContaining({
         index: "2026:tv:测试剧集",
         play_episodes: 3,
@@ -80,26 +72,25 @@ describe("playback progress storage", () => {
   });
 
   it("reads legacy playback history records without index", async () => {
-    const store = {
-      script: vi.fn(async () => ({
-        "alpha:resource-1": JSON.stringify({
-          cover: "https://example.com/poster.jpg",
-          douban_id: 0,
-          original_episodes: 3,
-          play_episodes: 1,
-          play_time: 0,
-          remarks: "",
-          save_time: 123456789,
-          search_title: "",
-          source_name: "测试源",
-          title: "测试剧集",
-          total_time: 240,
-          year: "2026",
-        }),
-      })),
-    };
+    const store = new FakeEdgeOneKvBinding();
+    await seedEdgeOneKvHash(store, "user-1:pr", {
+      "alpha:resource-1": {
+        cover: "https://example.com/poster.jpg",
+        douban_id: 0,
+        original_episodes: 3,
+        play_episodes: 1,
+        play_time: 0,
+        remarks: "",
+        save_time: 123456789,
+        search_title: "",
+        source_name: "测试源",
+        title: "测试剧集",
+        total_time: 240,
+        year: "2026",
+      },
+    }, { namespace: "user" });
 
-    const history = await listPlaybackHistory("user-1", { store: store as never });
+    const history = await listPlaybackHistory("user-1", { store });
 
     expect(history).toHaveLength(1);
     expect(history[0].id).toBe("resource-1");
@@ -109,32 +100,25 @@ describe("playback progress storage", () => {
   });
 
   it("migrates legacy playback history records that still use numeric index", async () => {
-    const store = {
-      script: vi.fn(async (_script: string, options: { args?: string[] }) => {
-        if (!options.args) {
-          return {
-            "alpha:resource-1": JSON.stringify({
-              cover: "https://example.com/poster.jpg",
-              douban_id: 0,
-              index: 2,
-              original_episodes: 3,
-              play_time: 0,
-              remarks: "",
-              save_time: 123456789,
-              search_title: "",
-              source_name: "测试源",
-              title: "测试剧集",
-              total_time: 240,
-              year: "2026",
-            }),
-          };
-        }
+    const store = new FakeEdgeOneKvBinding();
+    await seedEdgeOneKvHash(store, "user-1:pr", {
+      "alpha:resource-1": {
+        cover: "https://example.com/poster.jpg",
+        douban_id: 0,
+        index: 2,
+        original_episodes: 3,
+        play_time: 0,
+        remarks: "",
+        save_time: 123456789,
+        search_title: "",
+        source_name: "测试源",
+        title: "测试剧集",
+        total_time: 240,
+        year: "2026",
+      },
+    }, { namespace: "user" });
 
-        return options.args[1];
-      }),
-    };
-
-    const history = await listPlaybackHistory("user-1", { store: store as never });
+    const history = await listPlaybackHistory("user-1", { store });
 
     expect(history).toHaveLength(1);
     expect(history[0].play_episodes).toBe(2);

@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as searchHistoriesRoute from "@/app/api/search/histories/route";
 import * as searchHistoryKeywordRoute from "@/app/api/search/histories/[keyword]/route";
+import type { EdgeOneKvBinding } from "@/infrastructure/db/edgeone-kv-db-adapter";
 import {
   addSearchHistory,
   clearSearchHistory,
@@ -8,12 +9,7 @@ import {
 } from "@/modules/search/server/search-history-service";
 import { createScriptSearchHistoryStore } from "./search-history-test-store";
 
-const createDbAdapterMock = vi.hoisted(() => vi.fn());
 const authMock = vi.hoisted(() => vi.fn());
-
-vi.mock("@/infrastructure/db/db-adapter", () => ({
-  createDbAdapter: createDbAdapterMock,
-}));
 
 vi.mock("@/auth", () => ({
   auth: authMock,
@@ -27,11 +23,14 @@ describe("search history API route", () => {
   beforeEach(async () => {
     authMock.mockReset();
     authMock.mockResolvedValue({ user: { id: "user-1" } });
-    createDbAdapterMock.mockReset();
-    createDbAdapterMock.mockReturnValue(createScriptSearchHistoryStore());
+    (globalThis as typeof globalThis & { user?: EdgeOneKvBinding }).user = createScriptSearchHistoryStore();
     resetSearchHistoryStoreForTest();
     await clearSearchHistory("user-1");
     await clearSearchHistory("user-2");
+  });
+
+  afterEach(() => {
+    delete (globalThis as typeof globalThis & { user?: EdgeOneKvBinding }).user;
   });
 
   it("returns the current search history list", async () => {

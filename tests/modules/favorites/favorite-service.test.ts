@@ -2,30 +2,29 @@ import { describe, expect, it, vi } from "vitest";
 import { createFavorite, deleteFavorite, hasFavorite, listFavorites } from "@/modules/favorites/server/favorite-service";
 import type { VideoSourceResource } from "@/integrations/video-sources";
 import type { VideoSourceStore } from "@/modules/admin/server/video-source-service";
-import { createScriptFavoriteStore } from "./favorite-test-store";
+import {
+  createEdgeOneKvHashStore,
+  dumpEdgeOneKvHash,
+} from "../../helpers/fake-edgeone-kv";
+import { createFavoriteTestStore } from "./favorite-test-store";
 
-function createVideoSourceStore(): VideoSourceStore {
-  const script: VideoSourceStore["script"] = async <TResult = unknown>() => ({
-    alpha: JSON.stringify({
-      adult: false,
-      apiUrl: "https://alpha.test/api",
-      key: "alpha",
-      name: "Alpha Source",
-      no: 1,
-      status: "enabled",
-      type: "normal",
-      updatedAt: null,
-      validity: "valid",
-      weight: 10,
-    }),
-  } as TResult);
-
-  return {
-    del: vi.fn(async () => undefined),
-    get: vi.fn(async () => null),
-    script: vi.fn(script) as VideoSourceStore["script"],
-    set: vi.fn(async () => undefined),
-  };
+async function createVideoSourceStore(): Promise<VideoSourceStore> {
+  return createEdgeOneKvHashStore({
+    sources: {
+      alpha: JSON.stringify({
+        adult: false,
+        apiUrl: "https://alpha.test/api",
+        key: "alpha",
+        name: "Alpha Source",
+        no: 1,
+        status: "enabled",
+        type: "normal",
+        updatedAt: null,
+        validity: "valid",
+        weight: 10,
+      }),
+    },
+  }, { namespace: "admin" });
 }
 
 function createDetail(overrides: Partial<VideoSourceResource> = {}): VideoSourceResource {
@@ -50,7 +49,7 @@ function createDetail(overrides: Partial<VideoSourceResource> = {}): VideoSource
 
 describe("favorite service", () => {
   it("creates a user-scoped favorite from third-party detail data", async () => {
-    const store = createScriptFavoriteStore();
+    const store = await createFavoriteTestStore();
     const detailFetcher = vi.fn(async () => createDetail());
 
     const favorite = await createFavorite(
@@ -60,7 +59,7 @@ describe("favorite service", () => {
         now: () => 1768435200000,
         store,
         userId: "user-1",
-        videoSourceStore: createVideoSourceStore(),
+        videoSourceStore: await createVideoSourceStore(),
       },
     );
 
@@ -86,7 +85,8 @@ describe("favorite service", () => {
     expect(favorite).not.toHaveProperty("favoriteKey");
     expect(favorite).not.toHaveProperty("play_time");
     expect(favorite).not.toHaveProperty("total_time");
-    expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).toEqual({
+    const favoriteHash = await dumpEdgeOneKvHash(store, "user-1:fav", { namespace: "user" });
+    expect(JSON.parse(favoriteHash["alpha:100"] ?? "{}")).toEqual({
       cover: "https://image.test/poster.jpg",
       douban_id: 0,
       index: "2026:unknown:alphamovie",
@@ -98,9 +98,9 @@ describe("favorite service", () => {
       title: "Alpha Movie",
       year: "2026",
     });
-    expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("favoriteKey");
-    expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("play_time");
-    expect(JSON.parse(store.dumpHash("user-1:fav")["alpha:100"] ?? "{}")).not.toHaveProperty("total_episodes");
+    expect(JSON.parse(favoriteHash["alpha:100"] ?? "{}")).not.toHaveProperty("favoriteKey");
+    expect(JSON.parse(favoriteHash["alpha:100"] ?? "{}")).not.toHaveProperty("play_time");
+    expect(JSON.parse(favoriteHash["alpha:100"] ?? "{}")).not.toHaveProperty("total_episodes");
     await expect(listFavorites("user-1", { store })).resolves.toEqual([favorite]);
     await expect(listFavorites("user-2", { store })).resolves.toEqual([]);
   });
@@ -110,13 +110,13 @@ describe("favorite service", () => {
   });
 
   it("deletes a favorite by the delimited key from the user hash", async () => {
-    const store = createScriptFavoriteStore();
+    const store = await createFavoriteTestStore();
     const options = {
       detailFetcher: vi.fn(async () => createDetail()),
       now: () => 1768435200000,
       store,
       userId: "user-1",
-      videoSourceStore: createVideoSourceStore(),
+      videoSourceStore: await createVideoSourceStore(),
     };
     await createFavorite({ id: "100", source: "alpha" }, options);
 
@@ -126,24 +126,20 @@ describe("favorite service", () => {
   });
 
   it("checks one favorite by key without listing the whole favorite hash", async () => {
-    const store = createScriptFavoriteStore();
-    const scriptSpy = vi.spyOn(store, "script");
+    const store = await createFavoriteTestStore();
     const options = {
       detailFetcher: vi.fn(async () => createDetail()),
       now: () => 1768435200000,
       store,
       userId: "user-1",
-      videoSourceStore: createVideoSourceStore(),
+      videoSourceStore: await createVideoSourceStore(),
     };
 
     await createFavorite({ id: "100", source: "alpha" }, options);
+    const listSpy = vi.spyOn(store, "list");
 
     await expect(hasFavorite("user-1", { id: "100", source: "alpha" }, { store })).resolves.toBe(true);
     await expect(hasFavorite("user-1", { id: "missing", source: "alpha" }, { store })).resolves.toBe(false);
-    expect(scriptSpy).toHaveBeenLastCalledWith(expect.stringContaining("HGET"), {
-      args: ["alpha:missing"],
-      keys: ["user-1:fav"],
-      readOnly: true,
-    });
+    expect(listSpy).not.toHaveBeenCalled();
   });
 });

@@ -1,12 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
-import { createFavorite, type FavoriteServiceOptions, type FavoriteStore } from "./favorite-service";
+import { createFavorite, type FavoriteServiceOptions } from "./favorite-service";
 import type { VideoSourceStore } from "@/modules/admin/server/video-source-service";
+import {
+  createEdgeOneKvHashStore,
+  dumpEdgeOneKvHash,
+  FakeEdgeOneKvBinding,
+} from "../../../../tests/helpers/fake-edgeone-kv";
 
 describe("favorite service", () => {
   it("stores the computed media search index with the favorite record", async () => {
-    const store = { script: vi.fn(async () => undefined) } satisfies Pick<FavoriteStore, "script">;
-    const videoSourceStore = {
-      script: vi.fn(async () => ({
+    const store = new FakeEdgeOneKvBinding();
+    const videoSourceStore: VideoSourceStore = await createEdgeOneKvHashStore({
+      sources: {
         alpha: JSON.stringify({
           adult: false,
           apiUrl: "https://source.test/api",
@@ -18,8 +23,8 @@ describe("favorite service", () => {
           validity: "valid",
           weight: 50,
         }),
-      })),
-    } satisfies Pick<VideoSourceStore, "script">;
+      },
+    }, { namespace: "admin" });
 
     const detailFetcher: NonNullable<FavoriteServiceOptions["detailFetcher"]> = vi.fn(async () => ({
       className: "电视剧",
@@ -51,16 +56,8 @@ describe("favorite service", () => {
       source: "alpha",
     });
 
-    expect(store.script).toHaveBeenCalledTimes(1);
-    expect(store.script).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        args: [
-          "alpha:movie-1",
-          expect.stringContaining('"index":"2024:tv:庆余年第二季"'),
-        ],
-        keys: ["user-1:fav"],
-      }),
-    );
+    await expect(dumpEdgeOneKvHash(store, "user-1:fav", { namespace: "user" })).resolves.toMatchObject({
+      "alpha:movie-1": expect.stringContaining('"index":"2024:tv:庆余年第二季"'),
+    });
   });
 });

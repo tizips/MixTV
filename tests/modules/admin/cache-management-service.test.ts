@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   clearCache,
   cleanupExpiredCacheKvEntries,
@@ -6,21 +6,10 @@ import {
   refreshCacheStats,
   type AdminModulesStore,
 } from "@/modules/admin/server/cache-management-service";
+import { writeEdgeOneKvString } from "@/infrastructure/db/edgeone-kv-db-adapter";
+import { FakeEdgeOneKvBinding } from "../../helpers/fake-edgeone-kv";
 
-const createFakeStore = (initial: Record<string, unknown> = {}): AdminModulesStore => {
-  const data = new Map(Object.entries(initial));
-
-  return {
-    del: vi.fn(async (key: string) => {
-      data.delete(key);
-    }),
-    get: vi.fn(async (key: string) => data.get(key) ?? null),
-    script: vi.fn(async () => ({})) as AdminModulesStore["script"],
-    set: vi.fn(async (key: string, value: unknown) => {
-      data.set(key, value);
-    }),
-  };
-};
+const createFakeStore = (): AdminModulesStore => new FakeEdgeOneKvBinding();
 
 describe("cache management service", () => {
   it("reads, refreshes, and clears cache data", async () => {
@@ -41,18 +30,27 @@ describe("cache management service", () => {
   it("cleans expired records from the cache KV namespace", async () => {
     const currentTime = 1768435200000;
     const store = createFakeStore();
-    const scriptMock = vi.fn(async () => ({ deleted: 2, scanned: 4 })) as AdminModulesStore["script"];
-
-    store.script = scriptMock;
+    await writeEdgeOneKvString(store, "expired:one", "old", {
+      now: () => currentTime - 2000,
+      ttlSeconds: 1,
+    });
+    await writeEdgeOneKvString(store, "expired:two", "old", {
+      now: () => currentTime - 2000,
+      ttlSeconds: 1,
+    });
+    await writeEdgeOneKvString(store, "active:one", "fresh", {
+      now: () => currentTime,
+      ttlSeconds: 1,
+    });
+    await writeEdgeOneKvString(store, "active:two", "fresh", {
+      now: () => currentTime,
+      ttlSeconds: 1,
+    });
 
     await expect(cleanupExpiredCacheKvEntries({ now: () => currentTime, store })).resolves.toEqual({
       completedAt: "2026-01-15T00:00:00.000Z",
       deleted: 2,
       scanned: 4,
-    });
-    expect(scriptMock).toHaveBeenCalledWith(expect.stringContaining('redis.call("SCAN"'), {
-      args: ["*", 1000, currentTime],
-      readOnly: false,
     });
   });
 });

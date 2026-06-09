@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlayPageData } from "@/modules/playback/domain/playback-page-data";
 import { PlayPageShell } from "@/modules/playback";
+import { FakeEdgeOneKvBinding } from "../../../tests/helpers/fake-edgeone-kv";
 import PlayPage, { runtime } from "./page";
 
 const authMock = vi.hoisted(() => vi.fn());
@@ -103,12 +104,7 @@ describe("PlayPage", () => {
   });
 
   it("creates a progress store without a storage backend switch", async () => {
-    const progressStore = {
-      del: vi.fn(),
-      get: vi.fn(),
-      script: vi.fn(),
-      set: vi.fn(),
-    };
+    const progressStore = new FakeEdgeOneKvBinding();
     createPlaybackProgressStoreMock.mockReturnValue(progressStore);
     getPlaybackPageDataMock.mockResolvedValue({
       data: createInitialData(),

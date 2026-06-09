@@ -1,15 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
-import { saveMediaSearchCacheEntries, type MediaSearchCacheStore } from "./media-search-cache-service";
+import { describe, expect, it } from "vitest";
+import { saveMediaSearchCacheEntries } from "./media-search-cache-service";
+import {
+  dumpEdgeOneKvHash,
+  FakeEdgeOneKvBinding,
+} from "../../../../tests/helpers/fake-edgeone-kv";
 
 describe("media search cache service", () => {
   it("stores results in a source hash with episode count and a one hour ttl", async () => {
-    const script = vi.fn(async () => undefined) as unknown as MediaSearchCacheStore["script"];
-    const store = {
-      del: vi.fn(async () => undefined),
-      get: vi.fn(async () => null),
-      script,
-      set: vi.fn(async () => undefined),
-    } satisfies MediaSearchCacheStore;
+    const store = new FakeEdgeOneKvBinding();
 
     await saveMediaSearchCacheEntries(
       "2024:tv:庆余年第二季",
@@ -25,22 +23,13 @@ describe("media search cache service", () => {
       { store },
     );
 
-    expect(script).toHaveBeenCalledTimes(1);
-    expect(script).toHaveBeenCalledWith(
-      expect.any(String),
-      {
-        args: [
-          "alpha",
-          JSON.stringify({
-            id: "movie-1",
-            quality: "1080p",
-            name: "电影天堂资源",
-            total_episodes: 12,
-          }),
-          3600,
-        ],
-        keys: ["2024:tv:庆余年第二季"],
-      },
-    );
+    await expect(dumpEdgeOneKvHash(store, "2024:tv:庆余年第二季")).resolves.toEqual({
+      alpha: JSON.stringify({
+        id: "movie-1",
+        name: "电影天堂资源",
+        quality: "1080p",
+        total_episodes: 12,
+      }),
+    });
   });
 });

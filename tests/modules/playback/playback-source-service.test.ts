@@ -6,98 +6,19 @@ import {
   getPlaybackSources,
 } from "@/modules/playback/server/playback-source-service";
 import { createPlaybackSourcesCacheKey } from "@/modules/playback/server/playback-cache";
-import type { DbPort, DbScriptOptions } from "@/shared/db/db-port";
+import {
+  createEdgeOneKvHashStore,
+  createEdgeOneKvStringStore,
+  dumpEdgeOneKvHash,
+  dumpEdgeOneKvString,
+} from "../../helpers/fake-edgeone-kv";
 
-type HashStore = DbPort<unknown, string> & {
-  dumpHash: (key: string) => Record<string, string>;
-};
-
-type ValueStore = DbPort<unknown, string> & {
-  dumpValue: (key: string) => string | null;
-};
-
-function createHashStore(initialValues: Record<string, Record<string, string>> = {}): HashStore {
-  const values = new Map(Object.entries(initialValues).map(([key, record]) => [key, { ...record }]));
-  const script: HashStore["script"] = async <TResult = unknown>(scriptText: string, options: DbScriptOptions<string> = {}) => {
-    const key = options.keys?.[0] ?? "";
-    const field = String(options.args?.[0] ?? "");
-    const value = String(options.args?.[1] ?? "");
-    const hash = values.get(key) ?? {};
-
-    if (scriptText.includes("HGETALL")) {
-      return hash as TResult;
-    }
-
-    if (scriptText.includes("HSET")) {
-      for (let index = 0; index < (options.args ?? []).length - 1; index += 2) {
-        const currentField = options.args?.[index];
-        const currentValue = options.args?.[index + 1];
-
-        if (typeof currentField === "string" && typeof currentValue === "string") {
-          hash[currentField] = currentValue;
-        }
-      }
-      values.set(key, hash);
-      return value as TResult;
-    }
-
-    if (scriptText.includes("HDEL")) {
-      delete hash[field];
-      if (Object.keys(hash).length === 0) {
-        values.delete(key);
-      } else {
-        values.set(key, hash);
-      }
-      return 1 as TResult;
-    }
-
-    if (scriptText.includes("DEL")) {
-      values.delete(key);
-      return 1 as TResult;
-    }
-
-    return null as TResult;
-  };
-
-  return {
-    del: vi.fn(async () => undefined),
-    dumpHash(key) {
-      return { ...(values.get(key) ?? {}) };
-    },
-    get: vi.fn(async () => null),
-    script: vi.fn(script) as HashStore["script"],
-    set: vi.fn(async () => undefined),
-  };
+function createHashStore(initialValues: Record<string, Record<string, unknown>> = {}) {
+  return createEdgeOneKvHashStore(initialValues);
 }
 
-function createValueStore(initialValues: Record<string, unknown> = {}): ValueStore {
-  const values = new Map(Object.entries(initialValues).map(([key, value]) => [key, typeof value === "string" ? value : JSON.stringify(value)]));
-  const script: ValueStore["script"] = async <TResult = unknown>(scriptText: string, options?: DbScriptOptions<string>) => {
-    const key = options?.keys?.[0] ?? "";
-
-    if (scriptText.includes("GET")) {
-      return (values.get(key) ?? null) as TResult;
-    }
-
-    if (scriptText.includes("SET")) {
-      values.set(key, String(options?.args?.[0] ?? ""));
-      return 1 as TResult;
-    }
-
-    return null as TResult;
-  };
-
-  return {
-    del: vi.fn(async (key) => {
-      values.delete(key);
-    }),
-    dumpValue(key) {
-      return values.get(key) ?? null;
-    },
-    get: vi.fn(async () => null),
-    script: vi.fn(script) as ValueStore["script"],
-    set: vi.fn(async () => undefined),
-  };
+function createValueStore(initialValues: Record<string, unknown> = {}) {
+  return createEdgeOneKvStringStore(initialValues);
 }
 
 function createSourceStore(
@@ -114,46 +35,36 @@ function createSourceStore(
       no: 1,
     },
   ],
-): VideoSourceStore {
-  const script: VideoSourceStore["script"] = async <TResult = unknown>() => Object.fromEntries(
-    sources.map((source) => [
-      source.key,
-      JSON.stringify({
-        adult: false,
-        apiUrl: source.apiUrl,
-        key: source.key,
-        name: source.name,
-        no: source.no,
-        status: "enabled",
-        type: "normal",
-        updatedAt: null,
-        validity: "valid",
-        weight: 10,
-      }),
-    ]),
-  ) as TResult;
-
-  return {
-    del: vi.fn(async () => undefined),
-    get: vi.fn(async () => null),
-    script: vi.fn(script) as VideoSourceStore["script"],
-    set: vi.fn(async () => undefined),
-  };
+): Promise<VideoSourceStore> {
+  return createEdgeOneKvHashStore({
+    sources: Object.fromEntries(
+      sources.map((source) => [
+        source.key,
+        JSON.stringify({
+          adult: false,
+          apiUrl: source.apiUrl,
+          key: source.key,
+          name: source.name,
+          no: source.no,
+          status: "enabled",
+          type: "normal",
+          updatedAt: null,
+          validity: "valid",
+          weight: 10,
+        }),
+      ]),
+    ),
+  }, { namespace: "admin" });
 }
 
-function createSiteConfigStore(showAdultContent = false): SiteConfigStore {
-  const script: SiteConfigStore["script"] = async <TResult = unknown>() => ({
-    enableKeywordFilter: "true",
-    enableStreamingSearch: "true",
-    showAdultContent: String(showAdultContent),
-  } as TResult);
-
-  return {
-    del: vi.fn(async () => undefined),
-    get: vi.fn(async () => null),
-    script: vi.fn(script) as SiteConfigStore["script"],
-    set: vi.fn(async () => undefined),
-  };
+function createSiteConfigStore(showAdultContent = false): Promise<SiteConfigStore> {
+  return createEdgeOneKvHashStore({
+    site: {
+      enableKeywordFilter: "true",
+      enableStreamingSearch: "true",
+      showAdultContent: String(showAdultContent),
+    },
+  }, { namespace: "admin" });
 }
 
 function createDetail(overrides: Partial<VideoSourceResource> = {}): VideoSourceResource {
@@ -175,9 +86,9 @@ function createDetail(overrides: Partial<VideoSourceResource> = {}): VideoSource
 
 describe("playback source service", () => {
   it("uses cached playback sources by index before loading live data", async () => {
-    const siteConfigStore = createSiteConfigStore(false);
-    const videoSourceStore = createSourceStore();
-    const cacheStore = createHashStore({
+    const siteConfigStore = await createSiteConfigStore(false);
+    const videoSourceStore = await createSourceStore();
+    const cacheStore = await createHashStore({
       [createPlaybackSourcesCacheKey("2026:anime:深空彼岸")]: {
         alpha: JSON.stringify({
           id: "80474",
@@ -195,6 +106,9 @@ describe("playback source service", () => {
     const searcher = vi.fn();
     const detailFetcher = vi.fn();
 
+    const siteConfigGet = vi.spyOn(siteConfigStore, "get");
+    const videoSourceGet = vi.spyOn(videoSourceStore, "get");
+
     const summary = await getPlaybackSources(
       { index: "2026:anime:深空彼岸" },
       {
@@ -208,12 +122,8 @@ describe("playback source service", () => {
       },
     );
 
-    expect(cacheStore.script).toHaveBeenCalledWith(expect.stringContaining("GET"), {
-      keys: [createPlaybackSourcesCacheKey("2026:anime:深空彼岸")],
-      readOnly: true,
-    });
-    expect(siteConfigStore.script).not.toHaveBeenCalled();
-    expect(videoSourceStore.script).not.toHaveBeenCalled();
+    expect(siteConfigGet).not.toHaveBeenCalled();
+    expect(videoSourceGet).not.toHaveBeenCalled();
     expect(searcher).not.toHaveBeenCalled();
     expect(detailFetcher).not.toHaveBeenCalled();
     expect(onStart).toHaveBeenCalledWith({ total: 1 });
@@ -229,12 +139,12 @@ describe("playback source service", () => {
   });
 
   it("uses cached detail first and skips live source lookup", async () => {
-    const indexStore = createHashStore({
+    const indexStore = await createHashStore({
       "2026:anime:深空彼岸": {
         alpha: JSON.stringify({ id: "80474", name: "Alpha Source", quality: "1080P" }),
       },
     });
-    const cacheStore = createValueStore({
+    const cacheStore = await createValueStore({
       "cache:video:alpha:80474": JSON.stringify({
         total_episodes: 2,
         id: "80474",
@@ -262,8 +172,8 @@ describe("playback source service", () => {
         indexCacheStore: indexStore,
         onResult,
         searcher,
-        siteConfigStore: createSiteConfigStore(false),
-        videoSourceStore: createSourceStore(),
+        siteConfigStore: await createSiteConfigStore(false),
+        videoSourceStore: await createSourceStore(),
       },
     );
 
@@ -281,7 +191,7 @@ describe("playback source service", () => {
   });
 
   it("uses cached source search entries with episode counts before loading live details", async () => {
-    const indexStore = createHashStore({
+    const indexStore = await createHashStore({
       "2026:anime:深空彼岸": {
         alpha: JSON.stringify({
           id: "80474",
@@ -291,7 +201,7 @@ describe("playback source service", () => {
         }),
       },
     });
-    const cacheStore = createValueStore();
+    const cacheStore = await createValueStore();
     const searcher = vi.fn();
     const detailFetcher = vi.fn();
     const onResult = vi.fn();
@@ -304,8 +214,8 @@ describe("playback source service", () => {
         indexCacheStore: indexStore,
         onResult,
         searcher,
-        siteConfigStore: createSiteConfigStore(false),
-        videoSourceStore: createSourceStore(),
+        siteConfigStore: await createSiteConfigStore(false),
+        videoSourceStore: await createSourceStore(),
       },
     );
 
@@ -323,12 +233,12 @@ describe("playback source service", () => {
   });
 
   it("removes a source from both caches when third-party lookup misses", async () => {
-    const indexStore = createHashStore({
+    const indexStore = await createHashStore({
       "2026:anime:深空彼岸": {
         alpha: JSON.stringify({ id: "80474", name: "Alpha Source", quality: "1080P" }),
       },
     });
-    const cacheStore = createValueStore();
+    const cacheStore = await createValueStore();
     const detailFetcher = vi.fn(async () => {
       throw new Error("Video source detail response is empty.");
     });
@@ -339,19 +249,19 @@ describe("playback source service", () => {
         cacheStore,
         detailFetcher,
         indexCacheStore: indexStore,
-        siteConfigStore: createSiteConfigStore(false),
-        videoSourceStore: createSourceStore(),
+        siteConfigStore: await createSiteConfigStore(false),
+        videoSourceStore: await createSourceStore(),
       },
     );
 
     expect(summary).toEqual({ completed: 0, total: 1 });
-    expect(indexStore.dumpHash("2026:anime:深空彼岸")).toEqual({});
-    expect(cacheStore.del).toHaveBeenCalledWith("cache:video:alpha:80474");
+    await expect(dumpEdgeOneKvHash(indexStore, "2026:anime:深空彼岸")).resolves.toEqual({});
+    await expect(dumpEdgeOneKvString(cacheStore, "cache:video:alpha:80474")).resolves.toBeNull();
   });
 
   it("falls back to live source search when the index cache is missing", async () => {
-    const indexStore = createHashStore();
-    const cacheStore = createValueStore();
+    const indexStore = await createHashStore();
+    const cacheStore = await createValueStore();
     const searcher = vi.fn(async () => [createDetail()]);
     const detailFetcher = vi.fn(async () => createDetail());
 
@@ -362,20 +272,20 @@ describe("playback source service", () => {
         detailFetcher,
         indexCacheStore: indexStore,
         searcher,
-        siteConfigStore: createSiteConfigStore(false),
-        videoSourceStore: createSourceStore(),
+        siteConfigStore: await createSiteConfigStore(false),
+        videoSourceStore: await createSourceStore(),
       },
     );
 
     expect(searcher).toHaveBeenCalledOnce();
     expect(detailFetcher).toHaveBeenCalledOnce();
-    expect(cacheStore.dumpValue("cache:video:alpha:80474")).toContain('"id":"80474"');
+    await expect(dumpEdgeOneKvString(cacheStore, "cache:video:alpha:80474")).resolves.toContain('"id":"80474"');
     expect(summary).toEqual({ completed: 1, total: 1 });
   });
 
   it("looks up playback sources concurrently when cache entries are missing", async () => {
-    const indexStore = createHashStore();
-    const cacheStore = createValueStore();
+    const indexStore = await createHashStore();
+    const cacheStore = await createValueStore();
     const sources = ["alpha", "beta", "gamma"].map((key, index) => ({
       apiUrl: `https://${key}.test/api.php/provide/vod`,
       key,
@@ -413,8 +323,8 @@ describe("playback source service", () => {
         detailFetcher,
         indexCacheStore: indexStore,
         searcher,
-        siteConfigStore: createSiteConfigStore(false),
-        videoSourceStore: createSourceStore(sources),
+        siteConfigStore: await createSiteConfigStore(false),
+        videoSourceStore: await createSourceStore(sources),
       },
     );
 

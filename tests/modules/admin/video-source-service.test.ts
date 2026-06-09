@@ -9,66 +9,34 @@ import {
   updateVideoSource,
   type VideoSourceStore,
 } from "@/modules/admin/server/video-source-service";
+import {
+  createEdgeOneKvHashStore,
+  dumpEdgeOneKvHash,
+} from "../../helpers/fake-edgeone-kv";
 
-const createFakeStore = (initial: Record<string, string> = {}): VideoSourceStore => {
-  const hash = new Map(Object.entries(initial));
+const videoSourcesKey = "sources";
 
-  return {
-    del: vi.fn(async () => undefined),
-    get: vi.fn(async () => null),
-    script: vi.fn(async <TResult = unknown>(script: string, options = {}) => {
-      const runOptions = options as { args?: unknown[] };
-
-      if (script.includes("HGETALL")) {
-        return Object.fromEntries(hash) as TResult;
-      }
-
-      if (script.includes("HSET")) {
-        const [key, rawSource] = runOptions.args ?? [];
-
-        if (typeof key === "string" && typeof rawSource === "string") {
-          hash.set(key, rawSource);
-        }
-
-        return 1 as TResult;
-      }
-
-      if (script.includes("HDEL")) {
-        const [key] = runOptions.args ?? [];
-
-        if (typeof key === "string") {
-          hash.delete(key);
-        }
-
-        return 1 as TResult;
-      }
-
-      return {} as TResult;
-    }) as VideoSourceStore["script"],
-    set: vi.fn(async () => undefined),
-  };
-};
+function createFakeStore(initial: Record<string, string> = {}): Promise<VideoSourceStore> {
+  return createEdgeOneKvHashStore({
+    [videoSourcesKey]: initial,
+  }, { namespace: "admin" });
+}
 
 describe("video source service", () => {
-  it("reads video sources from the sources redis hash", async () => {
-    const store = createFakeStore();
+  it("reads video sources from the sources KV hash", async () => {
+    const store = await createFakeStore();
 
-    await getVideoSources(store);
-
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HGETALL"), {
-      keys: ["sources"],
-      readOnly: true,
-    });
+    await expect(getVideoSources(store)).resolves.toEqual({ sources: [], updatedAt: null });
   });
 
   it("returns no default video sources before any sources are saved", async () => {
-    const store = createFakeStore();
+    const store = await createFakeStore();
 
     await expect(getVideoSources(store)).resolves.toEqual({ sources: [], updatedAt: null });
   });
 
   it("removes legacy source ids when reading stored video sources", async () => {
-    const store = createFakeStore({
+    const store = await createFakeStore({
       legacy: JSON.stringify({
         adult: false,
         apiUrl: "https://legacy.test/api",
@@ -90,7 +58,7 @@ describe("video source service", () => {
   });
 
   it("sorts video sources by subscription number first and moves zero numbers last", async () => {
-    const store = createFakeStore({
+    const store = await createFakeStore({
       disabled: JSON.stringify({
         adult: false,
         apiUrl: "https://disabled.test/api",
@@ -145,8 +113,8 @@ describe("video source service", () => {
     expect(data.sources.map((source) => source.key)).toEqual(["first", "second", "disabled", "unnumbered"]);
   });
 
-  it("creates, updates, batch updates, and deletes video sources through redis hash commands", async () => {
-    const store = createFakeStore();
+  it("creates, updates, batch updates, and deletes video sources through the KV hash", async () => {
+    const store = await createFakeStore();
     const created = await createVideoSource(
       {
         adult: false,
@@ -164,18 +132,13 @@ describe("video source service", () => {
     expect(created.key).toBe("new-source");
     expect(created.weight).toBe(99);
     expect(created.validity).toBe("warning");
-    expect(store.set).not.toHaveBeenCalledWith("sources", expect.anything());
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: [created.key, expect.not.stringContaining('"id"')],
-      keys: ["sources"],
-    });
+    let sourcesHash = await dumpEdgeOneKvHash(store, videoSourcesKey, { namespace: "admin" });
+    expect(sourcesHash[created.key]).not.toContain('"id"');
 
     const updated = await updateVideoSource(created.key, { status: "disabled", weight: 10 }, store);
     expect(updated.sources.find((source) => source.key === created.key)?.status).toBe("disabled");
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: [created.key, expect.stringContaining('"status":"disabled"')],
-      keys: ["sources"],
-    });
+    sourcesHash = await dumpEdgeOneKvHash(store, videoSourcesKey, { namespace: "admin" });
+    expect(sourcesHash[created.key]).toContain('"status":"disabled"');
 
     const batched = await batchUpdateVideoSources(
       {
@@ -185,10 +148,8 @@ describe("video source service", () => {
       store,
     );
     expect(batched.sources.find((source) => source.key === created.key)?.status).toBe("enabled");
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: [created.key, expect.stringContaining('"status":"enabled"')],
-      keys: ["sources"],
-    });
+    sourcesHash = await dumpEdgeOneKvHash(store, videoSourcesKey, { namespace: "admin" });
+    expect(sourcesHash[created.key]).toContain('"status":"enabled"');
 
     await expect(updateVideoSource(created.key, { key: "renamed-source" }, store)).rejects.toThrow(
       "source key cannot be changed.",
@@ -196,15 +157,13 @@ describe("video source service", () => {
 
     const deleted = await deleteVideoSource(created.key, store);
     expect(deleted.sources.some((source) => source.key === created.key)).toBe(false);
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HDEL"), {
-      args: [created.key],
-      keys: ["sources"],
-    });
+    sourcesHash = await dumpEdgeOneKvHash(store, videoSourcesKey, { namespace: "admin" });
+    expect(sourcesHash[created.key]).toBeUndefined();
     await expect(getVideoSources(store)).resolves.toEqual(deleted);
   });
 
   it("checks every stored video source with one keyword and persists each validity result", async () => {
-    const store = createFakeStore({
+    const store = await createFakeStore({
       alpha: JSON.stringify({
         adult: false,
         apiUrl: "https://alpha.test/api",
@@ -253,18 +212,13 @@ describe("video source service", () => {
     ]);
     expect(checked.sources.find((source) => source.key === "alpha")?.validity).toBe("valid");
     expect(checked.sources.find((source) => source.key === "beta")?.validity).toBe("invalid");
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: ["alpha", expect.stringContaining('"validity":"valid"')],
-      keys: ["sources"],
-    });
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: ["beta", expect.stringContaining('"validity":"invalid"')],
-      keys: ["sources"],
-    });
+    const sourcesHash = await dumpEdgeOneKvHash(store, videoSourcesKey, { namespace: "admin" });
+    expect(sourcesHash.alpha).toContain('"validity":"valid"');
+    expect(sourcesHash.beta).toContain('"validity":"invalid"');
   });
 
   it("checks video source validities concurrently to avoid long route runs", async () => {
-    const store = createFakeStore({
+    const store = await createFakeStore({
       alpha: JSON.stringify({
         adult: false,
         apiUrl: "https://alpha.test/api",
@@ -327,7 +281,7 @@ describe("video source service", () => {
   });
 
   it("deletes invalid video sources when configured to remove failed checks", async () => {
-    const store = createFakeStore({
+    const store = await createFakeStore({
       alpha: JSON.stringify({
         adult: false,
         apiUrl: "https://alpha.test/api",
@@ -368,18 +322,12 @@ describe("video source service", () => {
     );
 
     expect(checked.sources.map((source) => source.key)).toEqual(["alpha"]);
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HDEL"), {
-      args: ["beta"],
-      keys: ["sources"],
-    });
-    expect(store.script).not.toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: ["beta", expect.anything()],
-      keys: ["sources"],
-    });
+    const sourcesHash = await dumpEdgeOneKvHash(store, videoSourcesKey, { namespace: "admin" });
+    expect(sourcesHash.beta).toBeUndefined();
   });
 
   it("syncs config api_site entries into video sources without changing existing source flags", async () => {
-    const store = createFakeStore({
+    const store = await createFakeStore({
       alpha: JSON.stringify({
         adult: true,
         apiUrl: "https://old.test/api",
@@ -449,17 +397,9 @@ describe("video source service", () => {
       key: "removed",
       no: 0,
     });
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: ["alpha", expect.stringContaining('"apiUrl":"https://new.test/api"')],
-      keys: ["sources"],
-    });
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: ["beta", expect.stringContaining('"status":"enabled"')],
-      keys: ["sources"],
-    });
-    expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
-      args: ["removed", expect.stringContaining('"no":0')],
-      keys: ["sources"],
-    });
+    const sourcesHash = await dumpEdgeOneKvHash(store, videoSourcesKey, { namespace: "admin" });
+    expect(sourcesHash.alpha).toContain('"apiUrl":"https://new.test/api"');
+    expect(sourcesHash.beta).toContain('"status":"enabled"');
+    expect(sourcesHash.removed).toContain('"no":0');
   });
 });

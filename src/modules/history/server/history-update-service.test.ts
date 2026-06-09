@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { countHistoryUpdates } from "./history-update-service";
+import {
+  FakeEdgeOneKvBinding,
+  seedEdgeOneKvHash,
+} from "../../../../tests/helpers/fake-edgeone-kv";
 
 function createHistoryRecord(overrides: Record<string, unknown> = {}) {
   return {
@@ -21,13 +25,16 @@ function createHistoryRecord(overrides: Record<string, unknown> = {}) {
 
 describe("countHistoryUpdates", () => {
   it("counts only stored history items whose saved total is newer than the original total", async () => {
-    const historyStore = {
-      script: vi.fn(async () => ({
-        "alpha:movie-1": JSON.stringify(createHistoryRecord({ original_episodes: 3, play_episodes: 1 })),
-        "alpha:movie-2": JSON.stringify(createHistoryRecord({ original_episodes: 4, play_episodes: 2, save_time: Date.now() - 31 * 24 * 60 * 60 * 1000 })),
-        "alpha:movie-3": JSON.stringify(createHistoryRecord({ original_episodes: 4, play_episodes: 4 })),
-      })),
-    };
+    const historyStore = new FakeEdgeOneKvBinding();
+    await seedEdgeOneKvHash(historyStore, "user-1:pr", {
+      "alpha:movie-1": createHistoryRecord({ original_episodes: 3, play_episodes: 1 }),
+      "alpha:movie-2": createHistoryRecord({
+        original_episodes: 4,
+        play_episodes: 2,
+        save_time: Date.now() - 31 * 24 * 60 * 60 * 1000,
+      }),
+      "alpha:movie-3": createHistoryRecord({ original_episodes: 4, play_episodes: 4 }),
+    }, { namespace: "user" });
 
     const detailFetcher = vi.fn(async () => {
       throw new Error("detail fetch should not run when counting stored update data");
@@ -35,7 +42,7 @@ describe("countHistoryUpdates", () => {
 
     const result = await countHistoryUpdates("user-1", {
       detailFetcher: detailFetcher as never,
-      historyStore: historyStore as never,
+      historyStore,
     });
 
     expect(result).toEqual({ history: 2 });

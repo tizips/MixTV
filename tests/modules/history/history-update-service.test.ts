@@ -1,105 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import { checkAllHistoryUpdates, checkHistoryUpdates } from "@/modules/history/server/history-update-service";
 import type { VideoSourceStore } from "@/modules/admin/server/video-source-service";
-import type { DbPort, DbScriptOptions } from "@/shared/db/db-port";
+import {
+  createEdgeOneKvHashStore,
+  dumpEdgeOneKvHash,
+} from "../../helpers/fake-edgeone-kv";
 
-type ScriptStore = DbPort<unknown, string> & {
-  dumpHash: (key: string) => Record<string, string>;
-};
-
-function createHistoryStore(initialValues: Record<string, Record<string, string>> = {}): ScriptStore {
-  const hashes = new Map<string, Record<string, string>>(Object.entries(initialValues).map(([key, value]) => [key, { ...value }]));
-
-  const script = vi.fn(async (script: string, options?: DbScriptOptions<string>) => {
-    const key = options?.keys?.[0] ?? "";
-    const field = String(options?.args?.[0] ?? "");
-    const value = String(options?.args?.[1] ?? "");
-    const hash = hashes.get(key) ?? {};
-
-    if (script.includes("SCAN")) {
-      return [...hashes.keys()].map((historyKey) => `user:${historyKey}`);
-    }
-
-    if (script.includes("HSET")) {
-      hash[field] = value;
-      hashes.set(key, hash);
-      return Object.entries(hash).flat();
-    }
-
-    if (script.includes("HDEL")) {
-      delete hash[field];
-      hashes.set(key, hash);
-      return Object.entries(hash).flat();
-    }
-
-    if (script.includes("HGETALL")) {
-      return Object.entries(hash).flat();
-    }
-
-    if (script.includes("EXPIRE")) {
-      return 1;
-    }
-
-    return null;
-  }) as ScriptStore["script"];
-
-  return {
-    del: vi.fn(async (key: string) => {
-      hashes.delete(key);
-    }),
-    dumpHash(key: string) {
-      return { ...(hashes.get(key) ?? {}) };
-    },
-    get: vi.fn(async () => null),
-    script,
-    set: vi.fn(async () => undefined),
-  } as unknown as ScriptStore;
+function createHistoryStore(initialValues: Record<string, Record<string, string>> = {}) {
+  return createEdgeOneKvHashStore(initialValues, { namespace: "user" });
 }
 
-function createCacheStore(initialValues: Record<string, Record<string, string>> = {}): ScriptStore {
-  const hashes = new Map<string, Record<string, string>>(Object.entries(initialValues).map(([key, value]) => [key, { ...value }]));
-
-  const script = vi.fn(async (script: string, options?: DbScriptOptions<string>) => {
-    const key = options?.keys?.[0] ?? "";
-    const field = String(options?.args?.[0] ?? "");
-    const value = String(options?.args?.[1] ?? "");
-    const hash = hashes.get(key) ?? {};
-
-    if (script.includes("HSET")) {
-      hash[field] = value;
-      hashes.set(key, hash);
-      return Object.entries(hash).flat();
-    }
-
-    if (script.includes("HGETALL")) {
-      return Object.entries(hash).flat();
-    }
-
-    if (script.includes("EXPIRE")) {
-      return 1;
-    }
-
-    return null;
-  }) as ScriptStore["script"];
-
-  return {
-    del: vi.fn(async (key: string) => {
-      hashes.delete(key);
-    }),
-    dumpHash(key: string) {
-      return { ...(hashes.get(key) ?? {}) };
-    },
-    get: vi.fn(async () => null),
-    script,
-    set: vi.fn(async () => undefined),
-  } as unknown as ScriptStore;
+function createCacheStore(initialValues: Record<string, Record<string, string>> = {}) {
+  return createEdgeOneKvHashStore(initialValues);
 }
 
-function createVideoSourceStore(): VideoSourceStore {
-  return {
-    del: vi.fn(async () => undefined),
-    get: vi.fn(async () => null),
-    script: vi.fn(async <TResult = unknown>() => ({
+async function createVideoSourceStore(): Promise<VideoSourceStore> {
+  return createEdgeOneKvHashStore({
+    sources: {
       alpha: JSON.stringify({
         adult: false,
         apiUrl: "https://alpha.test/api",
@@ -112,9 +29,8 @@ function createVideoSourceStore(): VideoSourceStore {
         validity: "valid",
         weight: 10,
       }),
-    }) as TResult),
-    set: vi.fn(async () => undefined),
-  } as unknown as VideoSourceStore;
+    },
+  }, { namespace: "admin" });
 }
 
 function createHistoryRecord(overrides: Partial<Record<string, unknown>> = {}) {
@@ -138,13 +54,13 @@ function createHistoryRecord(overrides: Partial<Record<string, unknown>> = {}) {
 describe("checkHistoryUpdates", () => {
   it("skips history older than 30 days", async () => {
     const now = 1768535315661;
-    const historyStore = createHistoryStore({
+    const historyStore = await createHistoryStore({
       "user-1:pr": {
         "alpha:100": createHistoryRecord({ save_time: now - 31 * 24 * 60 * 60 * 1000 }),
         "alpha:101": createHistoryRecord({ original_episodes: 10, save_time: now - 2 * 24 * 60 * 60 * 1000 }),
       },
     });
-    const cacheStore = createCacheStore();
+    const cacheStore = await createCacheStore();
     const detailFetcher = vi.fn(async () => ({
       description: "detail",
       episodeTitles: ["1", "2"],
@@ -165,29 +81,25 @@ describe("checkHistoryUpdates", () => {
       detailFetcher,
       historyStore,
       now: () => now,
-      videoSourceStore: createVideoSourceStore(),
+      videoSourceStore: await createVideoSourceStore(),
     })) {
       events.push(event);
     }
 
     expect(events.map((event) => event.type)).toEqual(["start", "unchanged", "skip", "done"]);
     expect(detailFetcher).toHaveBeenCalledTimes(1);
-    expect(cacheStore.script).toHaveBeenCalledWith(
-      expect.stringContaining('redis.call("HSET"'),
-      expect.objectContaining({
-        args: ["original_episodes", 2, 7200],
-        keys: ["cache:update:alpha:101"],
-      }),
-    );
+    await expect(dumpEdgeOneKvHash(cacheStore, "cache:update:alpha:101")).resolves.toEqual({
+      original_episodes: "2",
+    });
   });
 
   it("updates history totals and caches update checks for 2 hours", async () => {
-    const historyStore = createHistoryStore({
+    const historyStore = await createHistoryStore({
       "user-1:pr": {
         "alpha:100": createHistoryRecord({ original_episodes: 12 }),
       },
     });
-    const cacheStore = createCacheStore();
+    const cacheStore = await createCacheStore();
     const detailFetcher = vi.fn(async () => ({
       description: "detail",
       episodeTitles: Array.from({ length: 14 }, (_, index) => String(index + 1)),
@@ -208,26 +120,22 @@ describe("checkHistoryUpdates", () => {
       detailFetcher,
       historyStore,
       now: () => 1768535315661,
-      videoSourceStore: createVideoSourceStore(),
+      videoSourceStore: await createVideoSourceStore(),
     })) {
       events.push(event);
     }
 
     expect(events.some((event) => event.type === "update" && event.updated)).toBe(true);
-    expect(JSON.parse(historyStore.dumpHash("user-1:pr")["alpha:100"] ?? "{}")).toMatchObject({
+    expect(JSON.parse((await dumpEdgeOneKvHash(historyStore, "user-1:pr", { namespace: "user" }))["alpha:100"] ?? "{}")).toMatchObject({
       original_episodes: 14,
     });
-    expect(cacheStore.script).toHaveBeenCalledWith(
-      expect.stringContaining('redis.call("HSET"'),
-      expect.objectContaining({
-        args: ["original_episodes", 14, 7200],
-        keys: ["cache:update:alpha:100"],
-      }),
-    );
+    await expect(dumpEdgeOneKvHash(cacheStore, "cache:update:alpha:100")).resolves.toEqual({
+      original_episodes: "14",
+    });
   });
 
   it("reuses the same cache for different users", async () => {
-    const cacheStore = createCacheStore({
+    const cacheStore = await createCacheStore({
       "cache:update:alpha:100": {
         original_episodes: "14",
       },
@@ -236,12 +144,12 @@ describe("checkHistoryUpdates", () => {
       throw new Error("detail fetch should not run when cache is shared");
     });
 
-    const firstUserHistoryStore = createHistoryStore({
+    const firstUserHistoryStore = await createHistoryStore({
       "user-1:pr": {
         "alpha:100": createHistoryRecord({ original_episodes: 12 }),
       },
     });
-    const secondUserHistoryStore = createHistoryStore({
+    const secondUserHistoryStore = await createHistoryStore({
       "user-2:pr": {
         "alpha:100": createHistoryRecord({ original_episodes: 10 }),
       },
@@ -253,7 +161,7 @@ describe("checkHistoryUpdates", () => {
       detailFetcher,
       historyStore: firstUserHistoryStore,
       now: () => 1768535315661,
-      videoSourceStore: createVideoSourceStore(),
+      videoSourceStore: await createVideoSourceStore(),
     })) {
       firstEvents.push(event);
     }
@@ -264,7 +172,7 @@ describe("checkHistoryUpdates", () => {
       detailFetcher,
       historyStore: secondUserHistoryStore,
       now: () => 1768535315661,
-      videoSourceStore: createVideoSourceStore(),
+      videoSourceStore: await createVideoSourceStore(),
     })) {
       secondEvents.push(event);
     }
@@ -277,7 +185,7 @@ describe("checkHistoryUpdates", () => {
 
 describe("checkAllHistoryUpdates", () => {
   it("updates history for every user and keeps the shared cache hot", async () => {
-    const historyStore = createHistoryStore({
+    const historyStore = await createHistoryStore({
       "user-1:pr": {
         "alpha:100": createHistoryRecord({ original_episodes: 12 }),
       },
@@ -285,7 +193,7 @@ describe("checkAllHistoryUpdates", () => {
         "alpha:100": createHistoryRecord({ original_episodes: 10 }),
       },
     });
-    const cacheStore = createCacheStore();
+    const cacheStore = await createCacheStore();
     const detailFetcher = vi.fn(async () => ({
       description: "detail",
       episodeTitles: Array.from({ length: 14 }, (_, index) => String(index + 1)),
@@ -304,7 +212,7 @@ describe("checkAllHistoryUpdates", () => {
       detailFetcher,
       historyStore,
       now: () => 1768535315661,
-      videoSourceStore: createVideoSourceStore(),
+      videoSourceStore: await createVideoSourceStore(),
     });
 
     expect(summary).toMatchObject({
@@ -315,10 +223,10 @@ describe("checkAllHistoryUpdates", () => {
       users: 2,
     });
     expect(detailFetcher).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(historyStore.dumpHash("user-1:pr")["alpha:100"] ?? "{}")).toMatchObject({
+    expect(JSON.parse((await dumpEdgeOneKvHash(historyStore, "user-1:pr", { namespace: "user" }))["alpha:100"] ?? "{}")).toMatchObject({
       original_episodes: 14,
     });
-    expect(JSON.parse(historyStore.dumpHash("user-2:pr")["alpha:100"] ?? "{}")).toMatchObject({
+    expect(JSON.parse((await dumpEdgeOneKvHash(historyStore, "user-2:pr", { namespace: "user" }))["alpha:100"] ?? "{}")).toMatchObject({
       original_episodes: 14,
     });
   });

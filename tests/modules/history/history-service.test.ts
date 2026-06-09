@@ -1,47 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
-import type { DbPort, DbScriptOptions } from "@/shared/db/db-port";
+import { describe, expect, it } from "vitest";
 import { deleteHistoryPlaybackProgress, listPlaybackHistory } from "@/modules/history/server/history-service";
+import { createEdgeOneKvHashStore } from "../../helpers/fake-edgeone-kv";
 
-type ScriptHistoryStore = DbPort<unknown, string> & {
-  dumpHash: (key: string) => Record<string, string>;
-};
-
-function createHistoryStore(initialValues: Record<string, string> = {}): ScriptHistoryStore {
-  const hashes = new Map<string, Record<string, string>>([["user-1:pr", { ...initialValues }]]);
-
-  return {
-    del: vi.fn(async (key) => {
-      hashes.delete(key);
-    }),
-    dumpHash(key) {
-      return { ...(hashes.get(key) ?? {}) };
-    },
-    get: vi.fn(async () => null),
-    async script<TResult = unknown>(script: string, options?: DbScriptOptions<string>) {
-      const key = options?.keys?.[0] ?? "";
-      const field = String(options?.args?.[0] ?? "");
-      const hash = hashes.get(key) ?? {};
-
-      if (script.includes("HDEL")) {
-        delete hash[field];
-        hashes.set(key, hash);
-
-        return Object.entries(hash).flat() as TResult;
-      }
-
-      if (script.includes("HGETALL")) {
-        return Object.entries(hash).flat() as TResult;
-      }
-
-      return null as TResult;
-    },
-    set: vi.fn(async () => undefined),
-  };
+function createHistoryStore(initialValues: Record<string, string> = {}) {
+  return createEdgeOneKvHashStore({
+    "user-1:pr": initialValues,
+  }, { namespace: "user" });
 }
 
 describe("history service", () => {
   it("lists playback history ordered by most recent save time", async () => {
-    const store = createHistoryStore({
+    const store = await createHistoryStore({
       "alpha:100": JSON.stringify({
         cover: "https://image.test/one.jpg",
         douban_id: 0,
@@ -79,7 +48,7 @@ describe("history service", () => {
   });
 
   it("deletes a history entry and returns the remaining list", async () => {
-    const store = createHistoryStore({
+    const store = await createHistoryStore({
       "alpha:100": JSON.stringify({
         cover: "https://image.test/one.jpg",
         douban_id: 0,
