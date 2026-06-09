@@ -78,36 +78,36 @@ describe("login API route", () => {
     expect(authenticateLoginRequestMock).not.toHaveBeenCalled();
   });
 
-  it("rejects invalid credential formats before authenticating", async () => {
-    const invalidUsernameResponse = await loginRoute.POST(
+  it("rejects blank credentials before authenticating", async () => {
+    const blankUsernameResponse = await loginRoute.POST(
       new Request("http://localhost/api/login", {
         body: JSON.stringify({
           password: "Secret@123",
-          username: "Admin",
+          username: "   ",
         }),
         method: "POST",
       }),
     );
 
-    await expect(invalidUsernameResponse.json()).resolves.toEqual({
+    await expect(blankUsernameResponse.json()).resolves.toEqual({
       message: "Invalid username or password.",
     });
-    expect(invalidUsernameResponse.status).toBe(400);
+    expect(blankUsernameResponse.status).toBe(400);
 
-    const invalidPasswordResponse = await loginRoute.POST(
+    const blankPasswordResponse = await loginRoute.POST(
       new Request("http://localhost/api/login", {
         body: JSON.stringify({
-          password: "secret-pass",
+          password: "",
           username: "admin",
         }),
         method: "POST",
       }),
     );
 
-    await expect(invalidPasswordResponse.json()).resolves.toEqual({
+    await expect(blankPasswordResponse.json()).resolves.toEqual({
       message: "Invalid username or password.",
     });
-    expect(invalidPasswordResponse.status).toBe(400);
+    expect(blankPasswordResponse.status).toBe(400);
     expect(authenticateLoginRequestMock).not.toHaveBeenCalled();
   });
 
@@ -129,6 +129,27 @@ describe("login API route", () => {
     expect(authenticateLoginRequestMock).toHaveBeenCalledWith({
       password: "Secret@123",
       username: "admin",
+    });
+  });
+
+  it("passes non-empty credentials through even when they do not match user-account format rules", async () => {
+    authenticateLoginRequestMock.mockResolvedValue({ jwt: "signed.jwt" });
+
+    const response = await loginRoute.POST(
+      new Request("http://localhost/api/login", {
+        body: JSON.stringify({
+          password: "Secret!123",
+          username: " Admin ",
+        }),
+        method: "POST",
+      }),
+    );
+
+    await expect(response.json()).resolves.toEqual({ jwt: "signed.jwt" });
+    expect(response.status).toBe(200);
+    expect(authenticateLoginRequestMock).toHaveBeenCalledWith({
+      password: "Secret!123",
+      username: "Admin",
     });
   });
 

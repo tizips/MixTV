@@ -3,14 +3,13 @@ import { ensureEdgeOneKvBindingsForNode } from "@/infrastructure/edgeone/node-kv
 import { z } from "zod";
 import { authenticateLoginRequest, getAccountByJwt } from "@/modules/auth/server/login-api-service";
 import { createAuthSessionCookie } from "@/modules/auth/server/session-cookie";
-import { usernamePattern, userPasswordPattern } from "@/shared/user-credentials";
 
 export const runtime = "nodejs";
 
 const loginRequestSchema = z
   .object({
-    password: z.string().regex(userPasswordPattern),
-    username: z.string().trim().regex(usernamePattern),
+    password: z.string().min(1),
+    username: z.string().trim().min(1),
   })
   .strict();
 
