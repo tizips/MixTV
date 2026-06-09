@@ -1,4 +1,7 @@
-import { createDbAdapter } from "@/infrastructure/db/db-adapter";
+import {
+  cleanupExpiredEdgeOneKvEntries,
+  getEdgeOneKvBinding,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 import {
   asObject,
   createAdminModulesStore,
@@ -38,34 +41,9 @@ export interface CacheKvCleanupOptions {
 }
 
 const key = "cache";
+const cacheKvBindingName = "cache";
 const cacheKvCleanupBatchSize = 1000;
 const cacheKvCleanupPattern = "*";
-
-const cleanupExpiredCacheKvScript = `
-local cursor = "0"
-local scanned = 0
-local deleted = 0
-
-repeat
-  local result = redis.call("SCAN", cursor, "MATCH", ARGV[1], "COUNT", ARGV[2])
-  cursor = result[1]
-  local batch = result[2]
-
-  for index = 1, #batch do
-    scanned = scanned + 1
-    local raw = redis.call("GET", batch[index])
-    if raw then
-      local ok, payload = pcall(cjson.decode, raw)
-      if ok and type(payload) == "table" and type(payload.expiresAt) == "number" and payload.expiresAt <= tonumber(ARGV[3]) then
-        redis.call("DEL", batch[index])
-        deleted = deleted + 1
-      end
-    end
-  end
-until cursor == "0"
-
-return { scanned = scanned, deleted = deleted }
-`;
 
 const defaultCacheData: CacheData = {
   categories: [
@@ -126,13 +104,9 @@ export async function clearCache(input: unknown, store: AdminModulesStore = crea
 }
 
 function createCacheKvCleanupStore(): AdminModulesStore {
-  return createDbAdapter<unknown>({ namespace: "" });
-}
-
-function readCleanupCount(value: unknown) {
-  const count = Number(value);
-
-  return Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+  return getEdgeOneKvBinding({
+    bindingName: cacheKvBindingName,
+  });
 }
 
 export async function cleanupExpiredCacheKvEntries({
@@ -142,14 +116,15 @@ export async function cleanupExpiredCacheKvEntries({
   store = createCacheKvCleanupStore(),
 }: CacheKvCleanupOptions = {}): Promise<CacheKvCleanupResult> {
   const completedAtMs = readNow();
-  const result = await store.script<{ deleted?: unknown; scanned?: unknown }>(cleanupExpiredCacheKvScript, {
-    args: [pattern, batchSize, completedAtMs],
-    readOnly: false,
+  const result = await cleanupExpiredEdgeOneKvEntries(store, {
+    expiresBefore: completedAtMs,
+    limit: batchSize,
+    pattern,
   });
 
   return {
     completedAt: new Date(completedAtMs).toISOString(),
-    deleted: readCleanupCount(result?.deleted),
-    scanned: readCleanupCount(result?.scanned),
+    deleted: result.deleted,
+    scanned: result.scanned,
   };
 }

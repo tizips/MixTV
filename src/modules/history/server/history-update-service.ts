@@ -1,5 +1,10 @@
 import { getVideoSourceDetail, type VideoSourceAdapterOptions, type VideoSourceEndpoint } from "@/integrations/video-sources";
-import { createDbAdapter } from "@/infrastructure/db/db-adapter";
+import {
+  getEdgeOneKvBinding,
+  listEdgeOneKvLogicalKeys,
+  patchEdgeOneKvHash,
+  readEdgeOneKvHash,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 import {
   createVideoSourceStore,
   getVideoSources,
@@ -62,36 +67,10 @@ export class HistoryUpdateValidationError extends Error {
 
 const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
 const historyUpdateCacheSeconds = 2 * 60 * 60;
+const historyUpdateCacheKvBindingName = "cache";
 const historyUpdateCacheKeyPrefix = "cache:update";
 const historyUpdateCacheTotalEpisodesField = "original_episodes";
 const playbackProgressHashKeySuffix = ":pr";
-
-const readHistoryUpdateCacheScript = `
-return redis.call("HGETALL", KEYS[1])
-`;
-
-const saveHistoryUpdateCacheScript = `
-redis.call("HSET", KEYS[1], ARGV[1], ARGV[2])
-redis.call("EXPIRE", KEYS[1], ARGV[3])
-return redis.call("HGETALL", KEYS[1])
-`;
-
-const listPlaybackHistoryKeysScript = `
-local cursor = "0"
-local keys = {}
-
-repeat
-  local result = redis.call("SCAN", cursor, "MATCH", ARGV[1], "COUNT", ARGV[2])
-  cursor = result[1]
-  local batch = result[2]
-
-  for index = 1, #batch do
-    keys[#keys + 1] = batch[index]
-  end
-until cursor == "0"
-
-return keys
-`;
 
 function normalizeHistoryUpdateTotal(totalEpisodes: number) {
   if (!Number.isFinite(totalEpisodes) || totalEpisodes < 0) {
@@ -151,12 +130,7 @@ function toStringArray(value: unknown) {
 }
 
 async function readCachedSourceTotal(cacheStore: HistoryUpdateCacheStore, cacheKey: string) {
-  const record = toHashRecord(
-    await cacheStore.script(readHistoryUpdateCacheScript, {
-      keys: [cacheKey],
-      readOnly: true,
-    }),
-  );
+  const record = toHashRecord(await readEdgeOneKvHash(cacheStore, cacheKey));
 
   if (!record) {
     return null;
@@ -178,10 +152,9 @@ async function saveCachedSourceTotal(
   cacheKey: string,
   totalEpisodes: number,
 ) {
-  await cacheStore.script(saveHistoryUpdateCacheScript, {
-    args: [historyUpdateCacheTotalEpisodesField, totalEpisodes, historyUpdateCacheSeconds],
-    keys: [cacheKey],
-  });
+  await patchEdgeOneKvHash(cacheStore, cacheKey, {
+    [historyUpdateCacheTotalEpisodesField]: String(totalEpisodes),
+  }, { ttlSeconds: historyUpdateCacheSeconds });
 }
 
 async function findEnabledSource(sourceKey: string, videoSourceStore: VideoSourceStore) {
@@ -227,16 +200,16 @@ function createHistoryUpdateEvent(
 }
 
 export function createHistoryUpdateCacheStore() {
-  return createDbAdapter<unknown>({ namespace: "" });
+  return getEdgeOneKvBinding({
+    bindingName: historyUpdateCacheKvBindingName,
+  });
 }
 
 async function listPlaybackHistoryUserIds(store: HistoryStore) {
-  const keys = toStringArray(
-    await store.script(listPlaybackHistoryKeysScript, {
-      args: [createPlaybackHistoryHashKeyPattern(), 1000],
-      readOnly: true,
-    }),
-  );
+  const keys = toStringArray(await listEdgeOneKvLogicalKeys(store, {
+    limit: 1000,
+    pattern: createPlaybackHistoryHashKeyPattern(),
+  }));
 
   return [...new Set(keys.map(readPlaybackHistoryUserIdFromKey).filter((userId) => userId.length > 0))];
 }

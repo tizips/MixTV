@@ -1,9 +1,16 @@
-import { createDbAdapter } from "@/infrastructure/db/db-adapter";
-import type { DbPort } from "@/shared/db/db-port";
+import {
+  getEdgeOneKvBinding,
+  readEdgeOneKvHash,
+  readEdgeOneKvString,
+  type EdgeOneKvBinding,
+  writeEdgeOneKvHash,
+  writeEdgeOneKvString,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 import type { VideoSourceResource } from "@/integrations/video-sources";
 
-export type PlaybackCacheStore = DbPort<unknown, string>;
+export type PlaybackCacheStore = EdgeOneKvBinding;
 
+const playbackCacheKvBindingName = "cache";
 const playbackCacheTtlSeconds = 60 * 60;
 const playbackSourcesCacheTtlSeconds = 60 * 60;
 
@@ -35,27 +42,6 @@ type PlaybackSourcesCachePayload = PlaybackSourceCacheItem & {
   order: number;
   quality: string | undefined;
 };
-
-const readPlaybackCacheScript = `
-return redis.call("GET", KEYS[1])
-`;
-
-const savePlaybackCacheScript = `
-redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[2])
-return 1
-`;
-
-const readPlaybackSourcesCacheScript = `
-return redis.call("HGETALL", KEYS[1])
-`;
-
-const savePlaybackSourcesCacheScript = `
-for index = 1, #ARGV - 1, 2 do
-  redis.call("HSET", KEYS[1], ARGV[index], ARGV[index + 1])
-end
-redis.call("EXPIRE", KEYS[1], ARGV[#ARGV])
-return 1
-`;
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -211,7 +197,9 @@ function createPlaybackCachePayload(resource: VideoSourceResource): PlaybackDeta
 }
 
 export function createPlaybackCacheStore(): PlaybackCacheStore {
-  return createDbAdapter<unknown>({ namespace: "" });
+  return getEdgeOneKvBinding({
+    bindingName: playbackCacheKvBindingName,
+  });
 }
 
 export function createPlaybackCacheKey(sourceKey: string, id: string) {
@@ -224,12 +212,7 @@ export function createPlaybackSourcesCacheKey(index: string) {
 
 export async function readPlaybackCacheEntry(cacheStore: PlaybackCacheStore, cacheKey: string) {
   try {
-    return parseCachedResource(
-      await cacheStore.script(readPlaybackCacheScript, {
-        keys: [cacheKey],
-        readOnly: true,
-      }),
-    );
+    return parseCachedResource(await readEdgeOneKvString(cacheStore, cacheKey));
   } catch {
     return null;
   }
@@ -241,9 +224,8 @@ export async function savePlaybackCacheEntry(
   resource: VideoSourceResource,
 ) {
   try {
-    await cacheStore.script(savePlaybackCacheScript, {
-      args: [JSON.stringify(createPlaybackCachePayload(resource)), playbackCacheTtlSeconds],
-      keys: [cacheKey],
+    await writeEdgeOneKvString(cacheStore, cacheKey, JSON.stringify(createPlaybackCachePayload(resource)), {
+      ttlSeconds: playbackCacheTtlSeconds,
     });
   } catch {
     // Playback should still work when cache storage is temporarily unavailable.
@@ -272,10 +254,7 @@ function isPlaybackSourcesCacheItem(value: unknown): value is PlaybackSourceCach
 
 export async function readPlaybackSourcesCacheEntry(cacheStore: PlaybackCacheStore, cacheKey: string) {
   try {
-    const record = toHashRecord(await cacheStore.script(readPlaybackSourcesCacheScript, {
-      keys: [cacheKey],
-      readOnly: true,
-    }));
+    const record = toHashRecord(await readEdgeOneKvHash(cacheStore, cacheKey));
 
     const entries = Object.entries(record)
       .map(([field, value]) => {
@@ -322,29 +301,25 @@ export async function savePlaybackSourcesCacheEntry(
   }
 
   try {
-    const args: Array<string | number> = [];
-
-    payload.forEach((item, order) => {
-      args.push(
-        item.key,
-        JSON.stringify({
-          id: item.id,
-          key: item.key,
-          name: item.name,
-          order,
-          quality: item.quality ?? "",
-          source_name: item.source_name,
-          total_episodes: item.total_episodes,
-        }),
-      );
-    });
-
-    args.push(playbackSourcesCacheTtlSeconds);
-
-    await cacheStore.script(savePlaybackSourcesCacheScript, {
-      args,
-      keys: [cacheKey],
-    });
+    await writeEdgeOneKvHash(
+      cacheStore,
+      cacheKey,
+      Object.fromEntries(
+        payload.map((item, order) => [
+          item.key,
+          JSON.stringify({
+            id: item.id,
+            key: item.key,
+            name: item.name,
+            order,
+            quality: item.quality ?? "",
+            source_name: item.source_name,
+            total_episodes: item.total_episodes,
+          }),
+        ]),
+      ),
+      { ttlSeconds: playbackSourcesCacheTtlSeconds },
+    );
   } catch {
     // Playback source lookup should still work when cache storage is temporarily unavailable.
   }

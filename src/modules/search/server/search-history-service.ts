@@ -1,35 +1,20 @@
-import { createDbAdapter } from "@/infrastructure/db/db-adapter";
-import type { DbPort } from "@/shared/db/db-port";
+import {
+  deleteEdgeOneKvEntry,
+  getEdgeOneKvBinding,
+  readEdgeOneKvList,
+  type EdgeOneKvBinding,
+  writeEdgeOneKvList,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 
 const maxSearchHistoryItems = 20;
 const searchHistoryNamespace = "user";
-const lastSearchHistoryIndex = maxSearchHistoryItems - 1;
-
-const listSearchHistoryScript = `
-return redis.call("LRANGE", KEYS[1], 0, tonumber(ARGV[1]))
-`;
-
-const addSearchHistoryScript = `
-redis.call("LREM", KEYS[1], 0, ARGV[1])
-redis.call("LPUSH", KEYS[1], ARGV[1])
-redis.call("LTRIM", KEYS[1], 0, tonumber(ARGV[2]))
-return redis.call("LRANGE", KEYS[1], 0, tonumber(ARGV[2]))
-`;
-
-const deleteSearchHistoryScript = `
-redis.call("LREM", KEYS[1], 0, ARGV[1])
-return redis.call("LRANGE", KEYS[1], 0, tonumber(ARGV[2]))
-`;
-
-const clearSearchHistoryScript = `
-redis.call("DEL", KEYS[1])
-return {}
-`;
-
-let searchHistoryStore: DbPort<string, string> | null = null;
+const searchHistoryKvBindingName = "user";
+let searchHistoryStore: EdgeOneKvBinding | null = null;
 
 function getSearchHistoryStore() {
-  searchHistoryStore ??= createDbAdapter<string>({ namespace: searchHistoryNamespace });
+  searchHistoryStore ??= getEdgeOneKvBinding({
+    bindingName: searchHistoryKvBindingName,
+  });
 
   return searchHistoryStore;
 }
@@ -51,10 +36,8 @@ function createSearchHistoryKey(userId: string) {
 }
 
 export async function listSearchHistory(userId: string) {
-  const result = await getSearchHistoryStore().script(listSearchHistoryScript, {
-    args: [lastSearchHistoryIndex],
-    keys: [createSearchHistoryKey(userId)],
-    readOnly: true,
+  const result = await readEdgeOneKvList(getSearchHistoryStore(), createSearchHistoryKey(userId), {
+    namespace: searchHistoryNamespace,
   });
 
   return toSearchHistory(result);
@@ -67,10 +50,14 @@ export async function addSearchHistory(userId: string, keyword: string) {
     return listSearchHistory(userId);
   }
 
-  const result = await getSearchHistoryStore().script(addSearchHistoryScript, {
-    args: [normalizedKeyword, lastSearchHistoryIndex],
-    keys: [createSearchHistoryKey(userId)],
+  const store = getSearchHistoryStore();
+  const key = createSearchHistoryKey(userId);
+  const current = await readEdgeOneKvList(store, key, {
+    namespace: searchHistoryNamespace,
   });
+  const result = [normalizedKeyword, ...current.filter((item) => item !== normalizedKeyword)].slice(0, maxSearchHistoryItems);
+
+  await writeEdgeOneKvList(store, key, result, { namespace: searchHistoryNamespace });
 
   return toSearchHistory(result);
 }
@@ -79,10 +66,14 @@ export async function deleteSearchHistory(userId: string, keyword: string) {
   const normalizedKeyword = keyword.trim();
 
   if (normalizedKeyword) {
-    const result = await getSearchHistoryStore().script(deleteSearchHistoryScript, {
-      args: [normalizedKeyword, lastSearchHistoryIndex],
-      keys: [createSearchHistoryKey(userId)],
+    const store = getSearchHistoryStore();
+    const key = createSearchHistoryKey(userId);
+    const current = await readEdgeOneKvList(store, key, {
+      namespace: searchHistoryNamespace,
     });
+    const result = current.filter((item) => item !== normalizedKeyword).slice(0, maxSearchHistoryItems);
+
+    await writeEdgeOneKvList(store, key, result, { namespace: searchHistoryNamespace });
 
     return toSearchHistory(result);
   }
@@ -91,9 +82,9 @@ export async function deleteSearchHistory(userId: string, keyword: string) {
 }
 
 export async function clearSearchHistory(userId: string) {
-  const result = await getSearchHistoryStore().script(clearSearchHistoryScript, {
-    keys: [createSearchHistoryKey(userId)],
+  await deleteEdgeOneKvEntry(getSearchHistoryStore(), createSearchHistoryKey(userId), {
+    namespace: searchHistoryNamespace,
   });
 
-  return toSearchHistory(result);
+  return [];
 }

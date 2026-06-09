@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { createEdgeOneKvDbAdapter, type EdgeOneKvBinding } from "@/infrastructure/db/edgeone-kv-db-adapter";
+import {
+  deleteEdgeOneKvEntry,
+  readEdgeOneKvJson,
+  type EdgeOneKvBinding,
+  writeEdgeOneKvJson,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 import { getAccountByJwt } from "@/modules/auth/server/login-api-service";
 
 export const runtime = "edge";
@@ -83,10 +88,6 @@ async function probeStoreBinding(bindingName: string, binding: EdgeOneKvBinding 
     };
   }
 
-  const db = createEdgeOneKvDbAdapter<{ marker: string }>({
-    binding,
-    namespace: "diagnostics",
-  });
   const marker = `probe_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const key = `edgeone_kv_probe_${Date.now()}`;
   const probe = {
@@ -96,14 +97,14 @@ async function probeStoreBinding(bindingName: string, binding: EdgeOneKvBinding 
   };
 
   try {
-    await db.set(key, { marker });
+    await writeEdgeOneKvJson(binding, key, { marker }, { namespace: "diagnostics" });
     probe.written = true;
 
-    const value = await db.get(key);
+    const value = await readEdgeOneKvJson<{ marker: string }>(binding, key, { namespace: "diagnostics" });
     probe.read = value?.marker === marker;
 
-    await db.del(key);
-    probe.deleted = await db.get(key) === null;
+    await deleteEdgeOneKvEntry(binding, key, { namespace: "diagnostics" });
+    probe.deleted = await readEdgeOneKvJson(binding, key, { namespace: "diagnostics" }) === null;
 
     return {
       available: true,
@@ -112,7 +113,7 @@ async function probeStoreBinding(bindingName: string, binding: EdgeOneKvBinding 
     };
   } catch (error) {
     try {
-      await db.del(key);
+      await deleteEdgeOneKvEntry(binding, key, { namespace: "diagnostics" });
     } catch {
       // Keep the original probe error. Cleanup is best effort.
     }

@@ -1,3 +1,4 @@
+import { readEdgeOneKvHash, writeEdgeOneKvHash } from "@/infrastructure/db/edgeone-kv-db-adapter";
 import {
   asObject,
   createAdminModulesStore,
@@ -20,15 +21,7 @@ export interface TimingManagementConfig {
 }
 
 const key = "timing-management";
-
-const readTimingManagementConfigScript = `
-return redis.call("HGETALL", KEYS[1])
-`;
-
-const saveTimingManagementConfigScript = `
-redis.call("HSET", KEYS[1], "autoRefreshEnabled", ARGV[1], "maxRecordsPerRun", ARGV[2], "recentActiveDays", ARGV[3], "onlyRefreshOngoingSeries", ARGV[4], "maxSearchPages", ARGV[5], "siteCacheSeconds", ARGV[6], "updatedAt", ARGV[7])
-return 1
-`;
+const storeNamespace = "admin";
 
 export const defaultTimingManagementConfig: TimingManagementConfig = {
   autoRefreshEnabled: true,
@@ -101,10 +94,7 @@ function readHashTimingManagementConfig(raw: unknown): Partial<TimingManagementC
 }
 
 export async function getTimingManagementConfig(store: AdminModulesStore = createAdminModulesStore()) {
-  const rawHashConfig = await store.script<Record<string, string> | string[]>(readTimingManagementConfigScript, {
-    keys: [key],
-    readOnly: true,
-  });
+  const rawHashConfig = await readEdgeOneKvHash(store, key, { namespace: storeNamespace });
 
   return {
     ...defaultTimingManagementConfig,
@@ -124,18 +114,15 @@ export async function saveTimingManagementConfig(input: unknown, store: AdminMod
     updatedAt: now(),
   };
 
-  await store.script(saveTimingManagementConfigScript, {
-    args: [
-      String(saved.autoRefreshEnabled),
-      String(saved.maxRecordsPerRun),
-      String(saved.recentActiveDays),
-      String(saved.onlyRefreshOngoingSeries),
-      String(saved.maxSearchPages),
-      String(saved.siteCacheSeconds),
-      saved.updatedAt,
-    ],
-    keys: [key],
-  });
+  await writeEdgeOneKvHash(store, key, {
+    autoRefreshEnabled: String(saved.autoRefreshEnabled),
+    maxRecordsPerRun: String(saved.maxRecordsPerRun),
+    maxSearchPages: String(saved.maxSearchPages),
+    onlyRefreshOngoingSeries: String(saved.onlyRefreshOngoingSeries),
+    recentActiveDays: String(saved.recentActiveDays),
+    siteCacheSeconds: String(saved.siteCacheSeconds),
+    updatedAt: saved.updatedAt ?? "",
+  }, { namespace: storeNamespace });
 
   return saved;
 }

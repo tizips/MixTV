@@ -1,5 +1,9 @@
-import { createDbAdapter } from "@/infrastructure/db/db-adapter";
-import type { DbPort } from "@/shared/db/db-port";
+import {
+  getEdgeOneKvBinding,
+  readEdgeOneKvHash,
+  type EdgeOneKvBinding,
+  writeEdgeOneKvHash,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 import { env } from "@/shared/env";
 
 export type SiteConfigProxyMode =
@@ -40,7 +44,7 @@ export type SiteConfigSwitchKey = Extract<
   "enableKeywordFilter" | "showAdultContent" | "enableStreamingSearch"
 >;
 
-export type SiteConfigStore = DbPort<SiteConfig, string>;
+export type SiteConfigStore = EdgeOneKvBinding;
 
 export class SiteConfigValidationError extends Error {
   constructor(message: string) {
@@ -50,14 +54,8 @@ export class SiteConfigValidationError extends Error {
 }
 
 const siteConfigNamespace = "admin";
+const siteConfigKvBindingName = "cfg";
 const siteConfigKey = "site";
-const readSiteConfigScript = `
-return redis.call("HGETALL", KEYS[1])
-`;
-const saveSiteConfigScript = `
-redis.call("HSET", KEYS[1], "siteName", ARGV[1], "siteAnnouncement", ARGV[2], "doubanDataProxyMode", ARGV[3], "doubanDataProxyUrl", ARGV[4], "doubanImageProxyMode", ARGV[5], "doubanImageProxyUrl", ARGV[6], "doubanAuth", ARGV[7], "enableKeywordFilter", ARGV[8], "showAdultContent", ARGV[9], "enableStreamingSearch", ARGV[10], "updatedAt", ARGV[11])
-return 1
-`;
 const proxyModes = new Set<SiteConfigProxyMode>([
   "direct",
   "zwei",
@@ -87,8 +85,8 @@ export const defaultSiteConfig: SiteConfig = {
 };
 
 export function createSiteConfigStore(): SiteConfigStore {
-  return createDbAdapter<SiteConfig>({
-    namespace: siteConfigNamespace,
+  return getEdgeOneKvBinding({
+    bindingName: siteConfigKvBindingName,
   });
 }
 
@@ -199,31 +197,25 @@ function readHashSiteConfig(raw: unknown): Partial<SiteConfig> | null {
 export async function getSiteConfig(
   store: SiteConfigStore = createSiteConfigStore(),
 ): Promise<SiteConfig> {
-  const hashConfig = readHashSiteConfig(await store.script<Record<string, string> | string[]>(readSiteConfigScript, {
-    keys: [siteConfigKey],
-    readOnly: true,
-  }));
+  const hashConfig = readHashSiteConfig(await readEdgeOneKvHash(store, siteConfigKey, { namespace: siteConfigNamespace }));
 
   return normalizeConfig(hashConfig);
 }
 
 async function persistSiteConfig(store: SiteConfigStore, config: SiteConfig) {
-  await store.script(saveSiteConfigScript, {
-    args: [
-      config.siteName,
-      config.siteAnnouncement,
-      config.doubanDataProxyMode,
-      config.doubanDataProxyUrl,
-      config.doubanImageProxyMode,
-      config.doubanImageProxyUrl,
-      config.doubanAuth,
-      String(config.enableKeywordFilter),
-      String(config.showAdultContent),
-      String(config.enableStreamingSearch),
-      config.updatedAt,
-    ],
-    keys: [siteConfigKey],
-  });
+  await writeEdgeOneKvHash(store, siteConfigKey, {
+    doubanAuth: config.doubanAuth,
+    doubanDataProxyMode: config.doubanDataProxyMode,
+    doubanDataProxyUrl: config.doubanDataProxyUrl,
+    doubanImageProxyMode: config.doubanImageProxyMode,
+    doubanImageProxyUrl: config.doubanImageProxyUrl,
+    enableKeywordFilter: String(config.enableKeywordFilter),
+    enableStreamingSearch: String(config.enableStreamingSearch),
+    showAdultContent: String(config.showAdultContent),
+    siteAnnouncement: config.siteAnnouncement,
+    siteName: config.siteName,
+    updatedAt: config.updatedAt ?? "",
+  }, { namespace: siteConfigNamespace });
 }
 
 export async function saveSiteConfigLeft(

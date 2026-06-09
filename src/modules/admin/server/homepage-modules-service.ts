@@ -1,5 +1,9 @@
-import { createDbAdapter } from "@/infrastructure/db/db-adapter";
-import type { DbPort } from "@/shared/db/db-port";
+import {
+  getEdgeOneKvBinding,
+  readEdgeOneKvHash,
+  type EdgeOneKvBinding,
+  writeEdgeOneKvHash,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 import { AdminModuleValidationError } from "./admin-module-error";
 
 export type HomepageModuleKey =
@@ -18,17 +22,11 @@ export interface HomepageConfig {
   updatedAt: string | null;
 }
 
-export type HomepageModulesStore = DbPort<unknown, string>;
+export type HomepageModulesStore = EdgeOneKvBinding;
 
 const storeNamespace = "admin";
+const storeKvBindingName = "cfg";
 const modulesStoreKey = "modules";
-const readHomepageConfigScript = `
-return redis.call("HGETALL", KEYS[1])
-`;
-const saveHomepageConfigScript = `
-redis.call("HSET", KEYS[1], "welcome-announcement", ARGV[1], "carousel", ARGV[2], "continue-watching", ARGV[3], "coming-soon", ARGV[4], "trending-movies", ARGV[5], "trending-series", ARGV[6], "new-anime", ARGV[7], "trending-variety", ARGV[8], "trending-short-dramas", ARGV[9], "updatedAt", ARGV[10])
-return 1
-`;
 
 const homepageKeys: HomepageModuleKey[] = [
   "welcome-announcement",
@@ -48,7 +46,9 @@ export const defaultHomepageConfig: HomepageConfig = {
 };
 
 export function createHomepageModulesStore(): HomepageModulesStore {
-  return createDbAdapter<unknown>({ namespace: storeNamespace });
+  return getEdgeOneKvBinding({
+    bindingName: storeKvBindingName,
+  });
 }
 
 function now() {
@@ -121,21 +121,18 @@ function readHashHomepageConfig(raw: unknown): HomepageConfig | null {
 }
 
 async function persistHomepageConfig(store: HomepageModulesStore, value: HomepageConfig) {
-  await store.script(saveHomepageConfigScript, {
-    args: [
-      String(value.modules["welcome-announcement"]),
-      String(value.modules.carousel),
-      String(value.modules["continue-watching"]),
-      String(value.modules["coming-soon"]),
-      String(value.modules["trending-movies"]),
-      String(value.modules["trending-series"]),
-      String(value.modules["new-anime"]),
-      String(value.modules["trending-variety"]),
-      String(value.modules["trending-short-dramas"]),
-      value.updatedAt,
-    ],
-    keys: [modulesStoreKey],
-  });
+  await writeEdgeOneKvHash(store, modulesStoreKey, {
+    carousel: String(value.modules.carousel),
+    "coming-soon": String(value.modules["coming-soon"]),
+    "continue-watching": String(value.modules["continue-watching"]),
+    "new-anime": String(value.modules["new-anime"]),
+    "trending-movies": String(value.modules["trending-movies"]),
+    "trending-series": String(value.modules["trending-series"]),
+    "trending-short-dramas": String(value.modules["trending-short-dramas"]),
+    "trending-variety": String(value.modules["trending-variety"]),
+    updatedAt: value.updatedAt ?? "",
+    "welcome-announcement": String(value.modules["welcome-announcement"]),
+  }, { namespace: storeNamespace });
 
   return value;
 }
@@ -143,10 +140,7 @@ async function persistHomepageConfig(store: HomepageModulesStore, value: Homepag
 export async function getHomepageConfig(
   store: HomepageModulesStore = createHomepageModulesStore(),
 ): Promise<HomepageConfig> {
-  const stored = readHashHomepageConfig(await store.script<Record<string, string> | string[]>(readHomepageConfigScript, {
-    keys: [modulesStoreKey],
-    readOnly: true,
-  }));
+  const stored = readHashHomepageConfig(await readEdgeOneKvHash(store, modulesStoreKey, { namespace: storeNamespace }));
   return {
     modules: stored?.modules ?? { ...defaultHomepageConfig.modules },
     updatedAt: stored?.updatedAt ?? null,

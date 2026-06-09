@@ -4,7 +4,12 @@ import {
   type VideoSourceEndpoint,
   type VideoSourceResource,
 } from "@/integrations/video-sources";
-import { createDbAdapter } from "@/infrastructure/db/db-adapter";
+import {
+  getEdgeOneKvBinding,
+  readEdgeOneKvString,
+  type EdgeOneKvBinding,
+  writeEdgeOneKvString,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 import {
   createVideoSourceStore,
   getVideoSources,
@@ -12,7 +17,6 @@ import {
   type VideoSourceStore,
 } from "@/modules/admin";
 import { hasFavorite, type FavoriteStore } from "@/modules/favorites/server/favorite-service";
-import type { DbPort } from "@/shared/db/db-port";
 import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import { createMediaSearchIndex } from "@/shared/media/search-index";
 import type { PlayPageData, VideoSource } from "../domain/playback-page-data";
@@ -45,9 +49,10 @@ export interface PlaybackPageQuery {
 }
 
 const missingPlaybackQueryMessage = "缺少 source 或 id 参数，无法加载播放信息。";
+const playbackCacheKvBindingName = "cache";
 const playbackCacheTtlSeconds = 60 * 60;
 
-export type PlaybackCacheStore = DbPort<unknown, string>;
+export type PlaybackCacheStore = EdgeOneKvBinding;
 
 interface ThirdPartyDetailCachePayload {
   total_episodes: number;
@@ -64,17 +69,10 @@ interface ThirdPartyDetailCachePayload {
   description: string;
 }
 
-const readPlaybackCacheScript = `
-return redis.call("GET", KEYS[1])
-`;
-
-const savePlaybackCacheScript = `
-redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[2])
-return 1
-`;
-
 export function createPlaybackCacheStore(): PlaybackCacheStore {
-  return createDbAdapter<unknown>({ namespace: "" });
+  return getEdgeOneKvBinding({
+    bindingName: playbackCacheKvBindingName,
+  });
 }
 
 function readSingleParam(value: string | string[] | undefined) {
@@ -224,12 +222,7 @@ function parseCachedResource(value: unknown): VideoSourceResource | null {
 
 async function readCachedResource(cacheStore: PlaybackCacheStore, cacheKey: string) {
   try {
-    return parseCachedResource(
-      await cacheStore.script(readPlaybackCacheScript, {
-        keys: [cacheKey],
-        readOnly: true,
-      }),
-    );
+    return parseCachedResource(await readEdgeOneKvString(cacheStore, cacheKey));
   } catch {
     return null;
   }
@@ -237,9 +230,8 @@ async function readCachedResource(cacheStore: PlaybackCacheStore, cacheKey: stri
 
 async function saveCachedResource(cacheStore: PlaybackCacheStore, cacheKey: string, resource: VideoSourceResource) {
   try {
-    await cacheStore.script(savePlaybackCacheScript, {
-      args: [JSON.stringify(createThirdPartyDetailCachePayload(resource)), playbackCacheTtlSeconds],
-      keys: [cacheKey],
+    await writeEdgeOneKvString(cacheStore, cacheKey, JSON.stringify(createThirdPartyDetailCachePayload(resource)), {
+      ttlSeconds: playbackCacheTtlSeconds,
     });
   } catch {
     // Playback should still work when cache storage is temporarily unavailable.

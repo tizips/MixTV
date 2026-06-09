@@ -1,4 +1,5 @@
 import { getVideoSourceDetail, searchVideoSource, type VideoSourceAdapterOptions, type VideoSourceEndpoint } from "@/integrations/video-sources";
+import { deleteEdgeOneKvEntry } from "@/infrastructure/db/edgeone-kv-db-adapter";
 import { getSiteConfig, type SiteConfigStore } from "@/modules/admin/server/site-config-service";
 import {
   createVideoSourceStore,
@@ -254,7 +255,7 @@ export async function getPlaybackSources(
           if (!resolvedDetail.episodes.length) {
             await enqueueCacheWrite(async () => {
               if (cacheKey) {
-                await cacheStore.del(cacheKey);
+                await deleteEdgeOneKvEntry(cacheStore, cacheKey);
               }
               await deleteMediaSearchCacheEntry(index, source.key, { store: indexCacheStore });
             });
@@ -265,7 +266,7 @@ export async function getPlaybackSources(
         } catch {
           await enqueueCacheWrite(async () => {
             if (cacheKey) {
-              await cacheStore.del(cacheKey);
+              await deleteEdgeOneKvEntry(cacheStore, cacheKey);
             }
             await deleteMediaSearchCacheEntry(index, source.key, { store: indexCacheStore });
           });

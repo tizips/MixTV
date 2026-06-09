@@ -1,11 +1,17 @@
 import { getVideoSourceDetail, type VideoSourceAdapterOptions, type VideoSourceEndpoint } from "@/integrations/video-sources";
-import { createDbAdapter } from "@/infrastructure/db/db-adapter";
+import {
+  deleteEdgeOneKvHashField,
+  getEdgeOneKvBinding,
+  patchEdgeOneKvHash,
+  readEdgeOneKvHash,
+  readEdgeOneKvHashField,
+  type EdgeOneKvBinding,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 import {
   createVideoSourceStore,
   getVideoSources,
   type VideoSourceStore,
 } from "@/modules/admin/server/video-source-service";
-import type { DbPort } from "@/shared/db/db-port";
 import { createMediaSearchIndex } from "@/shared/media/search-index";
 
 export interface StoredPlaybackProgressRecord {
@@ -64,7 +70,7 @@ export interface InitialPlaybackProgressOptions {
   userId: string;
 }
 
-export type PlaybackProgressStore = DbPort<unknown, string>;
+export type PlaybackProgressStore = EdgeOneKvBinding;
 
 export class PlaybackProgressValidationError extends Error {
   constructor(message: string) {
@@ -74,28 +80,13 @@ export class PlaybackProgressValidationError extends Error {
 }
 
 const playbackProgressNamespace = "user";
+const playbackProgressKvBindingName = "user";
 const progressFieldDelimiter = ":";
 
-const readProgressScript = `
-return redis.call("HGET", KEYS[1], ARGV[1])
-`;
-
-const readAllProgressScript = `
-return redis.call("HGETALL", KEYS[1])
-`;
-
-const saveProgressScript = `
-redis.call("HSET", KEYS[1], ARGV[1], ARGV[2])
-return ARGV[2]
-`;
-
-const deleteProgressScript = `
-redis.call("HDEL", KEYS[1], ARGV[1])
-return 1
-`;
-
 export function createPlaybackProgressStore(): PlaybackProgressStore {
-  return createDbAdapter<unknown>({ namespace: playbackProgressNamespace });
+  return getEdgeOneKvBinding({
+    bindingName: playbackProgressKvBindingName,
+  });
 }
 
 export function createPlaybackProgressField(source: string, id: string) {
@@ -294,10 +285,8 @@ async function readStoredProgress({
   userId: string;
 }) {
   const parsed = parseStoredPlaybackProgress(
-    await store.script(readProgressScript, {
-      args: [field],
-      keys: [createUserPlaybackProgressHashKey(userId)],
-      readOnly: true,
+    await readEdgeOneKvHashField(store, createUserPlaybackProgressHashKey(userId), field, {
+      namespace: playbackProgressNamespace,
     }),
   );
 
@@ -319,19 +308,15 @@ async function saveStoredProgress({
   store: PlaybackProgressStore;
   userId: string;
 }) {
-  await store.script(saveProgressScript, {
-    args: [field, JSON.stringify(record)],
-    keys: [createUserPlaybackProgressHashKey(userId)],
-  });
+  await patchEdgeOneKvHash(store, createUserPlaybackProgressHashKey(userId), {
+    [field]: JSON.stringify(record),
+  }, { namespace: playbackProgressNamespace });
 }
 
 async function readAllStoredProgress(userId: string, store: PlaybackProgressStore) {
-  return toHashRecord(
-    await store.script(readAllProgressScript, {
-      keys: [createUserPlaybackProgressHashKey(userId)],
-      readOnly: true,
-    }),
-  );
+  return toHashRecord(await readEdgeOneKvHash(store, createUserPlaybackProgressHashKey(userId), {
+    namespace: playbackProgressNamespace,
+  }));
 }
 
 export async function savePlaybackProgress(input: SavePlaybackProgressInput, options: PlaybackProgressOptions) {
@@ -463,8 +448,7 @@ export async function deletePlaybackProgress(
   const id = readRequiredString(input.id, "id");
   const field = createPlaybackProgressField(source, id);
 
-  await store.script(deleteProgressScript, {
-    args: [field],
-    keys: [createUserPlaybackProgressHashKey(userId)],
+  await deleteEdgeOneKvHashField(store, createUserPlaybackProgressHashKey(userId), field, {
+    namespace: playbackProgressNamespace,
   });
 }

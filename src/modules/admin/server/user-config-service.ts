@@ -1,5 +1,10 @@
-import { createDbAdapter } from "@/infrastructure/db/db-adapter";
-import type { DbPort } from "@/shared/db/db-port";
+import {
+  deleteEdgeOneKvHashField,
+  getEdgeOneKvBinding,
+  patchEdgeOneKvHash,
+  readEdgeOneKvHash,
+  type EdgeOneKvBinding,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 import { getRuntimeEnv } from "@/shared/runtime-env";
 import {
   usernamePattern,
@@ -31,7 +36,7 @@ export interface UserCollection {
   updatedAt: string | null;
 }
 
-export type UserConfigStore = DbPort<unknown, string>;
+export type UserConfigStore = EdgeOneKvBinding;
 
 type StoredUserRecord = UserItem & {
   passwordHash?: string;
@@ -44,6 +49,7 @@ type UserPatch = {
 };
 
 const storeNamespace = "admin";
+const storeKvBindingName = "cfg";
 const usersKey = "users";
 
 const userRoles = new Set<UserRole>(["owner", "user"]);
@@ -53,22 +59,10 @@ const passwordHashIterations = 100_000;
 const passwordSaltBytes = 16;
 const passwordHashBits = 256;
 
-const readUsersScript = `
-return redis.call("HGETALL", KEYS[1])
-`;
-
-const saveUserScript = `
-redis.call("HSET", KEYS[1], ARGV[1], ARGV[2])
-return 1
-`;
-
-const deleteUserScript = `
-redis.call("HDEL", KEYS[1], ARGV[1])
-return 1
-`;
-
 export function createUserConfigStore(): UserConfigStore {
-  return createDbAdapter<unknown>({ namespace: storeNamespace });
+  return getEdgeOneKvBinding({
+    bindingName: storeKvBindingName,
+  });
 }
 
 function now() {
@@ -331,21 +325,13 @@ function getUsersUpdatedAt(users: UserItem[]) {
 }
 
 async function readStoredUsers(store: UserConfigStore): Promise<StoredUserRecord[]> {
-  return parseStoredUsers(
-    toHashRecord(
-      await store.script(readUsersScript, {
-        keys: [usersKey],
-        readOnly: true,
-      }),
-    ),
-  );
+  return parseStoredUsers(toHashRecord(await readEdgeOneKvHash(store, usersKey, { namespace: storeNamespace })));
 }
 
 async function saveUserRecord(user: StoredUserRecord, store: UserConfigStore) {
-  await store.script(saveUserScript, {
-    args: [user.username, JSON.stringify(user)],
-    keys: [usersKey],
-  });
+  await patchEdgeOneKvHash(store, usersKey, {
+    [user.username]: JSON.stringify(user),
+  }, { namespace: storeNamespace });
 }
 
 async function saveUserRecords(users: StoredUserRecord[], store: UserConfigStore) {
@@ -470,13 +456,9 @@ export async function deleteUser(
     throw new UserConfigValidationError("user not found.");
   }
 
-  await store.script(deleteUserScript, {
-    args: [username],
-    keys: [usersKey],
-  });
+  await deleteEdgeOneKvHashField(store, usersKey, username, { namespace: storeNamespace });
 
   const users = current.filter((user) => user.username !== username);
-  await saveUserRecords(users, store);
 
   return toUserCollection(users);
 }

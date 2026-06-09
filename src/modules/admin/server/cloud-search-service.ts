@@ -1,3 +1,4 @@
+import { readEdgeOneKvHash, writeEdgeOneKvHash } from "@/infrastructure/db/edgeone-kv-db-adapter";
 import { defaultCloudSearchPanSouUrl } from "./admin-config-schemas";
 import { AdminModuleValidationError } from "./admin-module-error";
 import {
@@ -44,15 +45,7 @@ export interface CloudSearchConfig {
 }
 
 const key = "cloud-search";
-
-const readCloudSearchConfigScript = `
-return redis.call("HGETALL", KEYS[1])
-`;
-
-const saveCloudSearchConfigScript = `
-redis.call("HSET", KEYS[1], "enabled", ARGV[1], "panSouUrl", ARGV[2], "requestTimeoutSeconds", ARGV[3], "supportedDriveTypes", ARGV[4], "updatedAt", ARGV[5])
-return 1
-`;
+const storeNamespace = "admin";
 
 const cloudSearchDriveTypeKeys = new Set<CloudSearchDriveTypeKey>([
   "baidu",
@@ -161,10 +154,7 @@ function readHashCloudSearchConfig(raw: unknown): Partial<CloudSearchConfig> | n
 }
 
 export async function getCloudSearchConfig(store: AdminModulesStore = createAdminModulesStore()) {
-  const rawHashConfig = await store.script<Record<string, string> | string[]>(readCloudSearchConfigScript, {
-    keys: [key],
-    readOnly: true,
-  });
+  const rawHashConfig = await readEdgeOneKvHash(store, key, { namespace: storeNamespace });
   const config = {
     ...defaultCloudSearchConfig,
     ...readHashCloudSearchConfig(rawHashConfig),
@@ -195,16 +185,13 @@ export async function saveCloudSearchConfig(input: unknown, store: AdminModulesS
     updatedAt: now(),
   };
 
-  await store.script(saveCloudSearchConfigScript, {
-    args: [
-      String(saved.enabled),
-      saved.panSouUrl,
-      String(saved.requestTimeoutSeconds),
-      JSON.stringify(saved.supportedDriveTypes),
-      saved.updatedAt,
-    ],
-    keys: [key],
-  });
+  await writeEdgeOneKvHash(store, key, {
+    enabled: String(saved.enabled),
+    panSouUrl: saved.panSouUrl,
+    requestTimeoutSeconds: String(saved.requestTimeoutSeconds),
+    supportedDriveTypes: JSON.stringify(saved.supportedDriveTypes),
+    updatedAt: saved.updatedAt ?? "",
+  }, { namespace: storeNamespace });
 
   return saved;
 }

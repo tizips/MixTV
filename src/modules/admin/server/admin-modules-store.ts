@@ -1,13 +1,20 @@
-import { createDbAdapter } from "@/infrastructure/db/db-adapter";
-import type { DbPort } from "@/shared/db/db-port";
+import {
+  getEdgeOneKvBinding,
+  readEdgeOneKvJson,
+  type EdgeOneKvBinding,
+  writeEdgeOneKvJson,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 import { AdminModuleValidationError } from "./admin-module-error";
 
-export type AdminModulesStore = DbPort<unknown, string>;
+export type AdminModulesStore = EdgeOneKvBinding;
 
 const storeNamespace = "admin";
+const storeKvBindingName = "cfg";
 
 export function createAdminModulesStore(): AdminModulesStore {
-  return createDbAdapter<unknown>({ namespace: storeNamespace });
+  return getEdgeOneKvBinding({
+    bindingName: storeKvBindingName,
+  });
 }
 
 export function now() {
@@ -66,11 +73,11 @@ export function readNumber(payload: Record<string, unknown>, key: string, fallba
 }
 
 export async function getStored<T>(key: string, defaults: T, store: AdminModulesStore): Promise<T> {
-  const stored = (await store.get(key)) as Partial<T> | null;
+  const stored = await readEdgeOneKvJson<Partial<T>>(store, key, { namespace: storeNamespace });
   return { ...defaults, ...stored };
 }
 
 export async function saveStored<T>(key: string, value: T, store: AdminModulesStore): Promise<T> {
-  await store.set(key, value);
+  await writeEdgeOneKvJson(store, key, value, { namespace: storeNamespace });
   return value;
 }

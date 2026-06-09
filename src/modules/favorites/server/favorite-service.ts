@@ -1,11 +1,18 @@
 import { getVideoSourceDetail, type VideoSourceAdapterOptions, type VideoSourceEndpoint } from "@/integrations/video-sources";
-import { createDbAdapter } from "@/infrastructure/db/db-adapter";
+import {
+  deleteEdgeOneKvHashField,
+  getEdgeOneKvBinding,
+  moveEdgeOneKvHashField,
+  patchEdgeOneKvHash,
+  readEdgeOneKvHash,
+  readEdgeOneKvHashField,
+  type EdgeOneKvBinding,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 import {
   createVideoSourceStore,
   getVideoSources,
   type VideoSourceStore,
 } from "@/modules/admin/server/video-source-service";
-import type { DbPort } from "@/shared/db/db-port";
 import { createMediaSearchIndex } from "@/shared/media/search-index";
 
 export interface StoredFavoriteRecord {
@@ -55,7 +62,7 @@ export interface MigrateFavoriteOptions extends FavoriteServiceOptions {
   detail?: Awaited<ReturnType<typeof getVideoSourceDetail>>;
 }
 
-export type FavoriteStore = DbPort<unknown, string>;
+export type FavoriteStore = EdgeOneKvBinding;
 
 export class FavoriteValidationError extends Error {
   constructor(message: string) {
@@ -65,38 +72,13 @@ export class FavoriteValidationError extends Error {
 }
 
 const favoriteNamespace = "user";
+const favoriteKvBindingName = "user";
 const favoriteKeyDelimiter = ":";
 
-const readFavoritesScript = `
-return redis.call("HGETALL", KEYS[1])
-`;
-
-const readFavoriteScript = `
-return redis.call("HGET", KEYS[1], ARGV[1])
-`;
-
-const saveFavoriteScript = `
-redis.call("HSET", KEYS[1], ARGV[1], ARGV[2])
-return ARGV[2]
-`;
-
-const deleteFavoriteScript = `
-redis.call("HDEL", KEYS[1], ARGV[1])
-return redis.call("HGETALL", KEYS[1])
-`;
-
-const migrateFavoriteScript = `
-local current = redis.call("HGET", KEYS[1], ARGV[1])
-if not current then
-  return nil
-end
-redis.call("HSET", KEYS[1], ARGV[2], ARGV[3])
-redis.call("HDEL", KEYS[1], ARGV[1])
-return ARGV[3]
-`;
-
 export function createFavoriteStore(): FavoriteStore {
-  return createDbAdapter<unknown>({ namespace: favoriteNamespace });
+  return getEdgeOneKvBinding({
+    bindingName: favoriteKvBindingName,
+  });
 }
 
 export function createFavoriteKey(source: string, id: string) {
@@ -213,12 +195,9 @@ function parseFavoriteEntry(field: string, rawFavorite: string): FavoriteItem | 
 }
 
 async function readFavoriteRecord(userId: string, store: FavoriteStore) {
-  return toHashRecord(
-    await store.script(readFavoritesScript, {
-      keys: [createUserFavoriteHashKey(userId)],
-      readOnly: true,
-    }),
-  );
+  return toHashRecord(await readEdgeOneKvHash(store, createUserFavoriteHashKey(userId), {
+    namespace: favoriteNamespace,
+  }));
 }
 
 function readFavoriteInput(input: unknown) {
@@ -284,10 +263,9 @@ export async function createFavorite(input: unknown, options: FavoriteServiceOpt
     year: detail.year,
   };
 
-  await store.script(saveFavoriteScript, {
-    args: [favoriteKey, JSON.stringify(record)],
-    keys: [createUserFavoriteHashKey(options.userId)],
-  });
+  await patchEdgeOneKvHash(store, createUserFavoriteHashKey(options.userId), {
+    [favoriteKey]: JSON.stringify(record),
+  }, { namespace: favoriteNamespace });
 
   return { id, source: sourceKey, ...record };
 }
@@ -317,10 +295,8 @@ export async function migrateFavoriteRecord(
   const userFavoriteHashKey = createUserFavoriteHashKey(options.userId);
   const currentFavoriteKey = createFavoriteKey(current.source, current.id);
   const targetFavoriteKey = createFavoriteKey(target.source, target.id);
-  const currentRawFavorite = await store.script<string | null>(readFavoriteScript, {
-    args: [currentFavoriteKey],
-    keys: [userFavoriteHashKey],
-    readOnly: true,
+  const currentRawFavorite = await readEdgeOneKvHashField(store, userFavoriteHashKey, currentFavoriteKey, {
+    namespace: favoriteNamespace,
   });
 
   if (!currentRawFavorite) {
@@ -358,10 +334,14 @@ export async function migrateFavoriteRecord(
     year: detail.year,
   };
 
-  const migratedFavorite = await store.script<string | null>(migrateFavoriteScript, {
-    args: [currentFavoriteKey, targetFavoriteKey, JSON.stringify(record)],
-    keys: [userFavoriteHashKey],
-  });
+  const migratedFavorite = await moveEdgeOneKvHashField(
+    store,
+    userFavoriteHashKey,
+    currentFavoriteKey,
+    targetFavoriteKey,
+    JSON.stringify(record),
+    { namespace: favoriteNamespace },
+  );
 
   if (!migratedFavorite) {
     return null;
@@ -387,10 +367,8 @@ export async function hasFavorite(
   const favoriteKey = createFavoriteKey(source, id);
 
   return Boolean(
-    await store.script(readFavoriteScript, {
-      args: [favoriteKey],
-      keys: [createUserFavoriteHashKey(userId)],
-      readOnly: true,
+    await readEdgeOneKvHashField(store, createUserFavoriteHashKey(userId), favoriteKey, {
+      namespace: favoriteNamespace,
     }),
   );
 }
@@ -407,9 +385,8 @@ export async function deleteFavorite(
     throw new FavoriteValidationError("favorite key is required.");
   }
 
-  const result = await store.script(deleteFavoriteScript, {
-    args: [normalizedFavoriteKey],
-    keys: [createUserFavoriteHashKey(userId)],
+  const result = await deleteEdgeOneKvHashField(store, createUserFavoriteHashKey(userId), normalizedFavoriteKey, {
+    namespace: favoriteNamespace,
   });
 
   return sortFavorites(

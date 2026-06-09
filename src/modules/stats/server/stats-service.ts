@@ -1,5 +1,9 @@
-import { createDbAdapter } from "@/infrastructure/db/db-adapter";
-import type { DbPort } from "@/shared/db/db-port";
+import {
+  getEdgeOneKvBinding,
+  incrementEdgeOneKvHashFields,
+  readEdgeOneKvHash,
+  type EdgeOneKvBinding,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 
 export type StatsBucketKind = "page" | "api" | "third-party";
 
@@ -57,53 +61,24 @@ export interface TrafficOverview {
   timeline: TrafficTimelinePoint[];
 }
 
-type StatsStore = DbPort<unknown, string>;
+type StatsStore = EdgeOneKvBinding;
 
 const statsNamespace = "stats";
+const statsKvBindingName = "cache";
 const statsTtlSeconds = 8 * 24 * 60 * 60;
-
-const recordStatScript = `
-local fieldPrefix = ARGV[1]
-local countDelta = tonumber(ARGV[2])
-local durationDelta = tonumber(ARGV[3])
-local successDelta = tonumber(ARGV[4])
-local failDelta = tonumber(ARGV[5])
-local ttl = tonumber(ARGV[6])
-
-if countDelta ~= 0 then
-  redis.call("HINCRBY", KEYS[1], fieldPrefix .. ":count", countDelta)
-end
-
-if durationDelta ~= 0 then
-  redis.call("HINCRBY", KEYS[1], fieldPrefix .. ":duration", durationDelta)
-end
-
-if successDelta ~= 0 then
-  redis.call("HINCRBY", KEYS[1], fieldPrefix .. ":success", successDelta)
-end
-
-if failDelta ~= 0 then
-  redis.call("HINCRBY", KEYS[1], fieldPrefix .. ":fail", failDelta)
-end
-
-redis.call("EXPIRE", KEYS[1], ttl)
-return 1
-`;
-
-const readStatsDayScript = `
-return redis.call("HGETALL", KEYS[1])
-`;
 
 let statsStore: StatsStore | null = null;
 
 function getStatsStore() {
-  statsStore ??= createDbAdapter<unknown>({ namespace: statsNamespace });
+  statsStore ??= createStatsStore();
 
   return statsStore;
 }
 
 export function createStatsStore() {
-  return createDbAdapter<unknown>({ namespace: statsNamespace });
+  return getEdgeOneKvBinding({
+    bindingName: statsKvBindingName,
+  });
 }
 
 export function resetStatsStoreForTest() {
@@ -140,6 +115,12 @@ function readNumber(value: unknown) {
 }
 
 function toHashRecord(value: unknown): Record<string, string> {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return Object.fromEntries(
+      Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+    );
+  }
+
   if (!Array.isArray(value)) {
     return {};
   }
@@ -217,17 +198,13 @@ async function recordStat(
   const failDelta = input.ok === false ? 1 : 0;
 
   try {
-    await getStatsStore().script(recordStatScript, {
-      args: [
-        createFieldPrefix(kind, minuteKey),
-        countDelta,
-        durationDelta,
-        successDelta,
-        failDelta,
-        statsTtlSeconds,
-      ],
-      keys: [`day:${dayKey}`],
-    });
+    const fieldPrefix = createFieldPrefix(kind, minuteKey);
+    await incrementEdgeOneKvHashFields(getStatsStore(), `day:${dayKey}`, {
+      [`${fieldPrefix}:count`]: countDelta,
+      [`${fieldPrefix}:duration`]: durationDelta,
+      [`${fieldPrefix}:fail`]: failDelta,
+      [`${fieldPrefix}:success`]: successDelta,
+    }, { namespace: statsNamespace, ttlSeconds: statsTtlSeconds });
   } catch {
     // Stats collection must never break the request flow.
   }
@@ -312,12 +289,7 @@ function aggregateDaySummary(dayKey: string, record: Record<string, string>): Tr
 }
 
 async function readTrafficDayRecord(dayKey: string) {
-  const record = toHashRecord(
-    await getStatsStore().script(readStatsDayScript, {
-      keys: [`day:${dayKey}`],
-      readOnly: true,
-    }),
-  );
+  const record = toHashRecord(await readEdgeOneKvHash(getStatsStore(), `day:${dayKey}`, { namespace: statsNamespace }));
 
   return record;
 }
@@ -325,12 +297,7 @@ async function readTrafficDayRecord(dayKey: string) {
 export async function getTrafficSnapshot(timestamp = now()): Promise<TrafficSnapshot> {
   try {
     const { dayKey, minuteKey } = toUtcMinuteParts(timestamp);
-    const record = toHashRecord(
-      await getStatsStore().script(readStatsDayScript, {
-        keys: [createDayKey(timestamp)],
-        readOnly: true,
-      }),
-    );
+    const record = toHashRecord(await readEdgeOneKvHash(getStatsStore(), createDayKey(timestamp), { namespace: statsNamespace }));
     const pagePrefix = createFieldPrefix("page", minuteKey);
     const apiPrefix = createFieldPrefix("api", minuteKey);
     const thirdPartyPrefix = createFieldPrefix("third-party", minuteKey);

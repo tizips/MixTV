@@ -1,5 +1,10 @@
-import { createDbAdapter } from "@/infrastructure/db/db-adapter";
-import type { DbPort } from "@/shared/db/db-port";
+import {
+  deleteEdgeOneKvHashField,
+  getEdgeOneKvBinding,
+  patchEdgeOneKvHash,
+  readEdgeOneKvHash,
+  type EdgeOneKvBinding,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 
 export interface MediaSearchCacheEntry {
   id: string;
@@ -9,35 +14,20 @@ export interface MediaSearchCacheEntry {
   total_episodes: number;
 }
 
-export type MediaSearchCacheStore = DbPort<unknown, string>;
+export type MediaSearchCacheStore = EdgeOneKvBinding;
 
+const mediaSearchCacheKvBindingName = "cache";
 const mediaSearchCacheTtlSeconds = 60 * 60;
 let mediaSearchCacheStore: MediaSearchCacheStore | null = null;
-
-const saveMediaSearchCacheScript = `
-redis.call("HSET", KEYS[1], ARGV[1], ARGV[2])
-redis.call("EXPIRE", KEYS[1], ARGV[3])
-return ARGV[2]
-`;
-
-const readMediaSearchCacheScript = `
-return redis.call("HGETALL", KEYS[1])
-`;
-
-const deleteMediaSearchCacheScript = `
-redis.call("HDEL", KEYS[1], ARGV[1])
-if redis.call("HLEN", KEYS[1]) == 0 then
-  redis.call("DEL", KEYS[1])
-end
-return 1
-`;
 
 function createMediaSearchCacheHashKey(index: string) {
   return index.trim();
 }
 
 function createMediaSearchCacheStore(): MediaSearchCacheStore {
-  mediaSearchCacheStore ??= createDbAdapter<unknown>({ namespace: "" });
+  mediaSearchCacheStore ??= getEdgeOneKvBinding({
+    bindingName: mediaSearchCacheKvBindingName,
+  });
 
   return mediaSearchCacheStore;
 }
@@ -87,15 +77,14 @@ export async function saveMediaSearchCacheEntries(
       continue;
     }
 
-    await store.script(saveMediaSearchCacheScript, {
-      args: [resourceKey, JSON.stringify({
+    await patchEdgeOneKvHash(store, cacheKey, {
+      [resourceKey]: JSON.stringify({
         id: entry.id,
-        quality: entry.quality,
         name: entry.name,
+        quality: entry.quality,
         total_episodes: entry.total_episodes,
-      }), mediaSearchCacheTtlSeconds],
-      keys: [cacheKey],
-    });
+      }),
+    }, { ttlSeconds: mediaSearchCacheTtlSeconds });
   }
 }
 
@@ -109,12 +98,7 @@ export async function readMediaSearchCacheEntries(
     return [];
   }
 
-  const record = toHashRecord(
-    await store.script(readMediaSearchCacheScript, {
-      keys: [createMediaSearchCacheHashKey(normalizedIndex)],
-      readOnly: true,
-    }),
-  );
+  const record = toHashRecord(await readEdgeOneKvHash(store, createMediaSearchCacheHashKey(normalizedIndex)));
 
   return Object.entries(record)
     .map(([resourceKey, value]) => {
@@ -162,8 +146,5 @@ export async function deleteMediaSearchCacheEntry(
     return;
   }
 
-  await store.script(deleteMediaSearchCacheScript, {
-    args: [normalizedResourceKey],
-    keys: [createMediaSearchCacheHashKey(normalizedIndex)],
-  });
+  await deleteEdgeOneKvHashField(store, createMediaSearchCacheHashKey(normalizedIndex), normalizedResourceKey);
 }

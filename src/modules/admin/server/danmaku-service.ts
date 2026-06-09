@@ -1,3 +1,4 @@
+import { readEdgeOneKvHash, writeEdgeOneKvHash } from "@/infrastructure/db/edgeone-kv-db-adapter";
 import {
   asObject,
   createAdminModulesStore,
@@ -19,15 +20,7 @@ export interface DanmakuConfig {
 }
 
 const key = "danmaku";
-
-const readDanmakuConfigScript = `
-return redis.call("HGETALL", KEYS[1])
-`;
-
-const saveDanmakuConfigScript = `
-redis.call("HSET", KEYS[1], "enabled", ARGV[1], "apiUrl", ARGV[2], "apiToken", ARGV[3], "requestTimeoutSeconds", ARGV[4], "updatedAt", ARGV[5])
-return 1
-`;
+const storeNamespace = "admin";
 
 export const defaultDanmakuConfig: DanmakuConfig = {
   enabled: true,
@@ -82,10 +75,7 @@ function readDanmakuHashConfig(raw: unknown): Partial<DanmakuConfig> | null {
 }
 
 export async function getDanmakuConfig(store: AdminModulesStore = createAdminModulesStore()) {
-  const rawHashConfig = await store.script<Record<string, string> | string[]>(readDanmakuConfigScript, {
-    keys: [key],
-    readOnly: true,
-  });
+  const rawHashConfig = await readEdgeOneKvHash(store, key, { namespace: storeNamespace });
 
   return {
     ...defaultDanmakuConfig,
@@ -103,16 +93,13 @@ export async function saveDanmakuConfig(input: unknown, store: AdminModulesStore
     updatedAt: now(),
   };
 
-  await store.script(saveDanmakuConfigScript, {
-    args: [
-      String(saved.enabled),
-      saved.apiUrl,
-      saved.apiToken,
-      String(saved.requestTimeoutSeconds),
-      saved.updatedAt,
-    ],
-    keys: [key],
-  });
+  await writeEdgeOneKvHash(store, key, {
+    apiToken: saved.apiToken,
+    apiUrl: saved.apiUrl,
+    enabled: String(saved.enabled),
+    requestTimeoutSeconds: String(saved.requestTimeoutSeconds),
+    updatedAt: saved.updatedAt ?? "",
+  }, { namespace: storeNamespace });
 
   return saved;
 }

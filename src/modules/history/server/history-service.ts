@@ -1,3 +1,8 @@
+import {
+  deleteEdgeOneKvHashField,
+  patchEdgeOneKvHash,
+  readEdgeOneKvHash,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 import { createPlaybackProgressField, createPlaybackProgressStore, type PlaybackProgressRecord, type PlaybackProgressStore, type StoredPlaybackProgressRecord } from "@/modules/playback/server/playback-progress-service";
 
 export type HistoryItem = PlaybackProgressRecord;
@@ -15,19 +20,7 @@ export class HistoryValidationError extends Error {
   }
 }
 
-const readHistoryScript = `
-return redis.call("HGETALL", KEYS[1])
-`;
-
-const deleteHistoryScript = `
-redis.call("HDEL", KEYS[1], ARGV[1])
-return redis.call("HGETALL", KEYS[1])
-`;
-
-const saveHistoryScript = `
-redis.call("HSET", KEYS[1], ARGV[1], ARGV[2])
-return ARGV[2]
-`;
+const historyNamespace = "user";
 
 function createUserPlaybackProgressHashKey(userId: string) {
   return `${userId}:pr`;
@@ -171,12 +164,9 @@ function sortHistory(history: HistoryItem[]) {
 }
 
 async function readHistoryRecord(userId: string, store: HistoryStore) {
-  return toHashRecord(
-    await store.script(readHistoryScript, {
-      keys: [createUserPlaybackProgressHashKey(userId)],
-      readOnly: true,
-    }),
-  );
+  return toHashRecord(await readEdgeOneKvHash(store, createUserPlaybackProgressHashKey(userId), {
+    namespace: historyNamespace,
+  }));
 }
 
 export async function listPlaybackHistory(userId: string, { store = createPlaybackProgressStore() }: HistoryServiceOptions = {}) {
@@ -188,10 +178,9 @@ export async function listPlaybackHistory(userId: string, { store = createPlayba
     historyEntries
       .filter((entry) => entry.needsMigration)
       .map((entry) =>
-        store.script(saveHistoryScript, {
-          args: [createPlaybackProgressField(entry.item.source, entry.item.id), JSON.stringify(entry.item)],
-          keys: [createUserPlaybackProgressHashKey(userId)],
-        }),
+        patchEdgeOneKvHash(store, createUserPlaybackProgressHashKey(userId), {
+          [createPlaybackProgressField(entry.item.source, entry.item.id)]: JSON.stringify(entry.item),
+        }, { namespace: historyNamespace }),
       ),
   );
 
@@ -206,9 +195,8 @@ export async function deleteHistoryPlaybackProgress(
   const { id, source } = readHistoryInput(input);
   const field = createPlaybackProgressField(source, id);
 
-  await store.script(deleteHistoryScript, {
-    args: [field],
-    keys: [createUserPlaybackProgressHashKey(userId)],
+  await deleteEdgeOneKvHashField(store, createUserPlaybackProgressHashKey(userId), field, {
+    namespace: historyNamespace,
   });
 
   return listPlaybackHistory(userId, { store });
@@ -226,10 +214,9 @@ export async function updatePlaybackHistoryTotalEpisodes(
     original_episodes: Math.max(0, Math.floor(totalEpisodes)),
   };
 
-  await store.script(saveHistoryScript, {
-    args: [field, JSON.stringify(updatedHistory)],
-    keys: [createUserPlaybackProgressHashKey(userId)],
-  });
+  await patchEdgeOneKvHash(store, createUserPlaybackProgressHashKey(userId), {
+    [field]: JSON.stringify(updatedHistory),
+  }, { namespace: historyNamespace });
 
   return updatedHistory;
 }

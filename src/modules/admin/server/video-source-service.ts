@@ -1,6 +1,11 @@
-import { createDbAdapter } from "@/infrastructure/db/db-adapter";
+import {
+  deleteEdgeOneKvHashField,
+  getEdgeOneKvBinding,
+  patchEdgeOneKvHash,
+  readEdgeOneKvHash,
+  type EdgeOneKvBinding,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 import { createTrackedThirdPartyFetch } from "@/modules/stats";
-import type { DbPort } from "@/shared/db/db-port";
 import { AdminModuleValidationError } from "./admin-module-error";
 
 export { AdminModuleValidationError } from "./admin-module-error";
@@ -28,7 +33,7 @@ export interface VideoSourceCollection {
   updatedAt: string | null;
 }
 
-export type VideoSourceStore = DbPort<unknown, string>;
+export type VideoSourceStore = EdgeOneKvBinding;
 
 export interface VideoSourceValidityCheckResult {
   apiUrl: string;
@@ -46,6 +51,7 @@ export interface VideoSourceValidityCheckOptions {
 }
 
 const storeNamespace = "admin";
+const storeKvBindingName = "cfg";
 const videoSourcesKey = "sources";
 const defaultValidityCheckConcurrency = 16;
 
@@ -53,20 +59,6 @@ const sourceStatuses = new Set<VideoSourceStatus>(["enabled", "disabled"]);
 const sourceTypes = new Set<VideoSourceType>(["normal", "short-drama"]);
 const sourceValidities = new Set<VideoSourceValidity>(["valid", "warning", "invalid"]);
 const batchActions = new Set<VideoSourceBatchAction>(["enable", "disable"]);
-
-const readVideoSourcesScript = `
-return redis.call("HGETALL", KEYS[1])
-`;
-
-const saveVideoSourceScript = `
-redis.call("HSET", KEYS[1], ARGV[1], ARGV[2])
-return 1
-`;
-
-const deleteVideoSourceScript = `
-redis.call("HDEL", KEYS[1], ARGV[1])
-return 1
-`;
 
 const defaultVideoSources: VideoSourceCollection = {
   sources: [],
@@ -81,7 +73,9 @@ interface ConfigVideoSourceInput {
 }
 
 export function createVideoSourceStore(): VideoSourceStore {
-  return createDbAdapter<unknown>({ namespace: storeNamespace });
+  return getEdgeOneKvBinding({
+    bindingName: storeKvBindingName,
+  });
 }
 
 function now() {
@@ -360,12 +354,7 @@ function toVideoSourceCollection(sources: VideoSourceItem[]): VideoSourceCollect
 
 async function readStoredVideoSourceItems(store: VideoSourceStore): Promise<VideoSourceItem[]> {
   return parseStoredVideoSources(
-    toHashRecord(
-      await store.script(readVideoSourcesScript, {
-        keys: [videoSourcesKey],
-        readOnly: true,
-      }),
-    ),
+    toHashRecord(await readEdgeOneKvHash(store, videoSourcesKey, { namespace: storeNamespace })),
   );
 }
 
@@ -380,17 +369,13 @@ async function readStoredVideoSources(store: VideoSourceStore): Promise<VideoSou
 }
 
 async function saveVideoSourceRecord(source: VideoSourceItem, store: VideoSourceStore) {
-  await store.script(saveVideoSourceScript, {
-    args: [source.key, JSON.stringify(source)],
-    keys: [videoSourcesKey],
-  });
+  await patchEdgeOneKvHash(store, videoSourcesKey, {
+    [source.key]: JSON.stringify(source),
+  }, { namespace: storeNamespace });
 }
 
 async function deleteVideoSourceRecord(key: string, store: VideoSourceStore) {
-  await store.script(deleteVideoSourceScript, {
-    args: [key],
-    keys: [videoSourcesKey],
-  });
+  await deleteEdgeOneKvHashField(store, videoSourcesKey, key, { namespace: storeNamespace });
 }
 
 export async function createVideoSource(input: unknown, store: VideoSourceStore = createVideoSourceStore()) {

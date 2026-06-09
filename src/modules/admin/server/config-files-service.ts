@@ -1,6 +1,12 @@
-import { createDbAdapter } from "@/infrastructure/db/db-adapter";
+import {
+  getEdgeOneKvBinding,
+  readEdgeOneKvHash,
+  readEdgeOneKvJson,
+  type EdgeOneKvBinding,
+  writeEdgeOneKvHash,
+  writeEdgeOneKvJson,
+} from "@/infrastructure/db/edgeone-kv-db-adapter";
 import { createTrackedThirdPartyFetch } from "@/modules/stats";
-import type { DbPort } from "@/shared/db/db-port";
 import { createVideoSourceStore, syncVideoSourcesFromConfigContent } from "./video-source-service";
 import type { VideoSourceStore } from "./video-source-service";
 
@@ -25,20 +31,12 @@ export interface ConfigFilesSubscriptionUpdateResult {
   updated: boolean;
 }
 
-export type ConfigFilesStore = DbPort<ConfigFilesContent, string>;
+export type ConfigFilesStore = EdgeOneKvBinding;
 
 const configFilesNamespace = "admin";
+const configFilesKvBindingName = "cfg";
 const subscriptionKey = "subscription";
 const contentKey = "subscriptions";
-
-const saveSubscriptionScript = `
-redis.call("HSET", KEYS[1], "url", ARGV[1], "autoUpdate", ARGV[2], "updatedAt", ARGV[3])
-return 1
-`;
-
-const readSubscriptionScript = `
-return redis.call("HGETALL", KEYS[1])
-`;
 
 const base58Alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const base58Pattern = /^[1-9A-HJ-NP-Za-km-z]+$/;
@@ -154,20 +152,15 @@ async function decodeSubscriptionPayload(rawBody: string): Promise<string> {
 }
 
 export function createConfigFilesStore(): ConfigFilesStore {
-  return createDbAdapter<ConfigFilesContent>({
-    namespace: configFilesNamespace,
+  return getEdgeOneKvBinding({
+    bindingName: configFilesKvBindingName,
   });
 }
 
 export async function getConfigFilesSubscription(
   store: ConfigFilesStore = createConfigFilesStore(),
 ): Promise<ConfigFilesSubscription> {
-  const record = toHashRecord(
-    await store.script(readSubscriptionScript, {
-      keys: [subscriptionKey],
-      readOnly: true,
-    }),
-  );
+  const record = toHashRecord(await readEdgeOneKvHash(store, subscriptionKey, { namespace: configFilesNamespace }));
 
   return {
     autoUpdate: record.autoUpdate === "true",
@@ -192,10 +185,11 @@ export async function saveConfigFilesSubscription(
     url,
   };
 
-  await store.script(saveSubscriptionScript, {
-    args: [saved.url, saved.autoUpdate, saved.updatedAt],
-    keys: [subscriptionKey],
-  });
+  await writeEdgeOneKvHash(store, subscriptionKey, {
+    autoUpdate: String(saved.autoUpdate),
+    updatedAt: saved.updatedAt ?? "",
+    url: saved.url,
+  }, { namespace: configFilesNamespace });
 
   return saved;
 }
@@ -262,10 +256,11 @@ export async function saveConfigFilesSubscriptionAutoUpdate(
     url: current.url ?? "",
   };
 
-  await store.script(saveSubscriptionScript, {
-    args: [saved.url, saved.autoUpdate, saved.updatedAt],
-    keys: [subscriptionKey],
-  });
+  await writeEdgeOneKvHash(store, subscriptionKey, {
+    autoUpdate: String(saved.autoUpdate),
+    updatedAt: saved.updatedAt ?? "",
+    url: saved.url,
+  }, { namespace: configFilesNamespace });
 
   return saved;
 }
@@ -273,7 +268,7 @@ export async function saveConfigFilesSubscriptionAutoUpdate(
 export async function getConfigFilesContent(
   store: ConfigFilesStore = createConfigFilesStore(),
 ): Promise<ConfigFilesContent> {
-  const record = await store.get(contentKey);
+  const record = await readEdgeOneKvJson<ConfigFilesContent>(store, contentKey, { namespace: configFilesNamespace });
 
   return record ?? {
     content: "",
@@ -305,7 +300,7 @@ export async function saveConfigFilesContent(
     updatedAt: new Date().toISOString(),
   };
 
-  await store.set(contentKey, saved);
+  await writeEdgeOneKvJson(store, contentKey, saved, { namespace: configFilesNamespace });
   await syncVideoSourcesFromConfigContent(content, videoSourceStore);
 
   return saved;
