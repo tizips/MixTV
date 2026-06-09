@@ -17,13 +17,65 @@ function badRequest(message: string) {
   return NextResponse.json({ message }, { status: 400 });
 }
 
+function getRequestContentType(request: Request) {
+  return request.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
+}
+
+function readFormPayload(body: string) {
+  const params = new URLSearchParams(body);
+
+  if (!params.has("username") && !params.has("password")) {
+    return null;
+  }
+
+  return Object.fromEntries(params);
+}
+
+function readFormDataPayload(formData: FormData) {
+  const payload: Record<string, string> = {};
+
+  for (const [key, value] of formData.entries()) {
+    if (typeof value === "string") {
+      payload[key] = value;
+    }
+  }
+
+  return payload;
+}
+
+async function readLoginRequestPayload(request: Request) {
+  const contentType = getRequestContentType(request);
+
+  if (contentType === "multipart/form-data") {
+    return readFormDataPayload(await request.formData());
+  }
+
+  const body = await request.text();
+
+  if (contentType === "application/x-www-form-urlencoded") {
+    return readFormPayload(body) ?? {};
+  }
+
+  try {
+    return JSON.parse(body);
+  } catch (error) {
+    const formPayload = readFormPayload(body);
+
+    if (formPayload) {
+      return formPayload;
+    }
+
+    throw error;
+  }
+}
+
 export async function POST(request: Request) {
   ensureEdgeOneKvBindingsForNode();
 
   let payload: unknown;
 
   try {
-    payload = await request.json();
+    payload = await readLoginRequestPayload(request);
   } catch {
     return badRequest("Request body must be valid JSON.");
   }

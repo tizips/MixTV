@@ -42,7 +42,7 @@ describe("login API route", () => {
 
     const response = await loginRoute.POST(
       new Request("http://localhost/api/login", {
-        body: "username=admin&password=Secret@123",
+        body: "[object Object]",
         headers: {
           "Content-Type": "application/json",
         },
@@ -55,6 +55,51 @@ describe("login API route", () => {
     });
     expect(response.status).toBe(400);
     expect(authenticateLoginRequestMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts urlencoded login payloads", async () => {
+    authenticateLoginRequestMock.mockResolvedValue({ jwt: "signed.jwt" });
+
+    const response = await loginRoute.POST(
+      new Request("http://localhost/api/login", {
+        body: new URLSearchParams({
+          password: "Secret!123",
+          username: " admin ",
+        }),
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method: "POST",
+      }),
+    );
+
+    await expect(response.json()).resolves.toEqual({ jwt: "signed.jwt" });
+    expect(response.status).toBe(200);
+    expect(authenticateLoginRequestMock).toHaveBeenCalledWith({
+      password: "Secret!123",
+      username: "admin",
+    });
+  });
+
+  it("accepts recoverable form payloads even when content type is not form-urlencoded", async () => {
+    authenticateLoginRequestMock.mockResolvedValue({ jwt: "signed.jwt" });
+
+    const response = await loginRoute.POST(
+      new Request("http://localhost/api/login", {
+        body: "password=Qwer%401995&username=admin",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      }),
+    );
+
+    await expect(response.json()).resolves.toEqual({ jwt: "signed.jwt" });
+    expect(response.status).toBe(200);
+    expect(authenticateLoginRequestMock).toHaveBeenCalledWith({
+      password: "Qwer@1995",
+      username: "admin",
+    });
   });
 
   it("rejects unsupported login payload fields before authenticating", async () => {
