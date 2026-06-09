@@ -6,7 +6,7 @@
 
 **Architecture:** Keep the existing history list/delete service intact and add a dedicated update-check service beside it. The new service will read the user's playback history, skip records older than 30 days, consult a small TTL cache before calling source detail fetchers, and emit structured events for SSE. The `/history` page will open an `EventSource` on mount, update list state as events arrive, and surface a lightweight summary of update activity.
 
-**Tech Stack:** Next.js App Router route handlers, Server Components/Client Components, Web Platform `ReadableStream` + `EventSource`, Redis-backed `DbPort` scripts, existing video source detail fetcher.
+**Tech Stack:** Next.js App Router route handlers, Server Components/Client Components, Web Platform `ReadableStream` + `EventSource`, EdgeOne KV helper functions, existing video source detail fetcher.
 
 ---
 

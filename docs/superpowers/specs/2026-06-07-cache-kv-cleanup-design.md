@@ -14,9 +14,9 @@ Add a scheduled API endpoint that cleans expired records from the EdgeOne `cache
 
 ## Architecture
 
-The route stays in `src/app/api/cron/cache-cleanup/route.ts` and delegates durable behavior to an admin server service. The service uses `createDbAdapter({ namespace: "" })` so it resolves to the EdgeOne `cache` binding without tying the service directly to a concrete KV binding. Expiration cleanup is expressed as a `DbPort.script` operation, preserving the existing DB boundary rule that storage behavior beyond `get`/`set`/`del` belongs in scripts.
+The route stays in `src/app/api/cron/cache-cleanup/route.ts` and delegates durable behavior to an admin server service. The service resolves the concrete EdgeOne `cache` binding and calls `cleanupExpiredEdgeOneKvEntries` directly, keeping cleanup behavior close to the admin cache service without reintroducing a generic DB port.
 
-The EdgeOne KV adapter recognizes the cleanup script shape and scans encoded MixTV keys in pages. It parses each adapter envelope, checks `expiresAt`, deletes expired records by encoded KV key, and returns a small summary.
+The EdgeOne KV helper scans encoded MixTV keys in pages. It parses each adapter envelope, checks `expiresAt`, deletes expired records by encoded KV key, and returns a small summary.
 
 ## API Contract
 

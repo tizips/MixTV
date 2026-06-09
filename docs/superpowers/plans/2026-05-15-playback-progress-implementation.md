@@ -4,9 +4,9 @@
 
 **Goal:** Add authenticated playback progress storage for `/play`, initialize zero-progress records on first play-page access, and migrate favorites to the new route-param and snake_case metadata contract.
 
-**Architecture:** Resource identity is always `{source}:{id}`. Favorites and playback progress each own a user-scoped Redis hash through `DbPort.script`; API routes authenticate and delegate business logic to module services. `/play` remains a thin orchestration layer and receives resume state from the playback service.
+**Architecture:** Resource identity is always `{source}:{id}`. Favorites and playback progress each own a user-scoped EdgeOne KV hash through direct helper calls; API routes authenticate and delegate business logic to module services. `/play` remains a thin orchestration layer and receives resume state from the playback service.
 
-**Tech Stack:** Next.js 16 App Router, React 19, Bun, Vitest 4, TypeScript, Redis/Upstash through `DbPort.script`.
+**Tech Stack:** Next.js 16 App Router, React 19, Bun, Vitest 4, TypeScript, EdgeOne KV helper functions.
 
 ---
 
@@ -19,7 +19,7 @@
 - Modify `src/modules/favorites/ui/favorites-page-shell.tsx`: consume new favorite fields and call route-param endpoints.
 - Modify `src/modules/search/ui/search-page-shell.tsx`: create/delete favorites through route-param endpoints.
 - Modify `tests/modules/favorites/favorite-service.test.ts`, `tests/modules/favorites/favorite-route.test.ts`, `src/modules/favorites/ui/favorites-page-shell.test.tsx`, and `src/modules/search/ui/search-page-shell.test.tsx`.
-- Create `src/modules/playback/server/playback-progress-service.ts`: progress record types, validation, Redis scripts, create/update/read helpers.
+- Create `src/modules/playback/server/playback-progress-service.ts`: progress record types, validation, direct KV hash operations, create/update/read helpers.
 - Create `src/app/api/playback/progress/[source]/[id]/route.ts`: authenticated progress update endpoint.
 - Create `tests/modules/playback/playback-progress-service.test.ts` and `tests/modules/playback/playback-progress-route.test.ts`.
 - Modify `src/modules/playback/domain/playback-page-data.ts`: add route identity and persisted progress metadata needed by client uploads.
@@ -361,11 +361,11 @@ export type PlaybackProgressRecord = StoredPlaybackProgressRecord & {
 };
 ```
 
-Use Redis scripts:
+Use EdgeOne KV hash helpers:
 
 ```ts
-const readProgressScript = `return redis.call("HGET", KEYS[1], ARGV[1])`;
-const saveProgressScript = `redis.call("HSET", KEYS[1], ARGV[1], ARGV[2]) return ARGV[2]`;
+await readEdgeOneKvHashField(store, `${userId}:pr`, createPlaybackProgressField(source, id), { namespace: "user" });
+await patchEdgeOneKvHash(store, `${userId}:pr`, { [createPlaybackProgressField(source, id)]: JSON.stringify(record) }, { namespace: "user" });
 ```
 
 Use key `user:${userId}:pr`, field `createPlaybackProgressField(source, id)`, and metadata construction matching the spec.

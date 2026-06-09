@@ -40,14 +40,14 @@ Auth.js still reads its `secret` option synchronously from [src/auth.ts](/Users/
 
 ## EdgeOne KV Storage
 
-The project uses EdgeOne KV as the only storage backend for the shared `DbPort`. It stores script-compatible logical records in EdgeOne KV using encoded keys that only contain letters, numbers, and underscores, matching EdgeOne's KV key restrictions.
+The project uses EdgeOne KV as the storage backend for module persistence. It stores logical records in EdgeOne KV using encoded keys that only contain letters, numbers, and underscores, matching EdgeOne's KV key restrictions.
 
 Required Store deployment:
 
 1. Create three EdgeOne Pages Store KV namespaces.
 2. Bind them to the Pages project with runtime variable names `cfg`, `cache`, and `user`.
 
-This backend is intended for small Store records such as playback progress, favorites, viewing history, search history, small admin configuration records, and cache/stat records. The default routing is `admin -> cfg`; `cache`, `stats`, and empty cache namespaces -> `cache`; and user-facing data -> `user`. It emulates only the storage script subset used by MixTV's current modules. Unsupported custom storage scripts fail with an explicit error instead of silently corrupting data.
+This backend is intended for small Store records such as playback progress, favorites, viewing history, search history, small admin configuration records, and cache/stat records. Module store factories resolve the concrete binding they own with `getEdgeOneKvBinding`: admin configuration records use `cfg`, cache/stat records use `cache`, and user-facing data uses `user`. Module services then call the EdgeOne KV helper functions directly for JSON, hash, string, list, counter, delete, logical-key listing, and cleanup operations.
 
 EdgeOne KV is eventually consistent: the same edge node can read its own writes immediately, while other edge nodes may observe stale values for up to about 60 seconds. That is acceptable for playback progress, favorites, and history in this first version.
 

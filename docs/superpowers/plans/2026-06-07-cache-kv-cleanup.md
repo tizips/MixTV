@@ -4,7 +4,7 @@
 
 **Goal:** Add a scheduled API endpoint that deletes expired records from the EdgeOne `cache` KV binding.
 
-**Architecture:** A new admin server service runs cache cleanup through `DbPort.script`, keeping storage behavior behind the existing DB boundary. The EdgeOne KV adapter recognizes the cleanup script and deletes expired adapter envelopes from the `cache` binding. A new cron route schedules the service with `after()` and returns immediately like the existing cron endpoints.
+**Architecture:** A new admin server service runs cache cleanup directly against the EdgeOne `cache` binding with `cleanupExpiredEdgeOneKvEntries`. The EdgeOne KV helper scans encoded keys and deletes expired adapter envelopes from the `cache` binding. A new cron route schedules the service with `after()` and returns immediately like the existing cron endpoints.
 
 **Tech Stack:** Next.js App Router route handlers, Bun, Vitest, EdgeOne KV DB adapter, TypeScript.
 
@@ -12,11 +12,11 @@
 
 ## File Structure
 
-- Modify `src/infrastructure/db/edgeone-kv-db-adapter.ts`: add cleanup script emulation for expired adapter envelopes.
+- Modify `src/infrastructure/db/edgeone-kv-db-adapter.ts`: add direct cleanup helper support for expired adapter envelopes.
 - Modify `src/modules/admin/server/cache-management-service.ts`: export `cleanupExpiredCacheKvEntries`.
 - Create `src/app/api/cron/cache-cleanup/route.ts`: scheduled API route.
 - Modify `tests/infrastructure/edgeone-kv-db-adapter.test.ts`: cover cleanup behavior.
-- Modify `tests/modules/admin/cache-management-service.test.ts`: cover service script invocation.
+- Modify `tests/modules/admin/cache-management-service.test.ts`: cover service cleanup behavior.
 - Create `tests/modules/admin/cache-cleanup-cron-route.test.ts`: cover cron scheduling.
 - Create `.github/workflows/cron-cache-cleanup.yml`: optional daily scheduler matching existing cron workflow style.
 - Modify `docs/operations/github-actions-cron.md`: document the fourth cron endpoint.

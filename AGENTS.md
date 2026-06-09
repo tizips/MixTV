@@ -36,12 +36,12 @@
 
 ## Storage / DB Rules
 
-- Use `src/infrastructure/db/db-adapter.ts` and the shared `DbPort` as the storage boundary for Redis/Upstash-backed module persistence.
-- Do not add specialized storage methods to the DB port or concrete DB adapters for feature-specific Redis commands.
-- Direct DB operations are limited to the existing basic `get`, `set`, and `del` methods.
-- Any storage behavior beyond basic `get`/`set`/`del` must use `DbPort.script`, with Lua scripts kept close to the module/service boundary that owns the behavior.
-- For Redis data structures such as lists, sets, sorted sets, counters, deduplication, trimming, batch mutation, or read-modify-write flows, call the relevant Redis commands from a script instead of expanding the DB adapter API.
-- Example pattern: search history uses a Redis list through `DbPort.script` with `LRANGE`, `LREM`, `LPUSH`, `LTRIM`, and `DEL`; it must not introduce a `db.list` adapter API.
+- Use `src/infrastructure/db/edgeone-kv-db-adapter.ts` as the storage boundary for module persistence.
+- Module store factories should return the concrete EdgeOne KV binding they own via `getEdgeOneKvBinding`: admin configuration records use `cfg`, cache/stat records use `cache`, and user-facing data uses `user`.
+- Services should operate directly on the relevant KV binding with the EdgeOne helper functions in `edgeone-kv-db-adapter.ts`.
+- Do not introduce a shared `DbPort`, Redis command wrapper, or feature-specific adapter method layer for KV operations.
+- Keep storage behavior close to the module/service boundary that owns it. For hashes, lists, strings, JSON values, counters, cleanup, and logical-key listing, compose the existing EdgeOne KV helpers instead of expanding a generic storage API.
+- Example pattern: search history stores a user-scoped list through `readEdgeOneKvList` and `writeEdgeOneKvList`; playback progress, favorites, admin configuration, cache, and stats use direct hash/string/JSON helpers on their concrete bindings.
 
 ## UI Conventions
 

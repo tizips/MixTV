@@ -13,7 +13,7 @@ All routes require an authenticated user. Unauthenticated requests return `401`.
 
 - Save and resume playback progress for `/play`.
 - Create a zero-progress record as soon as a logged-in user opens `/play?source=...&id=...` and the user has no existing progress for that media resource.
-- Keep progress storage compact and compatible with the existing `DbPort.script` Redis rule.
+- Keep progress storage compact and compatible with the direct EdgeOne KV helper model.
 - Align favorites with the new snake_case resource metadata shape.
 - Remove `favoriteKey` from stored values and API responses.
 
@@ -271,9 +271,9 @@ Failures do not block playback. The UI keeps playing and can retry on the next t
 ## Module Boundaries
 
 - `src/app/*` route handlers and pages handle routing, auth, response shape, and page orchestration.
-- `src/modules/playback/server/*` owns playback progress validation, record construction, and Redis scripts.
-- `src/modules/favorites/server/favorite-service.ts` owns favorite metadata validation, record construction, and Redis scripts.
-- Redis hash operations use `DbPort.script`; no new DB adapter methods are introduced.
+- `src/modules/playback/server/*` owns playback progress validation, record construction, and direct user KV hash operations.
+- `src/modules/favorites/server/favorite-service.ts` owns favorite metadata validation, record construction, and direct user KV hash operations.
+- Storage operations use the EdgeOne KV helpers on concrete bindings; no shared DB port or Redis command wrapper is introduced.
 
 ## Testing
 
