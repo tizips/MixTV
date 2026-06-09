@@ -81,14 +81,14 @@ describe("login API route", () => {
     });
   });
 
-  it("accepts recoverable form payloads even when content type is not form-urlencoded", async () => {
+  it("accepts recoverable form payloads when content type is not JSON", async () => {
     authenticateLoginRequestMock.mockResolvedValue({ jwt: "signed.jwt" });
 
     const response = await loginRoute.POST(
       new Request("http://localhost/api/login", {
         body: "password=Qwer%401995&username=admin",
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "text/plain",
         },
         method: "POST",
       }),
@@ -173,6 +173,35 @@ describe("login API route", () => {
     expect(response.status).toBe(200);
     expect(authenticateLoginRequestMock).toHaveBeenCalledWith({
       password: "Secret@123",
+      username: "admin",
+    });
+  });
+
+  it("uses the JSON body reader for JSON login payloads", async () => {
+    authenticateLoginRequestMock.mockResolvedValue({ jwt: "signed.jwt" });
+    const json = vi.fn().mockResolvedValue({
+      password: "Qwer@1995",
+      username: "admin",
+    });
+    const text = vi.fn().mockRejectedValue(
+      new TypeError("Cannot set property socket of #<ComputeJsIncomingMessage> which has only a getter"),
+    );
+
+    const response = await loginRoute.POST({
+      headers: new Headers({
+        "Content-Type": "application/json",
+      }),
+      json,
+      text,
+      url: "http://localhost/api/login",
+    } as unknown as Request);
+
+    await expect(response.json()).resolves.toEqual({ jwt: "signed.jwt" });
+    expect(response.status).toBe(200);
+    expect(json).toHaveBeenCalledOnce();
+    expect(text).not.toHaveBeenCalled();
+    expect(authenticateLoginRequestMock).toHaveBeenCalledWith({
+      password: "Qwer@1995",
       username: "admin",
     });
   });

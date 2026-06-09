@@ -21,6 +21,14 @@ function getRequestContentType(request: Request) {
   return request.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
 }
 
+function isJsonContentType(contentType: string) {
+  return contentType === "application/json" || contentType.endsWith("+json");
+}
+
+function isFormContentType(contentType: string) {
+  return contentType === "application/x-www-form-urlencoded" || contentType === "multipart/form-data";
+}
+
 function readFormPayload(body: string) {
   const params = new URLSearchParams(body);
 
@@ -46,15 +54,15 @@ function readFormDataPayload(formData: FormData) {
 async function readLoginRequestPayload(request: Request) {
   const contentType = getRequestContentType(request);
 
-  if (contentType === "multipart/form-data") {
+  if (isJsonContentType(contentType)) {
+    return request.json();
+  }
+
+  if (isFormContentType(contentType)) {
     return readFormDataPayload(await request.formData());
   }
 
   const body = await request.text();
-
-  if (contentType === "application/x-www-form-urlencoded") {
-    return readFormPayload(body) ?? {};
-  }
 
   try {
     return JSON.parse(body);
