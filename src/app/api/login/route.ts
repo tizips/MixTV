@@ -76,7 +76,9 @@ export async function POST(request: Request) {
 
   try {
     payload = await readLoginRequestPayload(request);
-  } catch {
+  } catch (error) {
+    console.error("Failed to parse login request body.", error);
+
     return badRequest("Request body must be valid JSON.");
   }
 
