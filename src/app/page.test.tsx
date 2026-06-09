@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import HomePage from "@/app/page";
 import { env } from "@/shared/env";
 
-vi.mock("@/modules/admin/server/homepage-modules-service", () => ({
-  getHomepageConfig: vi.fn(async () => ({
+const ensureEdgeOneKvBindingsForNodeMock = vi.hoisted(() => vi.fn());
+const getHomepageConfigMock = vi.hoisted(() =>
+  vi.fn(async () => ({
     modules: {
       carousel: false,
       "coming-soon": false,
@@ -18,12 +19,34 @@ vi.mock("@/modules/admin/server/homepage-modules-service", () => ({
     },
     updatedAt: "2026-05-16T00:00:00.000Z",
   })),
+);
+
+vi.mock("@/infrastructure/edgeone/node-kv-bindings", () => ({
+  ensureEdgeOneKvBindingsForNode: ensureEdgeOneKvBindingsForNodeMock,
+}));
+
+vi.mock("@/modules/admin/server/homepage-modules-service", () => ({
+  getHomepageConfig: getHomepageConfigMock,
 }));
 
 describe("HomePage", () => {
+  beforeEach(() => {
+    ensureEdgeOneKvBindingsForNodeMock.mockClear();
+    getHomepageConfigMock.mockClear();
+  });
+
   it("renders the homepage content", async () => {
     const html = renderToStaticMarkup(await HomePage());
     expect(html).toContain(env.NEXT_PUBLIC_SITE_NAME);
+  });
+
+  it("initializes EdgeOne KV bindings before reading homepage config", async () => {
+    await HomePage();
+
+    expect(ensureEdgeOneKvBindingsForNodeMock).toHaveBeenCalledOnce();
+    expect(ensureEdgeOneKvBindingsForNodeMock.mock.invocationCallOrder[0]).toBeLessThan(
+      getHomepageConfigMock.mock.invocationCallOrder[0],
+    );
   });
 
   it("does not render the continue watching placeholder on the server", async () => {
