@@ -1,7 +1,1 @@
-export function resolveSafeNextPath(nextPath: string | null | undefined): string {
-  if (!nextPath || !nextPath.startsWith("/") || nextPath.startsWith("//")) {
-    return "/";
-  }
-
-  return nextPath;
-}
+export { resolveSafeNextPath } from "../domain/redirect";

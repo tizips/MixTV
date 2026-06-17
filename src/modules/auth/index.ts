@@ -1,2 +1,2 @@
 // src/modules/auth/index.ts
-export { resolveSafeNextPath } from "./server/redirect";
+export { resolveSafeNextPath } from "./domain/redirect";

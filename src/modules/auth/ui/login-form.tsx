@@ -5,11 +5,15 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { Button, Card, Col, Form, Input, Row, Typography } from "antd";
 import { env } from "@/shared/env";
-import { redirect } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { resolveSafeNextPath } from "../domain/redirect";
 
 export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = resolveSafeNextPath(searchParams.get("next"));
 
   const onSubmit = (values: { username?: string; password?: string }) => {
     setError(null);
@@ -20,6 +24,7 @@ export function LoginForm() {
         const result = await signIn("credentials", {
           password: values.password,
           redirect: false,
+          redirectTo,
           username: values.username,
         });
 
@@ -28,7 +33,8 @@ export function LoginForm() {
           return;
         }
 
-        redirect("/");
+        router.replace(redirectTo);
+        router.refresh();
       } catch {
         setError("Unable to sign in right now. Please try again.");
       } finally {
