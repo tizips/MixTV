@@ -2,17 +2,11 @@
 
 import { ApiOutlined, StarFilled } from "@ant-design/icons";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button, Card, Col, Form, Input, Row, Typography } from "antd";
 import { env } from "@/shared/env";
 
-type LoginFormProps = {
-  nextPath: string;
-};
-
-export function LoginForm({ nextPath }: LoginFormProps) {
-  const router = useRouter();
+export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -25,7 +19,6 @@ export function LoginForm({ nextPath }: LoginFormProps) {
         const result = await signIn("credentials", {
           password: values.password,
           redirect: false,
-          redirectTo: nextPath,
           username: values.username,
         });
 
@@ -33,8 +26,6 @@ export function LoginForm({ nextPath }: LoginFormProps) {
           setError("Incorrect username or password.");
           return;
         }
-
-        router.replace(nextPath);
       } catch {
         setError("Unable to sign in right now. Please try again.");
       } finally {

@@ -31,7 +31,7 @@ function renderLoginForm() {
   const root = createRoot(host);
 
   act(() => {
-    root.render(<LoginForm nextPath="/search" />);
+    root.render(<LoginForm />);
   });
 
   return { host, root };
@@ -82,7 +82,6 @@ describe("LoginForm", () => {
     expect(authState.signIn).toHaveBeenCalledWith("credentials", {
       password: "test",
       redirect: false,
-      redirectTo: "/search",
       username: "test",
     });
     const currentUsername = host.querySelector("#login-username") as HTMLInputElement | null;
@@ -99,7 +98,7 @@ describe("LoginForm", () => {
     });
   });
 
-  it("navigates when sign-in succeeds", async () => {
+  it("stays on the login page when sign-in succeeds", async () => {
     authState.signIn.mockResolvedValue({
       code: undefined,
       error: undefined,
@@ -130,7 +129,12 @@ describe("LoginForm", () => {
       form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
 
-    expect(routerState.replace).toHaveBeenCalledWith("/search");
+    expect(authState.signIn).toHaveBeenCalledWith("credentials", {
+      password: "secret",
+      redirect: false,
+      username: "orange",
+    });
+    expect(routerState.replace).not.toHaveBeenCalled();
     expect(routerState.refresh).not.toHaveBeenCalled();
     expect(host.textContent).not.toContain("Incorrect username or password.");
 
