@@ -71,6 +71,28 @@ function addEnvDebugHeaders(response: NextResponse, request: NextRequest) {
   return response;
 }
 
+function addCookieVary(response: NextResponse) {
+  const vary = response.headers.get("vary");
+
+  if (!vary) {
+    response.headers.set("vary", "Cookie");
+    return;
+  }
+
+  const fields = vary.split(",").map((field) => field.trim().toLowerCase());
+
+  if (!fields.includes("cookie")) {
+    response.headers.set("vary", `${vary}, Cookie`);
+  }
+}
+
+function markAuthDependentResponse(response: NextResponse) {
+  response.headers.set("cache-control", "private, no-store");
+  addCookieVary(response);
+
+  return response;
+}
+
 function addDebugHeaders(response: NextResponse, request: NextRequest, authCheck: AuthCheck) {
   addEnvDebugHeaders(response, request);
 
@@ -87,6 +109,10 @@ function addDebugHeaders(response: NextResponse, request: NextRequest, authCheck
   response.headers.set("x-mixtv-proxy-auth-cookies", listAuthCookieNames(request));
 
   return response;
+}
+
+function authResponse(response: NextResponse, request: NextRequest, authCheck: AuthCheck) {
+  return addDebugHeaders(markAuthDependentResponse(response), request, authCheck);
 }
 
 async function checkAuthenticatedSession(request: NextRequest): Promise<AuthCheck> {
@@ -172,24 +198,24 @@ export const proxy = auth(async (request) => {
 
   if (pathname === "/login") {
     if (!isAuthenticated) {
-      return addDebugHeaders(NextResponse.next(), request, authCheck);
+      return authResponse(NextResponse.next(), request, authCheck);
     }
 
     const redirectTo = resolveSafeNextPath(
       request.nextUrl.searchParams.get("next"),
     );
 
-    return addDebugHeaders(NextResponse.redirect(new URL(redirectTo, request.url)), request, authCheck);
+    return authResponse(NextResponse.redirect(new URL(redirectTo, request.url)), request, authCheck);
   }
 
   if (isAuthenticated) {
-    return addDebugHeaders(NextResponse.next(), request, authCheck);
+    return authResponse(NextResponse.next(), request, authCheck);
   }
 
   const loginUrl = new URL("/login", request.url);
   loginUrl.searchParams.set("next", nextPath);
 
-  return addDebugHeaders(NextResponse.redirect(loginUrl), request, authCheck);
+  return authResponse(NextResponse.redirect(loginUrl), request, authCheck);
 });
 
 export const config = {

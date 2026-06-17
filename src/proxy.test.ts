@@ -56,6 +56,13 @@ describe("proxy", () => {
     expect(location.searchParams.get("next")).toBe("/");
   });
 
+  it("prevents edge caches from reusing auth-dependent page redirects", async () => {
+    const response = await runProxy("/", null);
+
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("vary")?.toLowerCase().split(/\s*,\s*/)).toContain("cookie");
+  });
+
   it("allows authenticated home requests through", async () => {
     const response = await runProxy("/", { user: { id: "user-1" } });
 
