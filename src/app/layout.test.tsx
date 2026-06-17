@@ -26,6 +26,25 @@ vi.mock("holy-loader", () => ({
   }) => <div data-testid="holy-loader" data-color={props.color} data-height={props.height} data-show-spinner={String(props.showSpinner)} />,
 }));
 
+vi.mock("next/script", () => ({
+  default: (props: {
+    children?: ReactNode;
+    dangerouslySetInnerHTML?: { __html: string };
+    id?: string;
+    strategy?: string;
+  }) => (
+    <script
+      data-strategy={props.strategy}
+      dangerouslySetInnerHTML={
+        props.dangerouslySetInnerHTML ?? {
+          __html: String(props.children ?? ""),
+        }
+      }
+      id={props.id}
+    />
+  ),
+}));
+
 vi.mock("@/app/providers", () => ({
   Providers: ({ children }: { children: ReactNode }) => (
     <div data-testid="theme-provider" data-storage-key="mixtv-theme-mode">
@@ -51,5 +70,12 @@ describe("RootLayout", () => {
     expect(html).toContain('data-show-spinner="false"');
     expect(html).toContain("site-header");
     expect(html).toContain("page-child");
+    expect(html).toContain('id="mixtv-theme-storage-migration"');
+    expect(html).toContain('data-strategy="beforeInteractive"');
+    expect(html).toContain('if(theme==="auto")');
+    expect(html).toContain('localStorage.setItem(storageKey,"system")');
+    expect(html).toContain('document.documentElement');
+    expect(html).toContain('classList.add(resolvedTheme)');
+    expect(html).toContain('style.colorScheme=resolvedTheme');
   });
 });

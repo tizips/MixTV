@@ -2,19 +2,10 @@
 
 import type { ReactNode } from "react";
 import { useEffect } from "react";
-import { ThemeProvider, useTheme } from "next-themes";
 import { App, ConfigProvider, theme as antdTheme } from "antd";
 import { StyleProvider } from "@ant-design/cssinjs";
+import { ThemeProvider, useTheme } from "@/components/theme-provider";
 import { PageActivityTracker } from "@/modules/stats/ui/page-activity-tracker";
-
-const themeStorageMigrationScript = `
-try {
-  const storageKey = "mixtv-theme-mode";
-  if (localStorage.getItem(storageKey) === "auto") {
-    localStorage.setItem(storageKey, "system");
-  }
-} catch {}
-`;
 
 function isBenignViewTransitionRejection(reason: unknown) {
   if (!reason || typeof reason !== "object") {
@@ -127,15 +118,9 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <script
-        dangerouslySetInnerHTML={{ __html: themeStorageMigrationScript }}
-        suppressHydrationWarning
-      />
       <ThemeProvider
-        attribute="class"
         defaultTheme="system"
         disableTransitionOnChange
-        enableSystem
         storageKey="mixtv-theme-mode"
       >
         <AntdThemeBridge>{children}</AntdThemeBridge>

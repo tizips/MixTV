@@ -2,8 +2,8 @@
 
 import { DesktopOutlined, MoonFilled, SunFilled } from "@ant-design/icons";
 import { Button } from "antd";
-import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { useTheme } from "@/components/theme-provider";
 
 type ThemeMode = "system" | "light" | "dark";
 

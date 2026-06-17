@@ -1,10 +1,14 @@
 import type { ReactNode } from "react";
 import HolyLoader from "holy-loader";
+import Script from "next/script";
 import "./globals.css";
 import { auth } from "@/auth";
 import { Providers } from "@/app/providers";
 import { SiteHeader } from "@/components/site-header";
 import { env } from "@/shared/env";
+
+const themeStorageMigrationScript =
+  'try{const storageKey="mixtv-theme-mode";let theme=localStorage.getItem(storageKey);if(theme==="auto"){theme="system";localStorage.setItem(storageKey,"system")}const systemTheme=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";const resolvedTheme=theme==="light"||theme==="dark"?theme:systemTheme;const root=document.documentElement;root.classList.remove("light","dark");root.classList.add(resolvedTheme);root.style.colorScheme=resolvedTheme}catch{}';
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const session = await auth();
@@ -12,6 +16,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body className="text-foreground">
+        <Script
+          id="mixtv-theme-storage-migration"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: themeStorageMigrationScript }}
+        />
         <div className="app-background min-h-screen">
           <HolyLoader
             color="var(--accent)"

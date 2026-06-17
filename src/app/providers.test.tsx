@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Providers } from "./providers";
 
-vi.mock("next-themes", () => ({
+vi.mock("@/components/theme-provider", () => ({
   ThemeProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
   useTheme: () => ({ resolvedTheme: "light" }),
 }));
@@ -38,6 +38,7 @@ describe("Providers", () => {
 
     expect(html).toContain('data-hashed="false"');
     expect(html).toContain("data-testid=\"child\"");
+    expect(html).not.toContain("<script");
     expect(configProviderMock).toHaveBeenCalled();
   });
 });

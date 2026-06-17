@@ -11,7 +11,7 @@ const themeState = vi.hoisted(() => ({
   theme: "system" as string | undefined,
 }));
 
-vi.mock("next-themes", () => ({
+vi.mock("@/components/theme-provider", () => ({
   useTheme: () => ({
     setTheme: themeState.setTheme,
     theme: themeState.theme,
@@ -58,7 +58,7 @@ describe("ThemeToggle", () => {
     const html = renderToStaticMarkup(<ThemeToggle />);
 
     expect(html).toContain("主题切换初始化中");
-    expect(html).toContain('data-icon="control"');
+    expect(html).toContain('data-icon="desktop"');
   });
 
   it("cycles automatic to light to dark to automatic", () => {
