@@ -254,19 +254,21 @@ export const proxy = auth(async (request) => {
 
   console.info(isAuthenticated);
 
-  // if (pathname === "/login") {
-  //   if (!isAuthenticated) {
-  //     return authResponse(NextResponse.next(), request, authCheck);
-  //   }
-  //
-  //   const redirectTo = resolveSafeNextPath(request.nextUrl.searchParams.get("next"));
-  //
-  //   return authResponse(
-  //     NextResponse.redirect(new URL(redirectTo, request.url)),
-  //     request,
-  //     authCheck,
-  //   );
-  // }
+  if (pathname === "/login") {
+    NextResponse.next();
+    return;
+    // if (!isAuthenticated) {
+    //   return authResponse(NextResponse.next(), request, authCheck);
+    // }
+
+    // const redirectTo = resolveSafeNextPath(request.nextUrl.searchParams.get("next"));
+
+    // return authResponse(
+    //   NextResponse.redirect(new URL(redirectTo, request.url)),
+    //   request,
+    //   authCheck,
+    // );
+  }
 
   if (isAuthenticated) {
     return authResponse(NextResponse.next(), request, authCheck);
