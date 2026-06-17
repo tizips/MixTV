@@ -252,19 +252,21 @@ export const proxy = auth(async (request) => {
   const authCheck = await checkAuthenticatedSession(request);
   const isAuthenticated = authCheck.authenticated;
 
-  if (pathname === "/login") {
-    if (!isAuthenticated) {
-      return authResponse(NextResponse.next(), request, authCheck);
-    }
+  console.info(isAuthenticated);
 
-    const redirectTo = resolveSafeNextPath(request.nextUrl.searchParams.get("next"));
-
-    return authResponse(
-      NextResponse.redirect(new URL(redirectTo, request.url)),
-      request,
-      authCheck,
-    );
-  }
+  // if (pathname === "/login") {
+  //   if (!isAuthenticated) {
+  //     return authResponse(NextResponse.next(), request, authCheck);
+  //   }
+  //
+  //   const redirectTo = resolveSafeNextPath(request.nextUrl.searchParams.get("next"));
+  //
+  //   return authResponse(
+  //     NextResponse.redirect(new URL(redirectTo, request.url)),
+  //     request,
+  //     authCheck,
+  //   );
+  // }
 
   if (isAuthenticated) {
     return authResponse(NextResponse.next(), request, authCheck);
