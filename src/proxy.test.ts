@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import proxy, { config } from "./proxy";
+import { config, proxy } from "./proxy";
 
 const authMock = vi.hoisted(() => vi.fn((handler: unknown) => handler));
 const getTokenMock = vi.hoisted(() => vi.fn());
 const fetchMock = vi.hoisted(() => vi.fn());
+const testProxy = proxy as unknown as (
+  request: never,
+  event: never,
+) => Promise<Response> | Response;
 
 vi.mock("@/auth", () => ({
   auth: authMock,
@@ -25,7 +29,11 @@ function createRequest(pathname: string, authState: unknown = null) {
 }
 
 async function runProxy(pathname: string, authState: unknown = null) {
-  return (await proxy(createRequest(pathname, authState) as never, undefined as never)) as Response;
+  return runProxyRequest(createRequest(pathname, authState));
+}
+
+async function runProxyRequest(request: ReturnType<typeof createRequest>) {
+  return testProxy(request as never, undefined as never);
 }
 
 describe("proxy", () => {
@@ -83,12 +91,12 @@ describe("proxy", () => {
   it("falls back to the API session checker when auth env is unavailable", async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
 
-    const response = await proxy({
+    const response = await runProxyRequest({
       ...createRequest("/?__proxy_debug=1", null),
       headers: new Headers({
         cookie: "__Secure-authjs.session-token=redacted",
       }),
-    } as never);
+    });
 
     expect(response.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledWith(
@@ -109,12 +117,12 @@ describe("proxy", () => {
     getTokenMock.mockResolvedValueOnce(null);
     getTokenMock.mockResolvedValueOnce({ id: "user-1" });
 
-    const response = await proxy({
+    const response = await runProxyRequest({
       ...createRequest("/?__proxy_debug=1", null),
       headers: new Headers({
         cookie: "__Secure-authjs.session-token=redacted; theme=dark",
       }),
-    } as never);
+    });
 
     expect(response.headers.get("x-mixtv-proxy-authenticated")).toBe("1");
     expect(response.headers.get("x-mixtv-proxy-auth-request")).toBe("0");
@@ -181,7 +189,18 @@ describe("proxy", () => {
 });
 
 describe("proxy config", () => {
-  it("matches page routes and excludes static assets", () => {
-    expect(config.matcher).toEqual(["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"]);
+  function matchesProxy(pathname: string) {
+    return new RegExp(`^${config.matcher[0]}$`).test(pathname);
+  }
+
+  it("matches page routes and excludes static assets plus the auth session checker", () => {
+    expect(config.matcher).toEqual([
+      "/((?!api/auth/proxy-session(?:/|$)|_next/static|_next/image|favicon.ico|.*\\..*).*)",
+    ]);
+    expect(matchesProxy("/")).toBe(true);
+    expect(matchesProxy("/api/history")).toBe(true);
+    expect(matchesProxy("/api/auth/proxy-session")).toBe(false);
+    expect(matchesProxy("/_next/static/chunk.js")).toBe(false);
+    expect(matchesProxy("/favicon.ico")).toBe(false);
   });
 });

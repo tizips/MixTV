@@ -1,15 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { auth } from "@/auth";
 import { resolveSafeNextPath } from "@/modules/auth/server/redirect";
-
-type ProxyRequest = Request & {
-  auth?: {
-    user?: unknown;
-  } | null;
-  nextUrl: URL;
-  url: string;
-};
 
 type AuthCheck = {
   hasApiSession: boolean;
@@ -24,7 +16,7 @@ function readAuthSecret() {
   return process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "";
 }
 
-function listAuthCookieNames(request: ProxyRequest) {
+function listAuthCookieNames(request: NextRequest) {
   const cookieHeader = request.headers.get("cookie") ?? "";
 
   return cookieHeader
@@ -57,7 +49,7 @@ function safeEnvKeys() {
     .join(",");
 }
 
-function addEnvDebugHeaders(response: NextResponse, request: ProxyRequest) {
+function addEnvDebugHeaders(response: NextResponse, request: NextRequest) {
   if (request.nextUrl.searchParams.get("__proxy_debug") !== "env") {
     return response;
   }
@@ -79,7 +71,7 @@ function addEnvDebugHeaders(response: NextResponse, request: ProxyRequest) {
   return response;
 }
 
-function addDebugHeaders(response: NextResponse, request: ProxyRequest, authCheck: AuthCheck) {
+function addDebugHeaders(response: NextResponse, request: NextRequest, authCheck: AuthCheck) {
   addEnvDebugHeaders(response, request);
 
   if (request.nextUrl.searchParams.get("__proxy_debug") !== "1") {
@@ -97,8 +89,10 @@ function addDebugHeaders(response: NextResponse, request: ProxyRequest, authChec
   return response;
 }
 
-async function checkAuthenticatedSession(request: ProxyRequest): Promise<AuthCheck> {
-  if (request.auth?.user) {
+async function checkAuthenticatedSession(request: NextRequest): Promise<AuthCheck> {
+  const requestAuth = (request as NextRequest & { auth?: { user?: unknown } | null }).auth;
+
+  if (requestAuth?.user) {
     return {
       hasApiSession: false,
       authenticated: true,
@@ -199,5 +193,5 @@ export const proxy = auth(async (request) => {
 });
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  matcher: ["/((?!api/auth/proxy-session(?:/|$)|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };
