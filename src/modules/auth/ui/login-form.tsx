@@ -5,6 +5,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { Button, Card, Col, Form, Input, Row, Typography } from "antd";
 import { env } from "@/shared/env";
+import { redirect } from "next/navigation";
 
 export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +27,8 @@ export function LoginForm() {
           setError("Incorrect username or password.");
           return;
         }
+
+        redirect("/");
       } catch {
         setError("Unable to sign in right now. Please try again.");
       } finally {
