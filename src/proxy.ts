@@ -162,7 +162,7 @@ async function checkAuthenticatedSession(request: ProxyRequest): Promise<AuthChe
   };
 }
 
-export default auth(async (request) => {
+export const proxy = auth(async (request) => {
   const pathname = request.nextUrl.pathname;
   const isApiRoute = pathname.startsWith("/api");
 
