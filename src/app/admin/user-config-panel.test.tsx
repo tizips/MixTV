@@ -43,6 +43,36 @@ function clickButtonByText(host: HTMLElement, text: string) {
   button?.click();
 }
 
+function getAddUserFields(host: HTMLElement) {
+  const roleSelect = host.querySelector<HTMLSelectElement>('select[name="role"]');
+  const form = roleSelect?.closest("form") as HTMLFormElement | null;
+
+  return {
+    form,
+    passwordConfirmInput: form?.querySelector<HTMLInputElement>(
+      'input[name="passwordConfirm"]',
+    ),
+    passwordInput: form?.querySelector<HTMLInputElement>('input[name="password"]'),
+    usernameInput: form?.querySelector<HTMLInputElement>('input[name="username"]'),
+  };
+}
+
+function getPasswordFields(host: HTMLElement) {
+  const usernameInput = host.querySelector<HTMLInputElement>(
+    'input[name="username"]:disabled',
+  );
+  const form = usernameInput?.closest("form") as HTMLFormElement | null;
+
+  return {
+    form,
+    passwordConfirmInput: form?.querySelector<HTMLInputElement>(
+      'input[name="passwordConfirm"]',
+    ),
+    passwordInput: form?.querySelector<HTMLInputElement>('input[name="password"]'),
+    usernameInput,
+  };
+}
+
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn());
   resetUserConfigPanelState();
@@ -83,7 +113,7 @@ describe("UserConfigPanel", () => {
     });
   });
 
-  it("clears the add user form every time the add dialog opens", async () => {
+  it("keeps a blocked add user submission in the add dialog", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValue({
       json: async () => ({
@@ -104,9 +134,7 @@ describe("UserConfigPanel", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const addForm = host.querySelector("#add-user-form") as HTMLFormElement | null;
-    const usernameInput = addForm?.querySelector('input[autocomplete="username"]') as HTMLInputElement | null;
-    const passwordInput = addForm?.querySelector('input[type="password"]') as HTMLInputElement | null;
+    const { form: addForm, passwordInput, usernameInput } = getAddUserFields(host);
 
     await act(async () => {
       if (usernameInput) {
@@ -119,24 +147,11 @@ describe("UserConfigPanel", () => {
       await Promise.resolve();
     });
 
-    expect(host.textContent).toContain("请再次输入初始密码。");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(usernameInput?.value).toBe("draft-user");
+    expect(passwordInput?.value).toBe("Draft123");
 
-    await act(async () => {
-      clickButtonByText(host, "取消");
-      await Promise.resolve();
-    });
-    await act(async () => {
-      clickButtonByText(host, "添加用户");
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    const reopenedForm = host.querySelector("#add-user-form") as HTMLFormElement | null;
-    const reopenedUsernameInput = reopenedForm?.querySelector('input[autocomplete="username"]') as HTMLInputElement | null;
-    const reopenedPasswordInput = reopenedForm?.querySelector('input[type="password"]') as HTMLInputElement | null;
-
-    expect(reopenedUsernameInput?.value).toBe("");
-    expect(reopenedPasswordInput?.value).toBe("");
+    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
     expect(host.textContent).not.toContain("两次输入的密码不一致。");
 
     act(() => {
@@ -166,8 +181,7 @@ describe("UserConfigPanel", () => {
       await Promise.resolve();
     });
 
-    const addForm = host.querySelector("#add-user-form") as HTMLFormElement | null;
-    const passwordInput = addForm?.querySelector('input[autocomplete="new-password"]') as HTMLInputElement | null;
+    const { passwordInput } = getAddUserFields(host);
     expect(passwordInput?.type).toBe("password");
     expect(host.querySelector('button[aria-label="查看初始密码"]')).toBeNull();
 
@@ -204,19 +218,22 @@ describe("UserConfigPanel", () => {
       await Promise.resolve();
     });
 
-    const addForm = host.querySelector("#add-user-form") as HTMLFormElement | null;
-    const usernameInput = addForm?.querySelector('input[autocomplete="username"]') as HTMLInputElement | null;
-    const passwordInputs = addForm?.querySelectorAll<HTMLInputElement>('input[autocomplete="new-password"]');
+    const {
+      form: addForm,
+      passwordConfirmInput,
+      passwordInput,
+      usernameInput,
+    } = getAddUserFields(host);
 
     await act(async () => {
       if (usernameInput) {
         changeInputValue(usernameInput, "carol");
       }
-      if (passwordInputs?.[0]) {
-        changeInputValue(passwordInputs[0], "Secret123");
+      if (passwordInput) {
+        changeInputValue(passwordInput, "Secret123");
       }
-      if (passwordInputs?.[1]) {
-        changeInputValue(passwordInputs[1], "Secret123");
+      if (passwordConfirmInput) {
+        changeInputValue(passwordConfirmInput, "Secret123");
       }
       addForm?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -231,6 +248,7 @@ describe("UserConfigPanel", () => {
     expect(host.textContent).not.toContain("用户名至少需要 4 个字符。");
     expect(usernameInput?.value).toBe("carol");
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(toastState.error).toHaveBeenCalledWith("用户名至少需要 4 个字符。");
 
     act(() => {
       root.unmount();
@@ -259,26 +277,30 @@ describe("UserConfigPanel", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const addForm = host.querySelector("#add-user-form") as HTMLFormElement | null;
-    const usernameInput = addForm?.querySelector('input[autocomplete="username"]') as HTMLInputElement | null;
-    const passwordInputs = addForm?.querySelectorAll<HTMLInputElement>('input[autocomplete="new-password"]');
+    const {
+      form: addForm,
+      passwordConfirmInput,
+      passwordInput,
+      usernameInput,
+    } = getAddUserFields(host);
 
     await act(async () => {
       if (usernameInput) {
         changeInputValue(usernameInput, "Carol");
       }
-      if (passwordInputs?.[0]) {
-        changeInputValue(passwordInputs[0], "Secret123");
+      if (passwordInput) {
+        changeInputValue(passwordInput, "Secret123");
       }
-      if (passwordInputs?.[1]) {
-        changeInputValue(passwordInputs[1], "Secret123");
+      if (passwordConfirmInput) {
+        changeInputValue(passwordConfirmInput, "Secret123");
       }
       addForm?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(host.textContent).toContain("用户名需为 4-20 位小写字母或数字。");
+    expect(usernameInput?.value).toBe("Carol");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(toastState.error).not.toHaveBeenCalled();
 
     act(() => {
       root.unmount();
@@ -409,16 +431,20 @@ describe("UserConfigPanel", () => {
 
     await act(async () => {
       host.querySelectorAll("button")[1]?.click();
+      await Promise.resolve();
     });
 
-    const passwordForm = host.querySelector("#change-password-form") as HTMLFormElement | null;
-    const passwordInputs = passwordForm?.querySelectorAll<HTMLInputElement>('input[type="password"]');
+    const {
+      form: passwordForm,
+      passwordConfirmInput,
+      passwordInput,
+    } = getPasswordFields(host);
     await act(async () => {
-      if (passwordInputs?.[0]) {
-        changeInputValue(passwordInputs[0], "Newsecret1");
+      if (passwordInput) {
+        changeInputValue(passwordInput, "Newsecret1");
       }
-      if (passwordInputs?.[1]) {
-        changeInputValue(passwordInputs[1], "Newsecret1");
+      if (passwordConfirmInput) {
+        changeInputValue(passwordConfirmInput, "Newsecret1");
       }
       passwordForm?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
       await Promise.resolve();

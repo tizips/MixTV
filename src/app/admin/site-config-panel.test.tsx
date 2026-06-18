@@ -14,6 +14,19 @@ const toastState = vi.hoisted(() => ({
 
 vi.mock("antd", () => createAntdMock({ message: toastState }));
 
+function getSiteConfigForm() {
+  const authInput = document.querySelector<HTMLTextAreaElement>(
+    'textarea[name="doubanAuth"]',
+  );
+
+  return {
+    authInput,
+    mainForm: authInput
+      ? (authInput.closest("form") as HTMLFormElement | null)
+      : null,
+  };
+}
+
 function renderSiteConfigPanel() {
   const host = document.createElement("div");
   document.body.append(host);
@@ -98,13 +111,14 @@ describe("SiteConfigPanel", () => {
     });
   });
 
-  it("keeps the main config form mounted while the initial site config request is loading", () => {
+  it("shows the card loading state while the initial site config request is loading", () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockReturnValue(new Promise<Response>(() => undefined));
 
     const root = renderSiteConfigPanel();
 
-    expect(document.querySelector("#site-config-main-form")).not.toBeNull();
+    expect(document.querySelector("[data-card-loading='true']")).not.toBeNull();
+    expect(getSiteConfigForm().mainForm).toBeNull();
 
     act(() => {
       root.unmount();
@@ -182,10 +196,13 @@ describe("SiteConfigPanel", () => {
       await Promise.resolve();
     });
 
-    const mainForm = document.querySelector("#site-config-main-form") as HTMLFormElement | null;
-    const dataProxySelect = mainForm?.querySelector<HTMLSelectElement>('select[name="doubanDataProxyMode"]');
-    const imageProxySelect = mainForm?.querySelector<HTMLSelectElement>('select[name="doubanImageProxyMode"]');
-    const authInput = mainForm?.querySelector<HTMLTextAreaElement>('textarea[name="doubanAuth"]');
+    const { authInput, mainForm } = getSiteConfigForm();
+    const dataProxySelect = mainForm?.querySelector<HTMLSelectElement>(
+      'select[name="doubanDataProxyMode"]',
+    );
+    const imageProxySelect = mainForm?.querySelector<HTMLSelectElement>(
+      'select[name="doubanImageProxyMode"]',
+    );
 
     expect(mainForm).not.toBeNull();
     expect(dataProxySelect?.value).toBe("direct");

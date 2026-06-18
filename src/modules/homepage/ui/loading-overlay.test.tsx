@@ -6,9 +6,9 @@ describe("LoadingOverlay", () => {
   it("renders tokenized loading chrome when visible", () => {
     const html = renderToStaticMarkup(<LoadingOverlay isLoading />);
 
-    expect(html).toContain("bg-backdrop");
+    expect(html).toContain("bg-black/30");
     expect(html).toContain("bg-surface");
-    expect(html).toContain("border-border");
+    expect(html).toContain("border-default-200");
     expect(html).toContain("border-t-accent");
     expect(html).toContain("text-foreground");
   });

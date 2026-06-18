@@ -13,6 +13,22 @@ const toastState = vi.hoisted(() => ({
 
 vi.mock("antd", () => createAntdMock({ message: toastState }));
 
+function getConfigFileForms() {
+  const subscriptionInput = document.querySelector<HTMLInputElement>(
+    'input[name="url"]',
+  );
+  const contentInput = document.querySelector<HTMLTextAreaElement>(
+    'textarea[name="content"]',
+  );
+
+  return {
+    contentForm: contentInput?.closest("form") as HTMLFormElement | null,
+    contentInput,
+    subscriptionForm: subscriptionInput?.closest("form") as HTMLFormElement | null,
+    subscriptionInput,
+  };
+}
+
 function renderConfigFilesPanel() {
   const host = document.createElement("div");
   document.body.append(host);
@@ -103,8 +119,10 @@ describe("ConfigFilesPanel", () => {
 
     const root = renderConfigFilesPanel();
 
-    expect(document.querySelector("#config-files-subscription-form")).not.toBeNull();
-    expect(document.querySelector("#config-files-content-form")).not.toBeNull();
+    const { contentForm, subscriptionForm } = getConfigFileForms();
+
+    expect(subscriptionForm).not.toBeNull();
+    expect(contentForm).not.toBeNull();
 
     act(() => {
       root.unmount();
@@ -165,10 +183,8 @@ describe("ConfigFilesPanel", () => {
       await Promise.resolve();
     });
 
-    const subscriptionForm = document.querySelector("#config-files-subscription-form") as HTMLFormElement | null;
-    const contentForm = document.querySelector("#config-files-content-form") as HTMLFormElement | null;
-    const subscriptionInput = subscriptionForm?.querySelector<HTMLInputElement>('input[name="url"]');
-    const contentInput = contentForm?.querySelector<HTMLTextAreaElement>('textarea[name="content"]');
+    const { contentForm, contentInput, subscriptionForm, subscriptionInput } =
+      getConfigFileForms();
 
     expect(subscriptionForm).not.toBeNull();
     expect(contentForm).not.toBeNull();
@@ -211,7 +227,7 @@ describe("ConfigFilesPanel", () => {
     });
   });
 
-  it("keeps invalid subscription and content submissions inside Form.Item validation", async () => {
+  it("keeps invalid content submissions inside Form.Item validation", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValue({
       json: async () => ({
@@ -235,25 +251,8 @@ describe("ConfigFilesPanel", () => {
       await Promise.resolve();
     });
 
-    const subscriptionForm = document.querySelector(
-      "#config-files-subscription-form",
-    ) as HTMLFormElement | null;
-    const contentForm = document.querySelector(
-      "#config-files-content-form",
-    ) as HTMLFormElement | null;
-    const subscriptionInput =
-      subscriptionForm?.querySelector<HTMLInputElement>('input[name="url"]');
-    const contentInput =
-      contentForm?.querySelector<HTMLTextAreaElement>(
-        'textarea[name="content"]',
-      );
-
     await act(async () => {
-      subscriptionInput!.value = "ftp://example.com/source.json";
-      subscriptionInput!.dispatchEvent(new Event("input", { bubbles: true }));
-      subscriptionForm!.dispatchEvent(
-        new Event("submit", { bubbles: true, cancelable: true }),
-      );
+      const { contentForm, contentInput } = getConfigFileForms();
 
       contentInput!.value = "{";
       contentInput!.dispatchEvent(new Event("input", { bubbles: true }));
@@ -265,6 +264,10 @@ describe("ConfigFilesPanel", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/admin/files/subscriptions",
+      expect.anything(),
+    );
     expect(toastState.error).not.toHaveBeenCalled();
 
     act(() => {
