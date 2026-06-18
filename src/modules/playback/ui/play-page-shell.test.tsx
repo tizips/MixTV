@@ -14,7 +14,7 @@ type ArtplayerHandler = (...args: unknown[]) => void;
 
 const artplayerState = vi.hoisted(() => ({
   instances: [] as FakeArtplayer[],
-  controls: [] as Array<{ name?: string; position?: string; tooltip?: string; index?: number }>,
+  controls: [] as Array<{ html?: string; name?: string; position?: string; tooltip?: string; index?: number }>,
   danmakuLoads: [] as unknown[][],
   danmakuOptions: [] as Array<Record<string, unknown>>,
   settings: [] as Array<{ name?: string; html?: string }>,
@@ -40,7 +40,7 @@ class FakeArtplayer {
   volume = 0;
   plugins = {};
   controls = {
-    add: (option: { name?: string; position?: string; tooltip?: string; index?: number }) => {
+    add: (option: { html?: string; name?: string; position?: string; tooltip?: string; index?: number }) => {
       artplayerState.controls.push(option);
       return document.createElement("div");
     },
@@ -383,6 +383,9 @@ describe("PlayPageShell client playback cover", () => {
       "mixtv-next-episode",
     ]);
     expect(artplayerState.controls.map((control) => control.position)).toEqual(["left", "left", "left"]);
+    expect(artplayerState.controls.find((control) => control.name === "mixtv-next-episode")?.html).toContain(
+      'data-icon="forward"',
+    );
     expect(artplayerState.controls.map((control) => control.index)).toEqual([11, 12, 13]);
     expect(artplayerState.settings).toEqual([]);
 
@@ -554,6 +557,12 @@ describe("PlayPageShell client playback cover", () => {
     act(() => {
       root.unmount();
     });
+  });
+
+  it("marks the playback host for floating glass controls styling", () => {
+    const html = renderToStaticMarkup(<PlayPageShell initialData={createInitialData()} />);
+
+    expect(html).toContain('data-mixtv-artplayer="floating-glass-controls"');
   });
 
   it("renders a placeholder when playback data is missing", () => {

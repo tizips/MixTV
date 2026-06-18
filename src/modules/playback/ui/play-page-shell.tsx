@@ -3,6 +3,7 @@
 import {
   FastBackwardFilled,
   FastForwardFilled,
+  ForwardOutlined,
   GlobalOutlined,
   HeartFilled,
   HeartOutlined,
@@ -1161,7 +1162,7 @@ export function PlayPageShell({
         });
         art.controls.add({
           name: "mixtv-next-episode",
-          html: renderToStaticMarkup(<FastForwardFilled />),
+          html: renderToStaticMarkup(<ForwardOutlined />),
           position: "left",
           index: 13,
           tooltip: "下一集",
@@ -1647,7 +1648,7 @@ export function PlayPageShell({
             <div
               ref={artContainerRef}
               aria-label={`${playbackData.title} 第 ${activeEpisode} 集视频`}
-              data-mixtv-artplayer
+              data-mixtv-artplayer="floating-glass-controls"
               className="absolute inset-0 z-20 h-full w-full bg-black"
             />
             <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-transparent via-transparent to-black/30" />
