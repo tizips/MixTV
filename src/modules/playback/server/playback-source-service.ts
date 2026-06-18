@@ -22,10 +22,13 @@ import {
   type PlaybackCacheStore,
 } from "./playback-cache";
 
+const playbackSourceLookupConcurrency = 3;
+
 export interface PlaybackSourceItem {
   id: string;
   key: string;
   name: string;
+  ping: number;
   quality?: string;
   source_name: string;
   total_episodes: number;
@@ -88,12 +91,14 @@ function toPublicSourceItem(
   sourceName: string,
   resource: Awaited<ReturnType<typeof getVideoSourceDetail>>,
   fallbackId: string,
+  ping: number,
   fallbackQuality?: string,
 ): PlaybackSourceItem {
   return {
     id: resource.id || fallbackId,
     key: resource.sourceKey,
     name: resource.sourceName || sourceName,
+    ping,
     quality: resource.quality ?? fallbackQuality,
     source_name: resource.sourceName || sourceName,
     total_episodes: resource.episodes.length,
@@ -106,8 +111,13 @@ function toIndexCacheEntry(item: PlaybackSourceItem) {
     quality: item.quality ?? "",
     resourceKey: item.key,
     name: item.name,
+    ping: item.ping,
     total_episodes: item.total_episodes,
   }];
+}
+
+function readPingMs(startedAt: number) {
+  return Math.max(0, Math.round(performance.now() - startedAt));
 }
 
 export async function getPlaybackSources(
@@ -170,6 +180,7 @@ export async function getPlaybackSources(
         id: entry.id,
         key: entry.resourceKey,
         name: entry.name,
+        ping: entry.ping,
         quality: entry.quality || undefined,
         source_name: entry.name,
         total_episodes: entry.total_episodes,
@@ -184,12 +195,17 @@ export async function getPlaybackSources(
 
   onStart?.({ total: sources.length });
 
-  let completed = 0;
-  const cachedResults: PlaybackSourceItem[] = [];
+  const resolveSource = async (source: (typeof sources)[number]) => {
+    if (!source) {
+      return null;
+    }
 
-  for (const source of sources) {
+    const sourceStartedAt = performance.now();
     const cachedEntry = cachedByKey.get(source.key);
     const cacheKey = cachedEntry ? createPlaybackCacheKey(source.key, cachedEntry.id) : "";
+    let fallbackId = cachedEntry?.id;
+    let fallbackQuality = cachedEntry?.quality;
+    let usedLiveSourceLookup = false;
     let detail = cachedEntry
       ? await readPlaybackCacheEntry(cacheStore, cacheKey)
       : null;
@@ -207,25 +223,22 @@ export async function getPlaybackSources(
 
           if (!firstMatch) {
             await deleteMediaSearchCacheEntry(index, source.key, { store: indexCacheStore });
-            continue;
+            return null;
           }
 
-          const item = toPublicSourceItem(source.name, firstMatch, firstMatch.id, firstMatch.quality);
-
-          try {
-            await saveMediaSearchCacheEntries(index, toIndexCacheEntry(item), { store: indexCacheStore });
-          } catch {
-            // Cache writes must not block playback source resolution.
-          }
-          detail = await detailFetcher(toEndpoint(source), item.id, {
+          fallbackId = firstMatch.id;
+          fallbackQuality = firstMatch.quality;
+          detail = await detailFetcher(toEndpoint(source), firstMatch.id, {
             ...(fetcher ? { fetcher } : {}),
             ...(timeoutMs === undefined ? {} : { timeoutMs }),
           });
+          usedLiveSourceLookup = true;
         } else {
           detail = await detailFetcher(toEndpoint(source), cachedEntry.id, {
             ...(fetcher ? { fetcher } : {}),
             ...(timeoutMs === undefined ? {} : { timeoutMs }),
           });
+          usedLiveSourceLookup = true;
         }
 
         if (!detail.episodes.length) {
@@ -233,7 +246,7 @@ export async function getPlaybackSources(
             await cacheStore.del(cacheKey);
           }
           await deleteMediaSearchCacheEntry(index, source.key, { store: indexCacheStore });
-          continue;
+          return null;
         }
 
         await savePlaybackCacheEntry(cacheStore, createPlaybackCacheKey(source.key, detail.id), detail);
@@ -242,17 +255,58 @@ export async function getPlaybackSources(
           await cacheStore.del(cacheKey);
         }
         await deleteMediaSearchCacheEntry(index, source.key, { store: indexCacheStore });
-        continue;
+        return null;
       }
     }
 
-    const result = toPublicSourceItem(source.name, detail, cachedEntry?.id ?? detail.id, cachedEntry?.quality);
-    onResult?.(result);
-    cachedResults.push(result);
-    completed += 1;
-  }
+    const ping = usedLiveSourceLookup
+      ? readPingMs(sourceStartedAt)
+      : cachedEntry?.ping ?? readPingMs(sourceStartedAt);
+    const result = toPublicSourceItem(
+      source.name,
+      detail,
+      fallbackId ?? detail.id,
+      ping,
+      fallbackQuality,
+    );
+    try {
+      await saveMediaSearchCacheEntries(index, toIndexCacheEntry(result), { store: indexCacheStore });
+    } catch {
+      // Cache writes must not block playback source resolution.
+    }
 
-  await savePlaybackSourcesCacheEntry(cacheStore, playbackSourcesCacheKey, cachedResults);
+    return result;
+  };
+
+  let completed = 0;
+  let nextSourceIndex = 0;
+  const cachedResults: Array<PlaybackSourceItem | null> = new Array(sources.length).fill(null);
+  const runSourceWorker = async () => {
+    while (nextSourceIndex < sources.length) {
+      const sourceIndex = nextSourceIndex;
+      nextSourceIndex += 1;
+      const result = await resolveSource(sources[sourceIndex]);
+
+      if (!result) {
+        continue;
+      }
+
+      cachedResults[sourceIndex] = result;
+      completed += 1;
+      onResult?.(result);
+    }
+  };
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(playbackSourceLookupConcurrency, sources.length) },
+      () => runSourceWorker(),
+    ),
+  );
+
+  const resolvedResults = cachedResults.filter((result): result is PlaybackSourceItem => result !== null);
+
+  await savePlaybackSourcesCacheEntry(cacheStore, playbackSourcesCacheKey, resolvedResults);
 
   return {
     completed,

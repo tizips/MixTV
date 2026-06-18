@@ -100,21 +100,35 @@ function createValueStore(initialValues: Record<string, unknown> = {}): ValueSto
   };
 }
 
-function createSourceStore(): VideoSourceStore {
-  const script: VideoSourceStore["script"] = async <TResult = unknown>() => ({
-    alpha: JSON.stringify({
-      adult: false,
+function createSourceStore(
+  sources: Array<{
+    apiUrl: string;
+    key: string;
+    name: string;
+    no: number;
+  }> = [
+    {
       apiUrl: "https://alpha.test/api.php/provide/vod",
       key: "alpha",
       name: "Alpha Source",
       no: 1,
+    },
+  ],
+): VideoSourceStore {
+  const script: VideoSourceStore["script"] = async <TResult = unknown>() => Object.fromEntries(
+    sources.map((source) => [source.key, JSON.stringify({
+      adult: false,
+      apiUrl: source.apiUrl,
+      key: source.key,
+      name: source.name,
+      no: source.no,
       status: "enabled",
       type: "normal",
       updatedAt: null,
       validity: "valid",
       weight: 10,
-    }),
-  } as TResult);
+    })]),
+  ) as TResult;
 
   return {
     del: vi.fn(async () => undefined),
@@ -156,6 +170,16 @@ function createDetail(overrides: Partial<VideoSourceResource> = {}): VideoSource
   };
 }
 
+async function waitForMockCallCount(mock: ReturnType<typeof vi.fn>, count: number) {
+  for (let attempts = 0; attempts < 20; attempts += 1) {
+    if (mock.mock.calls.length >= count) {
+      return;
+    }
+
+    await Promise.resolve();
+  }
+}
+
 describe("playback source service", () => {
   it("uses cached playback sources by index before loading live data", async () => {
     const siteConfigStore = createSiteConfigStore(false);
@@ -167,6 +191,7 @@ describe("playback source service", () => {
           key: "alpha",
           name: "Alpha Source",
           order: 0,
+          ping: 123,
           quality: "1080P",
           source_name: "Alpha Source",
           total_episodes: 2,
@@ -204,6 +229,7 @@ describe("playback source service", () => {
       id: "80474",
       key: "alpha",
       name: "Alpha Source",
+      ping: 123,
       quality: "1080P",
       source_name: "Alpha Source",
       total_episodes: 2,
@@ -214,7 +240,7 @@ describe("playback source service", () => {
   it("uses cached detail first and skips live source lookup", async () => {
     const indexStore = createHashStore({
       "2026:anime:深空彼岸": {
-        alpha: JSON.stringify({ id: "80474", name: "Alpha Source", quality: "1080P" }),
+        alpha: JSON.stringify({ id: "80474", name: "Alpha Source", ping: 87, quality: "1080P" }),
       },
     });
     const cacheStore = createValueStore({
@@ -256,6 +282,7 @@ describe("playback source service", () => {
       id: "80474",
       key: "alpha",
       name: "Alpha Source",
+      ping: 87,
       quality: "1080P",
       source_name: "Alpha Source",
       total_episodes: 2,
@@ -269,6 +296,7 @@ describe("playback source service", () => {
         alpha: JSON.stringify({
           id: "80474",
           name: "Alpha Source",
+          ping: 88,
           quality: "1080P",
           total_episodes: 2,
         }),
@@ -298,6 +326,7 @@ describe("playback source service", () => {
       id: "80474",
       key: "alpha",
       name: "Alpha Source",
+      ping: 88,
       quality: "1080P",
       source_name: "Alpha Source",
       total_episodes: 2,
@@ -308,7 +337,7 @@ describe("playback source service", () => {
   it("removes a source from both caches when third-party lookup misses", async () => {
     const indexStore = createHashStore({
       "2026:anime:深空彼岸": {
-        alpha: JSON.stringify({ id: "80474", name: "Alpha Source", quality: "1080P" }),
+        alpha: JSON.stringify({ id: "80474", name: "Alpha Source", ping: 91, quality: "1080P" }),
       },
     });
     const cacheStore = createValueStore();
@@ -332,11 +361,48 @@ describe("playback source service", () => {
     expect(cacheStore.del).toHaveBeenCalledWith("cache:video:alpha:80474");
   });
 
+  it("refreshes ping when cached source entries still need live detail lookup", async () => {
+    const nowSpy = vi.spyOn(performance, "now")
+      .mockReturnValueOnce(100)
+      .mockReturnValueOnce(150);
+    const indexStore = createHashStore({
+      "2026:anime:深空彼岸": {
+        alpha: JSON.stringify({ id: "80474", name: "Alpha Source", ping: 12, quality: "1080P" }),
+      },
+    });
+    const cacheStore = createValueStore();
+    const detailFetcher = vi.fn(async () => createDetail());
+    const onResult = vi.fn();
+
+    try {
+      const summary = await getPlaybackSources(
+        { index: "2026:anime:深空彼岸" },
+        {
+          cacheStore,
+          detailFetcher,
+          indexCacheStore: indexStore,
+          onResult,
+          siteConfigStore: createSiteConfigStore(false),
+          videoSourceStore: createSourceStore(),
+        },
+      );
+
+      expect(detailFetcher).toHaveBeenCalledOnce();
+      expect(onResult).toHaveBeenCalledWith(expect.objectContaining({
+        ping: 50,
+      }));
+      expect(summary).toEqual({ completed: 1, total: 1 });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   it("falls back to live source search when the index cache is missing", async () => {
     const indexStore = createHashStore();
     const cacheStore = createValueStore();
     const searcher = vi.fn(async () => [createDetail()]);
     const detailFetcher = vi.fn(async () => createDetail());
+    const onResult = vi.fn();
 
     const summary = await getPlaybackSources(
       { index: "2026:anime:深空彼岸" },
@@ -344,6 +410,7 @@ describe("playback source service", () => {
         cacheStore,
         detailFetcher,
         indexCacheStore: indexStore,
+        onResult,
         searcher,
         siteConfigStore: createSiteConfigStore(false),
         videoSourceStore: createSourceStore(),
@@ -352,7 +419,76 @@ describe("playback source service", () => {
 
     expect(searcher).toHaveBeenCalledOnce();
     expect(detailFetcher).toHaveBeenCalledOnce();
+    expect(onResult).toHaveBeenCalledWith(expect.objectContaining({
+      ping: expect.any(Number),
+    }));
+    expect(onResult.mock.calls[0]?.[0].ping).toBeGreaterThanOrEqual(0);
     expect(cacheStore.dumpValue("cache:video:alpha:80474")).toContain('"id":"80474"');
     expect(summary).toEqual({ completed: 1, total: 1 });
+  });
+
+  it("loads live playback sources three at a time", async () => {
+    const indexStore = createHashStore();
+    const cacheStore = createValueStore();
+    const sources = [
+      { apiUrl: "https://alpha.test/api.php/provide/vod", key: "alpha", name: "Alpha Source", no: 1 },
+      { apiUrl: "https://beta.test/api.php/provide/vod", key: "beta", name: "Beta Source", no: 2 },
+      { apiUrl: "https://gamma.test/api.php/provide/vod", key: "gamma", name: "Gamma Source", no: 3 },
+      { apiUrl: "https://delta.test/api.php/provide/vod", key: "delta", name: "Delta Source", no: 4 },
+    ];
+    const resolvers: Array<() => void> = [];
+    let activeLookups = 0;
+    let maxActiveLookups = 0;
+    const searcher = vi.fn(async (source: { key: string; name: string }) => {
+      activeLookups += 1;
+      maxActiveLookups = Math.max(maxActiveLookups, activeLookups);
+
+      await new Promise<void>((resolve) => {
+        resolvers.push(() => {
+          activeLookups -= 1;
+          resolve();
+        });
+      });
+
+      return [createDetail({
+        id: `${source.key}-80474`,
+        sourceKey: source.key,
+        sourceName: source.name,
+      })];
+    });
+    const detailFetcher = vi.fn(async (source: { key: string; name: string }, id: string) => createDetail({
+      id,
+      sourceKey: source.key,
+      sourceName: source.name,
+    }));
+
+    const summaryPromise = getPlaybackSources(
+      { index: "2026:anime:深空彼岸" },
+      {
+        cacheStore,
+        detailFetcher,
+        indexCacheStore: indexStore,
+        searcher,
+        siteConfigStore: createSiteConfigStore(false),
+        videoSourceStore: createSourceStore(sources),
+      },
+    );
+
+    await waitForMockCallCount(searcher, 3);
+
+    expect(searcher).toHaveBeenCalledTimes(3);
+    expect(maxActiveLookups).toBe(3);
+
+    resolvers.shift()?.();
+    await waitForMockCallCount(searcher, 4);
+
+    expect(searcher).toHaveBeenCalledTimes(4);
+    expect(maxActiveLookups).toBe(3);
+
+    for (const resolve of resolvers.splice(0)) {
+      resolve();
+    }
+
+    await expect(summaryPromise).resolves.toEqual({ completed: 4, total: 4 });
   });
 });

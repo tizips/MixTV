@@ -13,6 +13,7 @@ describe("playback cache", () => {
               key: "alpha",
               name: "测试源",
               order: 0,
+              ping: 42,
               quality: "1080P",
               source_name: "测试源",
               total_episodes: 1,
@@ -56,6 +57,7 @@ describe("playback cache", () => {
         id: "resource-1",
         key: "alpha",
         name: "测试源",
+        ping: 42,
       }),
     ]);
     expect(consoleInfoSpy).not.toHaveBeenCalled();

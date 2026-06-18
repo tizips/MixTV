@@ -81,6 +81,7 @@ type PlaybackSourceOption = {
   id: string;
   key: string;
   name: string;
+  ping: number;
   quality?: string;
   source_name: string;
   total_episodes: number;
@@ -155,6 +156,43 @@ function createPlayUrl(input: { id: string; source: string }) {
   });
 
   return `/play?${searchParams.toString()}`;
+}
+
+function formatPlaybackSourcePing(ping: unknown) {
+  const value = typeof ping === "number" ? ping : Number(ping);
+
+  if (!Number.isFinite(value) || value < 0) {
+    return "未知";
+  }
+
+  if (value < 1000) {
+    return `${Math.round(value)} ms`;
+  }
+
+  const seconds = value / 1000;
+  const formatted = seconds < 10
+    ? seconds.toFixed(1).replace(/\.0$/, "")
+    : String(Math.round(seconds));
+
+  return `${formatted} s`;
+}
+
+function getPlaybackSourcePingTagColor(ping: unknown) {
+  const value = typeof ping === "number" ? ping : Number(ping);
+
+  if (!Number.isFinite(value) || value < 0) {
+    return "default";
+  }
+
+  if (value < 800) {
+    return "success";
+  }
+
+  if (value < 2000) {
+    return "warning";
+  }
+
+  return "error";
 }
 
 function readStoredPlaybackVolume(): number {
@@ -1524,6 +1562,9 @@ export function PlayPageShell({
                         {source.quality ? (
                           <Tag color="processing">{source.quality}</Tag>
                         ) : null}
+                        <Tag color={getPlaybackSourcePingTagColor(source.ping)}>
+                          延迟 {formatPlaybackSourcePing(source.ping)}
+                        </Tag>
                       </span>
                       <Tag>{source.total_episodes} 集</Tag>
                     </span>
@@ -1605,6 +1646,9 @@ export function PlayPageShell({
                             {source.quality ? (
                               <Tag color="processing">{source.quality}</Tag>
                             ) : null}
+                            <Tag color={getPlaybackSourcePingTagColor(source.ping)}>
+                              延迟 {formatPlaybackSourcePing(source.ping)}
+                            </Tag>
                             <span>{source.source_name}</span>
                           </span>
                           <Tag>{source.total_episodes} 集</Tag>

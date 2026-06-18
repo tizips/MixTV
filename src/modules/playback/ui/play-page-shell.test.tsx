@@ -579,7 +579,7 @@ describe("PlayPageShell client playback cover", () => {
 
       if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}`) {
         return new Response(
-          'event: start\ndata: {"total":1}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","quality":"1080P","source_name":"Alpha Source","total_episodes":2}\n\nevent: complete\ndata: {"completed":1,"total":1}\n\n',
+          'event: start\ndata: {"total":1}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","ping":72,"quality":"1080P","source_name":"Alpha Source","total_episodes":2}\n\nevent: complete\ndata: {"completed":1,"total":1}\n\n',
           { headers: { "Content-Type": "text/event-stream" } },
         );
       }
@@ -609,6 +609,7 @@ describe("PlayPageShell client playback cover", () => {
     expect(host.querySelector('a[href*="source=alpha"][href*="id=80474"]')).not.toBeNull();
     expect(host.querySelector('a[href*="index="]')).toBeNull();
     expect(host.textContent).toContain("Alpha Source");
+    expect(host.textContent).toContain("72 ms");
     expect(host.textContent).toContain("2 集");
 
     act(() => {

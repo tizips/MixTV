@@ -26,6 +26,7 @@ export interface PlaybackSourceCacheItem {
   id: string;
   key: string;
   name: string;
+  ping: number;
   quality?: string;
   source_name: string;
   total_episodes: number;
@@ -175,6 +176,7 @@ function isPlaybackSourcesCachePayload(value: unknown): value is PlaybackSources
     && typeof payload.id === "string"
     && typeof payload.key === "string"
     && typeof payload.name === "string"
+    && typeof payload.ping === "number"
     && (typeof payload.quality === "string" || payload.quality === undefined)
     && typeof payload.source_name === "string"
     && typeof payload.total_episodes === "number";
@@ -264,6 +266,7 @@ function isPlaybackSourcesCacheItem(value: unknown): value is PlaybackSourceCach
     return typeof item.id === "string"
       && typeof item.key === "string"
       && typeof item.name === "string"
+      && typeof item.ping === "number"
       && (typeof item.quality === "string" || item.quality === undefined)
       && typeof item.source_name === "string"
       && typeof item.total_episodes === "number";
@@ -297,6 +300,7 @@ export async function readPlaybackSourcesCacheEntry(cacheStore: PlaybackCacheSto
         id: item.id,
         key: item.key,
         name: item.name,
+        ping: item.ping,
         quality: item.quality,
         source_name: item.source_name,
         total_episodes: item.total_episodes,
@@ -332,6 +336,7 @@ export async function savePlaybackSourcesCacheEntry(
           key: item.key,
           name: item.name,
           order,
+          ping: item.ping,
           quality: item.quality ?? "",
           source_name: item.source_name,
           total_episodes: item.total_episodes,
