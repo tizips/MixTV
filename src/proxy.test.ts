@@ -47,82 +47,26 @@ describe("proxy", () => {
     vi.stubGlobal("fetch", fetchMock);
   });
 
-  it("redirects unauthenticated home requests to /login", async () => {
-    const response = await runProxy("/", null);
-    const location = new URL(response.headers.get("location") ?? "");
-
-    expect(response.status).toBe(307);
-    expect(location.pathname).toBe("/login");
-    expect(location.searchParams.get("next")).toBe("/");
-  });
-
-  it("prevents edge caches from reusing auth-dependent page redirects", async () => {
+  it("passes unauthenticated page requests through without session checks", async () => {
     const response = await runProxy("/", null);
 
-    expect(response.headers.get("cache-control")).toBe("private, no-store");
-    expect(response.headers.get("vary")?.toLowerCase().split(/\s*,\s*/)).toContain("cookie");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(getTokenMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("allows authenticated home requests through", async () => {
+  it("passes authenticated page requests through without session checks", async () => {
     const response = await runProxy("/", { user: { id: "user-1" } });
 
     expect(response.status).toBe(200);
     expect(response.headers.get("x-middleware-next")).toBe("1");
-  });
-
-  it("allows page requests when the Auth.js session token is valid", async () => {
-    vi.stubEnv("AUTH_SECRET", "test-secret");
-    getTokenMock.mockResolvedValue({ id: "user-1" });
-
-    const response = await runProxy("/", null);
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("x-middleware-next")).toBe("1");
-  });
-
-  it("checks both secure and non-secure Auth.js session cookie names", async () => {
-    vi.stubEnv("AUTH_SECRET", "test-secret");
-    getTokenMock.mockResolvedValueOnce(null);
-    getTokenMock.mockResolvedValueOnce({ id: "user-1" });
-
-    const response = await runProxy("/", null);
-
-    expect(response.status).toBe(200);
-    expect(getTokenMock).toHaveBeenCalledTimes(2);
-    expect(getTokenMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ secureCookie: true }));
-    expect(getTokenMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ secureCookie: false }));
-    expect(fetchMock).not.toHaveBeenCalled();
-    vi.unstubAllEnvs();
-  });
-
-  it("falls back to the API session checker when auth env is unavailable", async () => {
-    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
-
-    const response = await runProxyRequest({
-      ...createRequest("/?__proxy_debug=1", null),
-      headers: new Headers({
-        cookie: "__Secure-authjs.session-token=redacted",
-      }),
-    });
-
-    expect(response.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledWith(
-      new URL("/api/auth/proxy-session", "http://localhost").toString(),
-      {
-        cache: "no-store",
-        headers: {
-          cookie: "__Secure-authjs.session-token=redacted",
-        },
-      },
-    );
     expect(getTokenMock).not.toHaveBeenCalled();
-    expect(response.headers.get("x-mixtv-proxy-auth-api")).toBe("1");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("adds proxy auth diagnostics when requested", async () => {
+  it("ignores proxy auth diagnostics while middleware auth is disabled", async () => {
     vi.stubEnv("AUTH_SECRET", "test-secret");
-    getTokenMock.mockResolvedValueOnce(null);
-    getTokenMock.mockResolvedValueOnce({ id: "user-1" });
 
     const response = await runProxyRequest({
       ...createRequest("/?__proxy_debug=1", null),
@@ -131,30 +75,12 @@ describe("proxy", () => {
       }),
     });
 
-    expect(response.headers.get("x-mixtv-proxy-authenticated")).toBe("1");
-    expect(response.headers.get("x-mixtv-proxy-auth-request")).toBe("0");
-    expect(response.headers.get("x-mixtv-proxy-auth-secure-token")).toBe("0");
-    expect(response.headers.get("x-mixtv-proxy-auth-plain-token")).toBe("1");
-    expect(response.headers.get("x-mixtv-proxy-auth-api")).toBe("0");
-    expect(response.headers.get("x-mixtv-proxy-auth-secret")).toBe("set");
-    expect(response.headers.get("x-mixtv-proxy-auth-cookies")).toBe("__Secure-authjs.session-token");
-  });
-
-  it("adds sanitized environment diagnostics when requested", async () => {
-    vi.stubEnv("AUTH_SECRET", "test-secret");
-    vi.stubEnv("USERNAME", "admin");
-    vi.stubEnv("NEXT_PUBLIC_SITE_NAME", "MixTV");
-
-    const response = await runProxy("/?__proxy_debug=env", null);
-
-    expect(response.headers.get("x-mixtv-env-auth-secret")).toBe("set");
-    expect(response.headers.get("x-mixtv-env-username")).toBe("set");
-    expect(response.headers.get("x-mixtv-env-password")).toBe("unset");
-    expect(response.headers.get("x-mixtv-env-next-public-site-name")).toBe("set");
-    expect(response.headers.get("x-mixtv-env-keys")).toContain("AUTH_SECRET");
-    expect(response.headers.get("x-mixtv-env-keys")).toContain("NEXT_PUBLIC_SITE_NAME");
-
-    vi.unstubAllEnvs();
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.get("x-mixtv-proxy-authenticated")).toBeNull();
+    expect(response.headers.get("x-mixtv-env-auth-secret")).toBeNull();
+    expect(getTokenMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("passes protected api requests through to route-level auth", async () => {
@@ -178,20 +104,13 @@ describe("proxy", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
-  it("redirects authenticated visitors away from /login using the next query", async () => {
+  it("passes login requests through", async () => {
     const response = await runProxy("/login?next=/stats", { user: { id: "user-1" } });
-    const location = new URL(response.headers.get("location") ?? "");
 
-    expect(response.status).toBe(307);
-    expect(location.pathname).toBe("/stats");
-  });
-
-  it("normalizes unsafe next values on /login", async () => {
-    const response = await runProxy("/login?next=//evil.example", { user: { id: "user-1" } });
-    const location = new URL(response.headers.get("location") ?? "");
-
-    expect(response.status).toBe(307);
-    expect(location.pathname).toBe("/");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(getTokenMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
