@@ -7,11 +7,17 @@ const defaultValidityKeyword = "斗罗大陆";
 
 export const runtime = "nodejs";
 
-export const GET = withApiTraffic(async function GET() {
+function readValidityKeyword(request: Request) {
+  return new URL(request.url).searchParams.get("keyword")?.trim() || defaultValidityKeyword;
+}
+
+export const GET = withApiTraffic(async function GET(request: Request) {
+  const keyword = readValidityKeyword(request);
+
   after(async () => {
     try {
       await checkVideoSourceValidities(
-        { keyword: defaultValidityKeyword },
+        { keyword },
         {
           removeInvalidSources: env.VIDEO_SOURCE_DELETE_INVALID_ON_CHECK,
         },
