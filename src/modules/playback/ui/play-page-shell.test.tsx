@@ -11,13 +11,35 @@ import type { PlayPageData } from "../domain/playback-page-data";
 
 type ArtplayerEventName = `video:${string}` | "artplayerPluginDanmuku:config" | "destroy" | "error" | "fullscreenWeb";
 type ArtplayerHandler = (...args: unknown[]) => void;
+type ArtplayerInitOptions = {
+  customType?: {
+    m3u8?: (video: HTMLVideoElement, url: string, art: FakeArtplayer) => void;
+  };
+  moreVideoAttr?: Record<string, unknown>;
+  playbackRate?: boolean;
+  plugins?: Array<{ name?: string }>;
+  poster?: string;
+  settings?: Array<{
+    html?: string;
+    name?: string;
+    onSwitch?: (item: { switch?: boolean }) => boolean | Promise<boolean>;
+    selector?: Array<{ default?: boolean; html?: string; value?: number }>;
+    switch?: boolean;
+  }>;
+  url: string;
+};
 
 const artplayerState = vi.hoisted(() => ({
   instances: [] as FakeArtplayer[],
   controls: [] as Array<{ html?: string; name?: string; position?: string; tooltip?: string; index?: number }>,
   danmakuLoads: [] as unknown[][],
   danmakuOptions: [] as Array<Record<string, unknown>>,
+  options: [] as ArtplayerInitOptions[],
   settings: [] as Array<{ name?: string; html?: string }>,
+}));
+const hlsState = vi.hoisted(() => ({
+  instances: [] as Array<Record<string, unknown>>,
+  isSupported: false,
 }));
 const toastState = vi.hoisted(() => ({
   error: vi.fn(),
@@ -53,10 +75,11 @@ class FakeArtplayer {
   };
   private handlers = new Map<ArtplayerEventName, ArtplayerHandler[]>();
 
-  constructor(options: { url: string; poster?: string; plugins?: Array<{ name?: string }> }) {
+  constructor(options: ArtplayerInitOptions) {
     this.url = options.url;
     this.poster = options.poster ?? "";
     this.plugins = Object.fromEntries((options.plugins ?? []).map((plugin) => [plugin.name, plugin]));
+    artplayerState.options.push(options);
     artplayerState.instances.push(this);
   }
 
@@ -125,8 +148,20 @@ vi.mock("hls.js", () => ({
     };
 
     static isSupported() {
-      return false;
+      return hlsState.isSupported;
     }
+
+    constructor(options: Record<string, unknown>) {
+      hlsState.instances.push(options);
+    }
+
+    attachMedia() {}
+
+    destroy() {}
+
+    loadSource() {}
+
+    on() {}
   },
 }));
 
@@ -148,7 +183,10 @@ afterEach(() => {
   artplayerState.controls = [];
   artplayerState.danmakuLoads = [];
   artplayerState.danmakuOptions = [];
+  artplayerState.options = [];
   artplayerState.settings = [];
+  hlsState.instances = [];
+  hlsState.isSupported = false;
   toastState.error.mockReset();
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -382,10 +420,10 @@ describe("PlayPageShell client playback cover", () => {
       "mixtv-skip-forward",
       "mixtv-next-episode",
     ]);
-    expect(artplayerState.controls.map((control) => control.position)).toEqual(["left", "left", "left"]);
     expect(artplayerState.controls.find((control) => control.name === "mixtv-next-episode")?.html).toContain(
       'data-icon="forward"',
     );
+    expect(artplayerState.controls.map((control) => control.position)).toEqual(["left", "left", "left"]);
     expect(artplayerState.controls.map((control) => control.index)).toEqual([11, 12, 13]);
     expect(artplayerState.settings).toEqual([]);
 
@@ -463,6 +501,85 @@ describe("PlayPageShell client playback cover", () => {
     });
 
     expect(artplayerState.instances[0]?.volume).toBeCloseTo(0.83, 2);
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("puts strong buffering in the player settings before playback speed and applies expanded HLS buffer settings", async () => {
+    hlsState.isSupported = true;
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={createInitialData()} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const art = artplayerState.instances.at(-1);
+    const options = artplayerState.options.at(-1);
+
+    if (!art || !options) {
+      throw new Error("Artplayer was not initialized");
+    }
+
+    expect(options.playbackRate).toBe(false);
+    expect(options.settings?.map((setting) => setting.name)).toEqual([
+      "mixtv-strong-buffering",
+      "mixtv-playback-rate",
+    ]);
+    expect(options.settings?.[0]).toMatchObject({
+      html: "强力缓冲",
+      switch: false,
+    });
+    expect(options.settings?.[1]).toMatchObject({
+      html: "播放速度",
+    });
+    expect(localStorage.getItem("mixtv.playback.strong-buffering")).toBeNull();
+
+    const strongBufferingSetting = options.settings?.[0];
+
+    if (!strongBufferingSetting?.onSwitch) {
+      throw new Error("Strong buffering setting was not initialized");
+    }
+
+    await act(async () => {
+      await strongBufferingSetting.onSwitch({ switch: false });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(localStorage.getItem("mixtv.playback.strong-buffering")).toBe("true");
+
+    const updatedArt = artplayerState.instances.at(-1);
+    const updatedOptions = artplayerState.options.at(-1);
+
+    if (!updatedArt || !updatedOptions?.customType?.m3u8) {
+      throw new Error("Artplayer HLS custom type was not initialized");
+    }
+
+    expect(updatedOptions.settings?.[0]).toMatchObject({
+      html: "强力缓冲",
+      switch: true,
+    });
+
+    updatedOptions.customType.m3u8(
+      { canPlayType: () => "" } as unknown as HTMLVideoElement,
+      "https://media.test/1.m3u8",
+      updatedArt,
+    );
+
+    expect(hlsState.instances.at(-1)).toMatchObject({
+      backBufferLength: 300,
+      maxBufferLength: 240,
+      maxMaxBufferLength: 600,
+    });
 
     act(() => {
       root.unmount();
@@ -559,18 +676,18 @@ describe("PlayPageShell client playback cover", () => {
     });
   });
 
-  it("marks the playback host for floating glass controls styling", () => {
-    const html = renderToStaticMarkup(<PlayPageShell initialData={createInitialData()} />);
-
-    expect(html).toContain('data-mixtv-artplayer="floating-glass-controls"');
-  });
-
   it("renders a placeholder when playback data is missing", () => {
     const html = renderToStaticMarkup(<PlayPageShell />);
 
     expect(html).toContain("播放信息不可用");
     expect(html).not.toContain("星河漫游");
     expect(html).not.toContain("aria-label=\"播放进度\"");
+  });
+
+  it("marks the playback host for floating glass controls styling", () => {
+    const html = renderToStaticMarkup(<PlayPageShell initialData={createInitialData()} />);
+
+    expect(html).toContain('data-mixtv-artplayer="floating-glass-controls"');
   });
 
   it("shows playable source links when playback lookup fails but the index is available", async () => {

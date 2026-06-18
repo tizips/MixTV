@@ -24,6 +24,7 @@ import {
 } from "react";
 import Hls from "hls.js";
 import type Artplayer from "artplayer";
+import type { Setting, SettingOption } from "artplayer";
 import type {
   Danmu,
   Option as DanmakuOption,
@@ -41,6 +42,8 @@ const playbackDurationSeconds = 45 * 60 + 8;
 const defaultPlaybackVolume: number = 50;
 const playbackVolumeStorageKey = "mixtv.playback.volume";
 const playbackDanmakuStorageKey = "mixtv.playback.danmaku";
+const strongBufferingStorageKey = "mixtv.playback.strong-buffering";
+const playbackRateOptions = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 type PlaybackDanmakuPreferences = {
   antiOverlap: boolean;
   color: string;
@@ -68,6 +71,7 @@ const defaultPlaybackDanmakuSettings: PlaybackDanmakuPreferences = {
   synchronousPlayback: true,
   visible: true,
 };
+type HlsBufferConfig = ConstructorParameters<typeof Hls>[0];
 const tabGlowClassNames = [
   "before:bg-[radial-gradient(circle_at_42%_42%,color-mix(in_srgb,var(--accent)_13%,transparent)_0%,transparent_36%),radial-gradient(circle_at_62%_58%,color-mix(in_srgb,var(--accent)_9%,transparent)_0%,transparent_34%),radial-gradient(ellipse_64%_42%_at_52%_50%,color-mix(in_srgb,var(--accent)_6%,transparent)_0%,transparent_72%)]",
   "before:bg-[radial-gradient(circle_at_36%_56%,color-mix(in_srgb,var(--accent)_12%,transparent)_0%,transparent_32%),radial-gradient(circle_at_58%_38%,color-mix(in_srgb,var(--accent)_9%,transparent)_0%,transparent_38%),radial-gradient(ellipse_70%_46%_at_50%_52%,color-mix(in_srgb,var(--accent)_5%,transparent)_0%,transparent_74%)]",
@@ -211,6 +215,54 @@ function readStoredPlaybackVolume(): number {
   return Number.isFinite(parsedValue)
     ? clamp(Math.round(parsedValue), 0, 100)
     : defaultPlaybackVolume;
+}
+
+function readStoredStrongBuffering(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.localStorage.getItem(strongBufferingStorageKey) === "true";
+}
+
+function storeStrongBuffering(value: boolean) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (value) {
+    window.localStorage.setItem(strongBufferingStorageKey, "true");
+    return;
+  }
+
+  window.localStorage.removeItem(strongBufferingStorageKey);
+}
+
+function createHlsBufferConfig(strongBuffering: boolean): HlsBufferConfig {
+  return strongBuffering
+    ? {
+        backBufferLength: 300,
+        enableWorker: true,
+        fragLoadingTimeOut: 30000,
+        lowLatencyMode: false,
+        manifestLoadingTimeOut: 30000,
+        maxBufferLength: 240,
+        maxBufferSize: 120 * 1000 * 1000,
+        maxMaxBufferLength: 600,
+      }
+    : {
+        backBufferLength: 90,
+        enableWorker: true,
+        fragLoadingTimeOut: 20000,
+        lowLatencyMode: false,
+        manifestLoadingTimeOut: 15000,
+        maxBufferLength: 60,
+        maxMaxBufferLength: 120,
+      };
+}
+
+function formatPlaybackRateLabel(value: number) {
+  return value === 1 ? "正常" : value.toFixed(2).replace(/\.?0+$/, "");
 }
 
 function readStoredPlaybackDanmakuSettings(): PlaybackDanmakuPreferences {
@@ -616,6 +668,9 @@ export function PlayPageShell({
   const [isDescending, setIsDescending] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState<number>(readStoredPlaybackVolume);
+  const [isStrongBuffering, setIsStrongBuffering] = useState<boolean>(
+    readStoredStrongBuffering,
+  );
   const [danmakuPreferences, setDanmakuPreferences] =
     useState<PlaybackDanmakuPreferences>(readStoredPlaybackDanmakuSettings);
   const [isWebFullscreen, setIsWebFullscreen] = useState(false);
@@ -1080,6 +1135,59 @@ export function PlayPageShell({
     },
     [playbackCoverDefaultUrl, setPlaybackPosterVisible],
   );
+  const toggleStrongBuffering = useCallback((enabled: boolean) => {
+    const art = artPlayerRef.current;
+
+    if (art) {
+      currentPlaybackSecondsRef.current = Math.max(0, art.currentTime || 0);
+      currentPlaybackDurationRef.current = Math.max(0, art.duration || 0);
+      shouldResumePlaybackRef.current = isPlayingRef.current;
+    }
+
+    hasAppliedResumeTimeRef.current = false;
+    setIsStrongBuffering(enabled);
+    storeStrongBuffering(enabled);
+  }, []);
+  const playerSettings = useMemo<Setting[]>(
+    () => [
+      {
+        name: "mixtv-strong-buffering",
+        html: "强力缓冲",
+        tooltip: isStrongBuffering ? "开启" : "关闭",
+        switch: isStrongBuffering,
+        onSwitch(item: SettingOption) {
+          const nextValue = !item.switch;
+
+          toggleStrongBuffering(nextValue);
+
+          return nextValue;
+        },
+      },
+      {
+        name: "mixtv-playback-rate",
+        html: "播放速度",
+        tooltip: formatPlaybackRateLabel(1),
+        selector: playbackRateOptions.map((rate) => ({
+          name: `mixtv-playback-rate-${rate}`,
+          value: rate,
+          default: rate === 1,
+          html: formatPlaybackRateLabel(rate),
+        })),
+        onSelect(item: SettingOption) {
+          const nextRate = Number(item.value);
+
+          if (Number.isFinite(nextRate) && nextRate > 0) {
+            this.playbackRate = nextRate;
+          }
+
+          return typeof item.html === "string"
+            ? item.html
+            : formatPlaybackRateLabel(this.playbackRate);
+        },
+      },
+    ],
+    [isStrongBuffering, toggleStrongBuffering],
+  );
 
   useEffect(() => {
     const container = artContainerRef.current;
@@ -1090,6 +1198,7 @@ export function PlayPageShell({
 
     let isMounted = true;
     setPlaybackError(null);
+    hasAppliedResumeTimeRef.current = false;
 
     void Promise.all([
       import("artplayer"),
@@ -1110,7 +1219,7 @@ export function PlayPageShell({
           poster: playbackCoverDefaultUrl,
           volume: defaultPlaybackVolume / 100,
           muted: defaultPlaybackVolume === 0,
-          playbackRate: true,
+          playbackRate: false,
           setting: true,
           hotkey: true,
           fullscreen: true,
@@ -1121,6 +1230,7 @@ export function PlayPageShell({
             crossOrigin: "anonymous",
             preload: "auto",
           },
+          settings: playerSettings,
           plugins: [
             artplayerPluginDanmuku({
               danmuku: [] as Danmu[],
@@ -1135,15 +1245,9 @@ export function PlayPageShell({
               player.hls = undefined;
 
               if (Hls.isSupported()) {
-                const hls = new Hls({
-                  backBufferLength: 90,
-                  enableWorker: true,
-                  fragLoadingTimeOut: 20000,
-                  lowLatencyMode: false,
-                  manifestLoadingTimeOut: 15000,
-                  maxBufferLength: 60,
-                  maxMaxBufferLength: 120,
-                });
+                const hls = new Hls(
+                  createHlsBufferConfig(isStrongBuffering),
+                );
 
                 hls.loadSource(url);
                 hls.attachMedia(video);
@@ -1169,7 +1273,9 @@ export function PlayPageShell({
               }
 
               if (video.canPlayType("application/vnd.apple.mpegurl")) {
+                video.preload = "auto";
                 video.src = url;
+                video.load();
                 return;
               }
 
@@ -1210,14 +1316,16 @@ export function PlayPageShell({
           if (Number.isFinite(art.duration) && art.duration > 0) {
             currentPlaybackDurationRef.current = art.duration;
           }
+          const resumeTimeSeconds =
+            currentPlaybackSecondsRef.current || initialResumeTimeSeconds;
           if (
             !hasAppliedResumeTimeRef.current &&
-            initialResumeTimeSeconds > 0
+            resumeTimeSeconds > 0
           ) {
             const nextTime =
               Number.isFinite(art.duration) && art.duration > 0
-                ? clamp(initialResumeTimeSeconds, 0, art.duration)
-                : initialResumeTimeSeconds;
+                ? clamp(resumeTimeSeconds, 0, art.duration)
+                : resumeTimeSeconds;
 
             hasAppliedResumeTimeRef.current = true;
             art.currentTime = nextTime;
@@ -1299,11 +1407,13 @@ export function PlayPageShell({
     capturePlaybackCover,
     hasPlaybackPlaceholderError,
     initialResumeTimeSeconds,
+    isStrongBuffering,
     currentPlaybackUrl,
     loadPlaybackDanmakuIntoPlugin,
     playbackData,
     playbackCoverUrl,
     playbackCoverDefaultUrl,
+    playerSettings,
     playNextEpisode,
     setPlaybackPosterVisible,
     uploadPlaybackProgress,
