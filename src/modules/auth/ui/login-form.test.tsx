@@ -15,6 +15,10 @@ const authState = vi.hoisted(() => ({
   signIn: vi.fn(),
 }));
 
+const toastState = vi.hoisted(() => ({
+  success: vi.fn(),
+}));
+
 const navigationState = vi.hoisted(() => ({
   search: "",
 }));
@@ -31,7 +35,7 @@ vi.mock("next-auth/react", () => ({
   signIn: authState.signIn,
 }));
 
-vi.mock("antd", () => createAntdMock());
+vi.mock("antd", () => createAntdMock({ message: toastState }));
 
 function renderLoginForm() {
   const host = document.createElement("div");
@@ -50,6 +54,7 @@ beforeEach(() => {
   navigationState.search = "";
   routerState.refresh.mockReset();
   routerState.replace.mockReset();
+  toastState.success.mockReset();
 });
 
 afterEach(() => {
@@ -145,7 +150,11 @@ describe("LoginForm", () => {
       redirectTo: "/",
       username: "orange",
     });
+    expect(toastState.success).toHaveBeenCalledWith("登录成功");
     expect(routerState.replace).toHaveBeenCalledWith("/");
+    expect(toastState.success.mock.invocationCallOrder[0]).toBeLessThan(
+      routerState.replace.mock.invocationCallOrder[0],
+    );
     expect(routerState.refresh).toHaveBeenCalledTimes(1);
     expect(host.textContent).not.toContain("Incorrect username or password.");
 
@@ -154,7 +163,7 @@ describe("LoginForm", () => {
     });
   });
 
-  it("redirects to the safe next path after sign-in succeeds", async () => {
+  it("redirects home after sign-in succeeds with a next path", async () => {
     navigationState.search = "next=/stats";
     authState.signIn.mockResolvedValue({
       code: undefined,
@@ -189,10 +198,11 @@ describe("LoginForm", () => {
     expect(authState.signIn).toHaveBeenCalledWith("credentials", {
       password: "secret",
       redirect: false,
-      redirectTo: "/stats",
+      redirectTo: "/",
       username: "orange",
     });
-    expect(routerState.replace).toHaveBeenCalledWith("/stats");
+    expect(toastState.success).toHaveBeenCalledWith("登录成功");
+    expect(routerState.replace).toHaveBeenCalledWith("/");
     expect(routerState.refresh).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -238,6 +248,7 @@ describe("LoginForm", () => {
       redirectTo: "/",
       username: "orange",
     });
+    expect(toastState.success).toHaveBeenCalledWith("登录成功");
     expect(routerState.replace).toHaveBeenCalledWith("/");
 
     act(() => {

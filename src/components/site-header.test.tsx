@@ -1,4 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+// @vitest-environment happy-dom
+
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
 import { SiteHeader } from "./site-header";
@@ -28,10 +32,20 @@ vi.mock("next-auth/react", () => ({
   signOut: vi.fn(),
 }));
 
+async function flushPromises() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 describe("SiteHeader", () => {
   beforeEach(() => {
     navigationMock.pathname = "/search";
     navigationMock.push.mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
   });
 
   it("renders the enabled main navigation with the theme toggle before the user menu", () => {
@@ -75,5 +89,31 @@ describe("SiteHeader", () => {
     expect(html).toContain('data-prefetch="false"');
     expect(html).not.toContain('data-slot="tabs-indicator"');
     expect(html).not.toContain('aria-selected="true"');
+  });
+
+  it("does not request account info from the header", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+
+    act(() => {
+      root.render(<SiteHeader accessToken="token-1" isAdmin={false} userName="临时用户" />);
+    });
+
+    await act(async () => {
+      await flushPromises();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/account",
+      expect.anything(),
+    );
+
+    act(() => {
+      root.unmount();
+    });
   });
 });

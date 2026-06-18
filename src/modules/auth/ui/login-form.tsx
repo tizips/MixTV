@@ -3,17 +3,15 @@
 import { ApiOutlined, StarFilled } from "@ant-design/icons";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { Button, Card, Col, Form, Input, Row, Typography } from "antd";
+import { App, Button, Card, Col, Form, Input, Row, Typography } from "antd";
 import { env } from "@/shared/env";
-import { useRouter, useSearchParams } from "next/navigation";
-import { resolveSafeNextPath } from "../domain/redirect";
+import { useRouter } from "next/navigation";
 
 export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { message } = App.useApp();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirectTo = resolveSafeNextPath(searchParams.get("next"));
 
   const onSubmit = (values: { username?: string; password?: string }) => {
     setError(null);
@@ -24,7 +22,7 @@ export function LoginForm() {
         const result = await signIn("credentials", {
           password: values.password,
           redirect: false,
-          redirectTo,
+          redirectTo: "/",
           username: values.username,
         });
 
@@ -33,7 +31,8 @@ export function LoginForm() {
           return;
         }
 
-        router.replace(redirectTo);
+        message.success("登录成功");
+        router.replace("/");
         router.refresh();
       } catch {
         setError("Unable to sign in right now. Please try again.");
@@ -65,7 +64,7 @@ export function LoginForm() {
                     and discover new picks curated for your mood.
                   </p>
                 </div>
-                <div className="rounded-2xl border border-default-200 bg-background p-5">
+                <div className="rounded-2xl border border-accent/45 bg-background p-5">
                   <p className="text-sm text-default-600">
                     <StarFilled className="mr-2 text-accent" />
                     This project is a personal learning demo and is not publicly
@@ -125,9 +124,11 @@ export function LoginForm() {
                   </Form.Item>
 
                   {error ? (
-                    <p className="rounded-2xl border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-red-500">
-                      {error}
-                    </p>
+                    <Form.Item>
+                      <p className="rounded-2xl border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-red-500">
+                        {error}
+                      </p>
+                    </Form.Item>
                   ) : null}
 
                   <Button

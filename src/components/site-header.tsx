@@ -6,7 +6,6 @@ import {
 } from "@ant-design/icons";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 import { env } from "@/shared/env";
@@ -63,78 +62,11 @@ type SiteHeaderProps = {
   userName?: string;
 };
 
-type HydratedAccount = {
-  accessToken: string;
-  admin?: boolean;
-  name?: string;
-};
-
 export function SiteHeader({
-  accessToken,
   userName = `${env.NEXT_PUBLIC_SITE_NAME} 用户`,
   isAdmin = false,
 }: SiteHeaderProps) {
   const pathname = usePathname();
-  const [hydratedAccount, setHydratedAccount] =
-    useState<HydratedAccount | null>(null);
-  const activeHydratedAccount =
-    hydratedAccount?.accessToken === accessToken ? hydratedAccount : null;
-  const resolvedUserName =
-    typeof activeHydratedAccount?.name === "string" &&
-    activeHydratedAccount.name
-      ? activeHydratedAccount.name
-      : userName;
-  const resolvedIsAdmin =
-    typeof activeHydratedAccount?.admin === "boolean"
-      ? activeHydratedAccount.admin
-      : isAdmin;
-
-  useEffect(() => {
-    if (!accessToken) {
-      return;
-    }
-
-    const currentAccessToken = accessToken;
-    let cancelled = false;
-
-    async function hydrateUserProfile() {
-      try {
-        const response = await fetch("/api/account", {
-          cache: "no-store",
-          headers: {
-            authorization: `Bearer ${currentAccessToken}`,
-          },
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const account = (await response.json()) as {
-          admin?: boolean;
-          name?: string;
-        };
-
-        if (cancelled) {
-          return;
-        }
-
-        setHydratedAccount({
-          accessToken: currentAccessToken,
-          admin: account.admin,
-          name: account.name,
-        });
-      } catch {
-        return;
-      }
-    }
-
-    void hydrateUserProfile();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [accessToken]);
 
   if (pathname === "/login") {
     return null;
@@ -181,7 +113,7 @@ export function SiteHeader({
 
         <div className="ml-auto flex shrink-0 items-center gap-3">
           <ThemeToggle />
-          <UserMenu userName={resolvedUserName} isAdmin={resolvedIsAdmin} />
+          <UserMenu userName={userName} isAdmin={isAdmin} />
         </div>
       </div>
     </header>

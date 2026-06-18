@@ -3,9 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import RootLayout from "./layout";
 
+const accountGateMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@/auth", () => ({
   auth: vi.fn(async () => ({
     user: {
+      accessToken: "token-1",
       name: "橘子",
       admin: true,
       id: "orange",
@@ -13,8 +16,26 @@ vi.mock("@/auth", () => ({
   })),
 }));
 
-vi.mock("@/components/site-header", () => ({
-  SiteHeader: () => <header data-testid="site-header" />,
+vi.mock("@/modules/auth", () => ({
+  AccountGate: (props: {
+    accessToken?: string;
+    children: ReactNode;
+    fallbackIsAdmin?: boolean;
+    fallbackUserName: string;
+  }) => {
+    accountGateMock(props);
+
+    return (
+      <section
+        data-access-token={props.accessToken}
+        data-fallback-is-admin={String(props.fallbackIsAdmin ?? false)}
+        data-fallback-user-name={props.fallbackUserName}
+        data-testid="account-gate"
+      >
+        {props.children}
+      </section>
+    );
+  },
 }));
 
 vi.mock("holy-loader", () => ({
@@ -54,7 +75,9 @@ vi.mock("@/app/providers", () => ({
 }));
 
 describe("RootLayout", () => {
-  it("mounts the fixed header and page content", async () => {
+  it("mounts the account gate and page content", async () => {
+    accountGateMock.mockClear();
+
     const html = renderToStaticMarkup(
       await RootLayout({
         children: <div data-testid="page-child">child</div>,
@@ -68,7 +91,10 @@ describe("RootLayout", () => {
     expect(html).toContain('data-color="var(--accent)"');
     expect(html).toContain('data-height="2px"');
     expect(html).toContain('data-show-spinner="false"');
-    expect(html).toContain("site-header");
+    expect(html).toContain("account-gate");
+    expect(html).toContain('data-access-token="token-1"');
+    expect(html).toContain('data-fallback-is-admin="true"');
+    expect(html).toContain('data-fallback-user-name="橘子"');
     expect(html).toContain("page-child");
     expect(html).toContain('id="mixtv-theme-storage-migration"');
     expect(html).toContain('data-strategy="beforeInteractive"');
@@ -77,5 +103,15 @@ describe("RootLayout", () => {
     expect(html).toContain('document.documentElement');
     expect(html).toContain('classList.add(resolvedTheme)');
     expect(html).toContain('style.colorScheme=resolvedTheme');
+
+    const gateProps = accountGateMock.mock.calls[0]?.[0];
+
+    expect(gateProps).toEqual(
+      expect.objectContaining({
+        accessToken: "token-1",
+        fallbackIsAdmin: true,
+        fallbackUserName: "橘子",
+      }),
+    );
   });
 });
