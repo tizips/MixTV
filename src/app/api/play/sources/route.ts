@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { deleteHistoryPlaybackProgress } from "@/modules/history/server/history-service";
-import { PlaybackSourcesValidationError, getPlaybackSources } from "@/modules/playback/server/playback-source-service";
+import {
+  PlaybackSourcesValidationError,
+  getPlaybackSources,
+} from "@/modules/playback/server/playback-source-service";
 import {
   PlaybackSourceSwitchValidationError,
   switchPlaybackSource,
@@ -57,7 +60,10 @@ export async function GET(request: Request) {
       durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
       ok: false,
     });
-    return NextResponse.json({ message: "index is required." }, { status: 400 });
+    return NextResponse.json(
+      { message: "index is required." },
+      { status: 400 },
+    );
   }
 
   const stream = new ReadableStream({
@@ -87,9 +93,11 @@ export async function GET(request: Request) {
           ok: true,
         });
       } catch (error) {
-        const message = error instanceof PlaybackSourcesValidationError || error instanceof Error
-          ? error.message
-          : "Failed to load playback sources.";
+        const message =
+          error instanceof PlaybackSourcesValidationError ||
+          error instanceof Error
+            ? error.message
+            : "Failed to load playback sources.";
         enqueueEvent("error", { message });
         void recordApiRequest({
           durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
@@ -114,7 +122,9 @@ export async function GET(request: Request) {
 }
 
 function asObject(input: unknown) {
-  return input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : null;
+  return input && typeof input === "object" && !Array.isArray(input)
+    ? (input as Record<string, unknown>)
+    : null;
 }
 
 async function readJsonObjectPayload(request: Request) {
@@ -179,7 +189,10 @@ export async function POST(request: Request) {
       durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
       ok: false,
     });
-    return NextResponse.json({ message: "Request body must be a JSON object." }, { status: 400 });
+    return NextResponse.json(
+      { message: "Request body must be a JSON object." },
+      { status: 400 },
+    );
   }
 
   const current = {
@@ -199,19 +212,34 @@ export async function POST(request: Request) {
       durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
       ok: false,
     });
-    return NextResponse.json({ message: "currentId, currentSource, targetId, and targetSource are required." }, { status: 400 });
+    return NextResponse.json(
+      {
+        message:
+          "currentId, currentSource, targetId, and targetSource are required.",
+      },
+      { status: 400 },
+    );
   }
 
-  if (!Number.isFinite(play_episodes) || !Number.isFinite(play_time) || !Number.isFinite(total_time)) {
+  if (
+    !Number.isFinite(play_episodes) ||
+    !Number.isFinite(play_time) ||
+    !Number.isFinite(total_time)
+  ) {
     void recordApiRequest({
       durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
       ok: false,
     });
-    return NextResponse.json({ message: "play_episodes, play_time, and total_time are required." }, { status: 400 });
+    return NextResponse.json(
+      { message: "play_episodes, play_time, and total_time are required." },
+      { status: 400 },
+    );
   }
 
   try {
-    const progressStore = process.env.STORAGE_TYPE ? createPlaybackProgressStore() : undefined;
+    const progressStore = process.env.STORAGE_TYPE
+      ? createPlaybackProgressStore()
+      : undefined;
     const result = await switchPlaybackSource(
       {
         current,
@@ -245,9 +273,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof PlaybackSourceSwitchValidationError || error instanceof Error
-      ? error.message
-      : "Failed to switch playback source.";
+    const message =
+      error instanceof PlaybackSourceSwitchValidationError ||
+      error instanceof Error
+        ? error.message
+        : "Failed to switch playback source.";
     void recordApiRequest({
       durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
       ok: false,
