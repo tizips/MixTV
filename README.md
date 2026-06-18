@@ -61,7 +61,12 @@ bun run dev
 - `UPSTASH_REDIS_REST_URL`：Upstash 模式地址
 - `UPSTASH_REDIS_REST_TOKEN`：Upstash 模式令牌
 
-## 相关文档
+## 定时任务接口
 
-- [首页模块说明](docs/features/HOME_PAGE_MODULES.md)
-- [单体架构设计](docs/superpowers/specs/2026-05-09-mixtv-nextjs-monolith-design.md)
+`src/app/api/cron` 下的接口用于由部署平台或外部调度器定时触发。所有接口均使用 `GET` 请求，不需要请求体；接口会立即返回调度结果，具体任务在响应后异步执行。
+
+| 接口 | 用途 | 成功响应 |
+| --- | --- | --- |
+| `GET /api/cron/history` | 检查全部观看历史的剧集更新。 | `{ "message": "History update check scheduled." }` |
+| `GET /api/cron/source-check?keyword=斗罗大陆` | 使用可选 `keyword` 参数检查视频源有效性；参数为空或缺省时使用默认关键词 `斗罗大陆`，并按配置决定是否移除无效视频源。 | `{ "message": "Video source validity check scheduled." }` |
+| `GET /api/cron/subscription` | 执行配置文件订阅的自动更新。 | `{ "message": "Subscription update scheduled." }` |
