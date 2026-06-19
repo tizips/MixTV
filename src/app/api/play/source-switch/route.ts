@@ -81,6 +81,22 @@ function recordSourceSwitchTraffic(
   });
 }
 
+function readUserIdFromSession(session: unknown) {
+  if (!session || typeof session !== "object") {
+    return "";
+  }
+
+  const user = (session as { user?: unknown }).user;
+
+  if (!user || typeof user !== "object") {
+    return "";
+  }
+
+  const id = (user as { id?: unknown }).id;
+
+  return typeof id === "string" ? id : "";
+}
+
 function asObject(input: unknown) {
   return input && typeof input === "object" && !Array.isArray(input)
     ? (input as Record<string, unknown>)
@@ -131,19 +147,17 @@ export async function POST(request: Request) {
   const startedAt = performance.now();
   logSourceSwitchCheckpoint(request, "entered", startedAt);
 
-  let session: Awaited<ReturnType<typeof auth>>;
+  let userId = "";
   try {
     logSourceSwitchCheckpoint(request, "before-auth", startedAt);
-    session = await auth();
+    userId = readUserIdFromSession(await auth());
     logSourceSwitchCheckpoint(request, "after-auth", startedAt, {
-      authenticated: typeof session?.user?.id === "string",
+      authenticated: Boolean(userId),
     });
   } catch (error) {
     logSourceSwitchError(request, "auth-failed", startedAt, error);
     throw error;
   }
-
-  const userId = typeof session?.user?.id === "string" ? session.user.id : "";
 
   if (!userId) {
     recordSourceSwitchTraffic(request, startedAt, false, "unauthorized");
