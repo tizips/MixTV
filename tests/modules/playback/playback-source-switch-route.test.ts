@@ -199,6 +199,49 @@ describe("playback source switch API route", () => {
     );
   });
 
+  it("accepts the playback source switch payload sent by the player", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } });
+    switchPlaybackSourceMock.mockResolvedValue({
+      episodes: [],
+      progress: {
+        id: "82236",
+        play_episodes: 10,
+        play_time: 752,
+        source: "dyttzyapi.com",
+        total_time: 1074,
+      },
+      source_name: "Dytt Source",
+      sources: [],
+    });
+
+    const response = await route.POST(
+      new Request("http://localhost/api/play/source-switch", {
+        body: JSON.stringify({
+          currentId: "79126",
+          currentSource: "iqiyizyapi.com",
+          play_episodes: 10,
+          play_time: 752,
+          targetId: "82236",
+          targetSource: "dyttzyapi.com",
+          total_time: 1074,
+        }),
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(switchPlaybackSourceMock).toHaveBeenCalledWith(
+      {
+        current: { id: "79126", source: "iqiyizyapi.com" },
+        play_episodes: 10,
+        play_time: 752,
+        target: { id: "82236", source: "dyttzyapi.com" },
+        total_time: 1074,
+      },
+      expect.objectContaining({ userId: "user-1" }),
+    );
+  });
+
   it("removes matching history entries for the current playback source after switching playback sources", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } });
     createPlaybackProgressStoreMock.mockReturnValue(progressStore);
