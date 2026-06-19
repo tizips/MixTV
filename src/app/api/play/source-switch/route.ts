@@ -10,6 +10,77 @@ import { recordApiRequest } from "@/modules/stats";
 
 export const runtime = "nodejs";
 
+const sourceSwitchLogPrefix = "[play/source-switch]";
+
+function readRequestPath(request: Request) {
+  try {
+    const url = new URL(request.url);
+    return url.pathname;
+  } catch {
+    return "unknown";
+  }
+}
+
+function readStorageDiagnostics() {
+  return {
+    hasRedisUrl: Boolean(process.env.REDIS_URL?.trim()),
+    hasStorageType: Boolean(process.env.STORAGE_TYPE?.trim()),
+    hasUpstashToken: Boolean(process.env.UPSTASH_REDIS_REST_TOKEN?.trim()),
+    hasUpstashUrl: Boolean(process.env.UPSTASH_REDIS_REST_URL?.trim()),
+    storageType: process.env.STORAGE_TYPE?.trim() || "",
+  };
+}
+
+function logSourceSwitchCheckpoint(
+  request: Request,
+  checkpoint: string,
+  startedAt: number,
+  extra: Record<string, unknown> = {},
+) {
+  console.info(sourceSwitchLogPrefix, {
+    checkpoint,
+    elapsedMs: Math.max(0, Math.round(performance.now() - startedAt)),
+    method: request.method,
+    path: readRequestPath(request),
+    runtime,
+    ...readStorageDiagnostics(),
+    ...extra,
+  });
+}
+
+function logSourceSwitchError(
+  request: Request,
+  checkpoint: string,
+  startedAt: number,
+  error: unknown,
+  extra: Record<string, unknown> = {},
+) {
+  console.error(sourceSwitchLogPrefix, {
+    checkpoint,
+    elapsedMs: Math.max(0, Math.round(performance.now() - startedAt)),
+    errorMessage: error instanceof Error ? error.message : String(error),
+    errorName: error instanceof Error ? error.name : typeof error,
+    method: request.method,
+    path: readRequestPath(request),
+    runtime,
+    ...readStorageDiagnostics(),
+    ...extra,
+  });
+}
+
+function recordSourceSwitchTraffic(
+  request: Request,
+  startedAt: number,
+  ok: boolean,
+  checkpoint: string,
+) {
+  const durationMs = Math.max(0, Math.round(performance.now() - startedAt));
+  logSourceSwitchCheckpoint(request, checkpoint, startedAt, { ok });
+  void Promise.resolve(recordApiRequest({ durationMs, ok })).catch((error) => {
+    logSourceSwitchError(request, `${checkpoint}:record-api-request`, startedAt, error, { ok });
+  });
+}
+
 function asObject(input: unknown) {
   return input && typeof input === "object" && !Array.isArray(input)
     ? (input as Record<string, unknown>)
@@ -57,25 +128,43 @@ function readNumber(payload: Record<string, unknown>, key: string) {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  const userId = typeof session?.user?.id === "string" ? session.user.id : "";
   const startedAt = performance.now();
+  logSourceSwitchCheckpoint(request, "entered", startedAt);
+
+  let session: Awaited<ReturnType<typeof auth>>;
+  try {
+    logSourceSwitchCheckpoint(request, "before-auth", startedAt);
+    session = await auth();
+    logSourceSwitchCheckpoint(request, "after-auth", startedAt, {
+      authenticated: typeof session?.user?.id === "string",
+    });
+  } catch (error) {
+    logSourceSwitchError(request, "auth-failed", startedAt, error);
+    throw error;
+  }
+
+  const userId = typeof session?.user?.id === "string" ? session.user.id : "";
 
   if (!userId) {
-    void recordApiRequest({
-      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
-      ok: false,
-    });
+    recordSourceSwitchTraffic(request, startedAt, false, "unauthorized");
     return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
   }
 
-  const payload = await readJsonObjectPayload(request);
+  let payload: Record<string, unknown> | null;
+  try {
+    logSourceSwitchCheckpoint(request, "before-read-body", startedAt);
+    payload = await readJsonObjectPayload(request);
+    logSourceSwitchCheckpoint(request, "after-read-body", startedAt, {
+      hasPayload: Boolean(payload),
+      payloadKeys: payload ? Object.keys(payload).sort() : [],
+    });
+  } catch (error) {
+    logSourceSwitchError(request, "read-body-failed", startedAt, error);
+    throw error;
+  }
 
   if (!payload) {
-    void recordApiRequest({
-      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
-      ok: false,
-    });
+    recordSourceSwitchTraffic(request, startedAt, false, "invalid-payload");
     return NextResponse.json(
       { message: "Request body must be a JSON object." },
       { status: 400 },
@@ -95,10 +184,7 @@ export async function POST(request: Request) {
   const total_time = readNumber(payload, "total_time");
 
   if (!current.id || !current.source || !target.id || !target.source) {
-    void recordApiRequest({
-      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
-      ok: false,
-    });
+    recordSourceSwitchTraffic(request, startedAt, false, "missing-source-fields");
     return NextResponse.json(
       {
         message:
@@ -113,10 +199,7 @@ export async function POST(request: Request) {
     !Number.isFinite(play_time) ||
     !Number.isFinite(total_time)
   ) {
-    void recordApiRequest({
-      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
-      ok: false,
-    });
+    recordSourceSwitchTraffic(request, startedAt, false, "missing-time-fields");
     return NextResponse.json(
       { message: "play_episodes, play_time, and total_time are required." },
       { status: 400 },
@@ -124,9 +207,18 @@ export async function POST(request: Request) {
   }
 
   try {
+    logSourceSwitchCheckpoint(request, "before-create-progress-store", startedAt);
     const progressStore = process.env.STORAGE_TYPE
       ? createPlaybackProgressStore()
       : undefined;
+    logSourceSwitchCheckpoint(request, "after-create-progress-store", startedAt, {
+      hasProgressStore: Boolean(progressStore),
+    });
+
+    logSourceSwitchCheckpoint(request, "before-switch-playback-source", startedAt, {
+      currentSource: current.source,
+      targetSource: target.source,
+    });
     const result = await switchPlaybackSource(
       {
         current,
@@ -140,23 +232,27 @@ export async function POST(request: Request) {
         userId,
       },
     );
+    logSourceSwitchCheckpoint(request, "after-switch-playback-source", startedAt, {
+      episodeCount: result.episodes.length,
+      sourceCount: result.sources.length,
+    });
 
     if (progressStore) {
       try {
+        logSourceSwitchCheckpoint(request, "before-delete-current-history", startedAt);
         await deleteHistoryPlaybackProgress(
           userId,
           { id: current.id, source: current.source },
           { store: progressStore },
         );
-      } catch {
+        logSourceSwitchCheckpoint(request, "after-delete-current-history", startedAt);
+      } catch (error) {
+        logSourceSwitchError(request, "delete-current-history-skipped", startedAt, error);
         // Keep the switch result even if cleanup fails.
       }
     }
 
-    void recordApiRequest({
-      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
-      ok: true,
-    });
+    recordSourceSwitchTraffic(request, startedAt, true, "success");
 
     return NextResponse.json(result);
   } catch (error) {
@@ -165,10 +261,8 @@ export async function POST(request: Request) {
       error instanceof Error
         ? error.message
         : "Failed to switch playback source.";
-    void recordApiRequest({
-      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
-      ok: false,
-    });
+    logSourceSwitchError(request, "switch-failed", startedAt, error);
+    recordSourceSwitchTraffic(request, startedAt, false, "failure-response");
     return NextResponse.json({ message }, { status: 400 });
   }
 }
