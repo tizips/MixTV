@@ -11,7 +11,7 @@ import { recordApiRequest } from "@/modules/stats";
 export const runtime = "nodejs";
 
 const sourceSwitchLogPrefix = "[play/source-switch]";
-const sourceSwitchDiagnosticVersion = "body-json-before-auth-v2";
+const sourceSwitchDiagnosticVersion = "body-stream-before-auth-v3";
 
 function readRequestPath(request: Request) {
   try {
@@ -118,7 +118,111 @@ function asObject(input: unknown) {
     : null;
 }
 
-async function readJsonObjectPayload(request: Request) {
+function parseJsonObjectPayload(rawBody: string, diagnostics: Record<string, unknown>) {
+  try {
+    const parsed = JSON.parse(rawBody) as unknown;
+    const parsedType = Array.isArray(parsed) ? "array" : typeof parsed;
+    const nextDiagnostics = {
+      ...diagnostics,
+      parsedStringLength: typeof parsed === "string" ? parsed.length : 0,
+      parsedType,
+    };
+    const payload = asObject(parsed);
+
+    if (payload) {
+      return { diagnostics: nextDiagnostics, payload };
+    }
+
+    if (typeof parsed === "string") {
+      try {
+        return {
+          diagnostics: { ...nextDiagnostics, parsedNestedJson: true },
+          payload: asObject(JSON.parse(parsed)),
+        };
+      } catch (error) {
+        return {
+          payload: null,
+          diagnostics: {
+            ...nextDiagnostics,
+            nestedParseErrorMessage: error instanceof Error ? error.message : String(error),
+            nestedParseErrorName: error instanceof Error ? error.name : typeof error,
+            parsedNestedJson: false,
+          },
+        };
+      }
+    }
+
+    return {
+      payload: null,
+      diagnostics: nextDiagnostics,
+    };
+  } catch (error) {
+    return {
+      payload: null,
+      diagnostics: {
+        ...diagnostics,
+        parseErrorMessage: error instanceof Error ? error.message : String(error),
+        parseErrorName: error instanceof Error ? error.name : typeof error,
+        parsedType: "unparsed",
+      },
+    };
+  }
+}
+
+async function readRequestBodyText(request: Request) {
+  const reader = request.body?.getReader();
+
+  if (!reader) {
+    return {
+      bodyText: null,
+      diagnostics: {
+        bodyUsedAfterRead: request.bodyUsed,
+        readMode: "body-stream",
+        streamReadErrorMessage: "Request body stream is unavailable.",
+        streamReadErrorName: "UnavailableBodyStream",
+      },
+    };
+  }
+
+  const decoder = new TextDecoder();
+  let bodyText = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        bodyText += decoder.decode();
+        break;
+      }
+
+      bodyText += decoder.decode(value, { stream: true });
+    }
+
+    return {
+      bodyText,
+      diagnostics: {
+        bodyTextLength: bodyText.length,
+        bodyUsedAfterRead: request.bodyUsed,
+        readMode: "body-stream",
+      },
+    };
+  } catch (error) {
+    return {
+      bodyText: null,
+      diagnostics: {
+        bodyUsedAfterRead: request.bodyUsed,
+        readMode: "body-stream",
+        streamReadErrorMessage: error instanceof Error ? error.message : String(error),
+        streamReadErrorName: error instanceof Error ? error.name : typeof error,
+      },
+    };
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function readJsonObjectPayloadWithHelper(request: Request) {
   let parsed: unknown;
 
   try {
@@ -131,42 +235,42 @@ async function readJsonObjectPayload(request: Request) {
         parseErrorMessage: error instanceof Error ? error.message : String(error),
         parseErrorName: error instanceof Error ? error.name : typeof error,
         parsedType: "unparsed",
+        readMode: "json-helper",
       },
     };
   }
 
-  const parsedType = Array.isArray(parsed) ? "array" : typeof parsed;
-  const diagnostics = {
+  return parseJsonObjectPayload(JSON.stringify(parsed), {
     bodyUsedAfterRead: request.bodyUsed,
-    parsedStringLength: typeof parsed === "string" ? parsed.length : 0,
-    parsedType,
-  };
-  const payload = asObject(parsed);
+    readMode: "json-helper",
+  });
+}
 
-  if (payload) {
-    return { diagnostics, payload };
+async function readJsonObjectPayload(request: Request) {
+  if (!request.body) {
+    return readJsonObjectPayloadWithHelper(request);
   }
 
-  if (typeof parsed === "string") {
-    try {
-      return { diagnostics: { ...diagnostics, parsedNestedJson: true }, payload: asObject(JSON.parse(parsed)) };
-    } catch (error) {
-      return {
-        payload: null,
-        diagnostics: {
-          ...diagnostics,
-          nestedParseErrorMessage: error instanceof Error ? error.message : String(error),
-          nestedParseErrorName: error instanceof Error ? error.name : typeof error,
-          parsedNestedJson: false,
-        },
-      };
-    }
+  const bodyTextResult = await readRequestBodyText(request);
+
+  if (bodyTextResult.bodyText === null) {
+    return {
+      payload: null,
+      diagnostics: bodyTextResult.diagnostics,
+    };
   }
 
-  return {
-    payload: null,
-    diagnostics,
-  };
+  if (!bodyTextResult.bodyText.trim()) {
+    return {
+      payload: null,
+      diagnostics: {
+        ...bodyTextResult.diagnostics,
+        parsedType: "empty",
+      },
+    };
+  }
+
+  return parseJsonObjectPayload(bodyTextResult.bodyText, bodyTextResult.diagnostics);
 }
 
 function readString(payload: Record<string, unknown>, key: string) {

@@ -291,6 +291,64 @@ describe("playback source switch API route", () => {
     );
   });
 
+  it("reads the playback source switch payload from the body stream when request body helpers are unavailable", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } });
+    switchPlaybackSourceMock.mockResolvedValue({
+      episodes: [],
+      progress: {
+        id: "82236",
+        play_episodes: 10,
+        play_time: 752,
+        source: "dyttzyapi.com",
+        total_time: 1074,
+      },
+      source_name: "Dytt Source",
+      sources: [],
+    });
+    const payload = {
+      currentId: "79126",
+      currentSource: "iqiyizyapi.com",
+      play_episodes: 10,
+      play_time: 752,
+      targetId: "82236",
+      targetSource: "dyttzyapi.com",
+      total_time: 1074,
+    };
+    const request = new Request("http://localhost/api/play/source-switch", {
+      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+    const helperError = new TypeError("Cannot set property socket of #<ComputeJsIncomingMessage> which has only a getter");
+    const json = vi.fn(async () => {
+      throw helperError;
+    });
+    const text = vi.fn(async () => {
+      throw helperError;
+    });
+
+    Object.defineProperties(request, {
+      json: { value: json },
+      text: { value: text },
+    });
+
+    const response = await route.POST(request);
+
+    expect(response.status).toBe(200);
+    expect(json).not.toHaveBeenCalled();
+    expect(text).not.toHaveBeenCalled();
+    expect(switchPlaybackSourceMock).toHaveBeenCalledWith(
+      {
+        current: { id: "79126", source: "iqiyizyapi.com" },
+        play_episodes: 10,
+        play_time: 752,
+        target: { id: "82236", source: "dyttzyapi.com" },
+        total_time: 1074,
+      },
+      expect.objectContaining({ userId: "user-1" }),
+    );
+  });
+
   it("reads the playback source switch payload before authentication can make the body unavailable", async () => {
     let authWasCalled = false;
     authMock.mockImplementation(async () => {
