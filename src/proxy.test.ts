@@ -119,12 +119,13 @@ describe("proxy config", () => {
     return new RegExp(`^${config.matcher[0]}$`).test(pathname);
   }
 
-  it("matches page routes and excludes static assets plus the auth session checker", () => {
+  it("matches page routes and excludes API routes plus static assets", () => {
     expect(config.matcher).toEqual([
-      "/((?!api/auth/proxy-session(?:/|$)|_next/static|_next/image|favicon.ico|.*\\..*).*)",
+      "/((?!api(?:/|$)|_next/static|_next/image|favicon.ico|.*\\..*).*)",
     ]);
     expect(matchesProxy("/")).toBe(true);
-    expect(matchesProxy("/api/history")).toBe(true);
+    expect(matchesProxy("/api/history")).toBe(false);
+    expect(matchesProxy("/api/play/source-switch")).toBe(false);
     expect(matchesProxy("/api/auth/proxy-session")).toBe(false);
     expect(matchesProxy("/_next/static/chunk.js")).toBe(false);
     expect(matchesProxy("/favicon.ico")).toBe(false);

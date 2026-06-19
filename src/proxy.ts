@@ -132,6 +132,6 @@ export function proxy() {
 
 export const config = {
   matcher: [
-    "/((?!api/auth/proxy-session(?:/|$)|_next/static|_next/image|favicon.ico|.*\\..*).*)",
+    "/((?!api(?:/|$)|_next/static|_next/image|favicon.ico|.*\\..*).*)",
   ],
 };
