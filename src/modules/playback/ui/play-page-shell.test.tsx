@@ -1085,6 +1085,75 @@ describe("PlayPageShell client playback cover", () => {
     });
   });
 
+  it("starts a newly selected episode from the beginning instead of the previous resume time", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const initialData = createInitialData();
+    initialData.play_time = 318;
+    initialData.sources = [
+      {
+        id: "episode-1",
+        latency: "在线播放",
+        name: "第1集",
+        quality: "HLS",
+        status: "流畅",
+        url: "https://media.test/1.m3u8",
+      },
+      {
+        id: "episode-2",
+        latency: "在线播放",
+        name: "第2集",
+        quality: "HLS",
+        status: "流畅",
+        url: "https://media.test/2.m3u8",
+      },
+    ];
+    initialData.episodes = [
+      { duration: "未知", number: 1, title: "第1集" },
+      { duration: "未知", number: 2, title: "第2集" },
+    ];
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={initialData} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const nextEpisodeButton = [...host.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "2",
+    ) as HTMLButtonElement | undefined;
+
+    if (!nextEpisodeButton) {
+      throw new Error("Episode button was not rendered");
+    }
+
+    await act(async () => {
+      nextEpisodeButton.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const currentArt = artplayerState.instances.at(-1);
+
+    if (!currentArt) {
+      throw new Error("Artplayer was not reinitialized");
+    }
+
+    await act(async () => {
+      currentArt.emit("video:loadedmetadata", new Event("loadedmetadata"));
+    });
+
+    expect(currentArt.url).toBe("https://media.test/2.m3u8");
+    expect(currentArt.currentTime).toBe(0);
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
   it("switches playback sources in place and updates the route", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;

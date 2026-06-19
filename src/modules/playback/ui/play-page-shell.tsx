@@ -1058,6 +1058,15 @@ export function PlayPageShell({
       shouldResumePlaybackRef.current = isPlayingRef.current;
       hasPlaybackStartedRef.current = false;
 
+      setPlaybackData((current) =>
+        current
+          ? {
+              ...current,
+              play_episodes: episodeNumber,
+              play_time: 0,
+            }
+          : current,
+      );
       setActiveEpisode(episodeNumber);
       setSelectedGroupKey(
         getEpisodeGroupKeyForEpisode(playbackData.episodes, episodeNumber),
