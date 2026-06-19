@@ -6,7 +6,6 @@ export interface MediaSearchCacheEntry {
   quality: string;
   resourceKey: string;
   name: string;
-  ping: number;
   total_episodes: number;
 }
 
@@ -93,7 +92,6 @@ export async function saveMediaSearchCacheEntries(
         id: entry.id,
         quality: entry.quality,
         name: entry.name,
-        ping: entry.ping,
         total_episodes: entry.total_episodes,
       }), mediaSearchCacheTtlSeconds],
       keys: [cacheKey],
@@ -133,7 +131,6 @@ export async function readMediaSearchCacheEntries(
           typeof entry.id !== "string" ||
           typeof entry.quality !== "string" ||
           typeof entry.name !== "string" ||
-          typeof entry.ping !== "number" ||
           (typeof entry.total_episodes !== "number" && entry.total_episodes !== undefined)
         ) {
           return null;
@@ -142,7 +139,6 @@ export async function readMediaSearchCacheEntries(
         return {
           id: entry.id,
           name: entry.name,
-          ping: entry.ping,
           quality: entry.quality,
           resourceKey,
           total_episodes: entry.total_episodes ?? 0,

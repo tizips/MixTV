@@ -88,14 +88,18 @@ type PlaybackSourceOption = {
   id: string;
   key: string;
   name: string;
-  ping: number;
+  ping?: number;
+  probe_url?: string;
   quality?: string;
   source_name: string;
   total_episodes: number;
 };
+type PlaybackSourceSseResult = Omit<PlaybackSourceOption, "ping"> & {
+  ping?: unknown;
+};
 type PlaybackSourceSseEvent =
   | { event: "start"; data: { total: number } }
-  | { event: "result"; data: PlaybackSourceOption }
+  | { event: "result"; data: PlaybackSourceSseResult }
   | { event: "complete"; data: { completed: number; total: number } }
   | { event: "error"; data: { message?: string } };
 type PlaybackDanmakuResponseItem = {
@@ -209,6 +213,84 @@ function getPlaybackSourcePingTagColor(ping: unknown) {
   }
 
   return "error";
+}
+
+function readClientPlaybackSourcePing(startedAt: number) {
+  return Math.max(0, Math.round(performance.now() - startedAt));
+}
+
+function createPlaybackSourceProbeUrl(source: PlaybackSourceOption) {
+  const rawProbeUrl = source.probe_url?.trim();
+
+  if (!rawProbeUrl) {
+    return null;
+  }
+
+  try {
+    const url = new URL(
+      rawProbeUrl,
+      typeof window === "undefined" ? undefined : window.location.href,
+    );
+    url.searchParams.set("_mixtv_probe", String(Date.now()));
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+async function measurePlaybackSourcePing(
+  source: PlaybackSourceOption,
+  signal: AbortSignal,
+) {
+  const probeUrl = createPlaybackSourceProbeUrl(source);
+
+  if (!probeUrl || signal.aborted) {
+    return undefined;
+  }
+
+  const startedAt = performance.now();
+
+  try {
+    await fetch(probeUrl, {
+      cache: "no-store",
+      mode: "no-cors",
+      signal,
+    });
+  } catch {
+    return undefined;
+  }
+
+  if (signal.aborted) {
+    return undefined;
+  }
+
+  return readClientPlaybackSourcePing(startedAt);
+}
+
+function upsertPlaybackSourceOption(
+  source: PlaybackSourceOption,
+  seen: Map<string, PlaybackSourceOption>,
+  setOptions: (sources: PlaybackSourceOption[]) => void,
+  signal: AbortSignal,
+) {
+  const key = `${source.key}:${source.id}`;
+  seen.set(key, source);
+  setOptions(Array.from(seen.values()));
+
+  void measurePlaybackSourcePing(source, signal).then((ping) => {
+    if (signal.aborted || ping === undefined) {
+      return;
+    }
+
+    const current = seen.get(key);
+
+    if (!current) {
+      return;
+    }
+
+    seen.set(key, { ...current, ping });
+    setOptions(Array.from(seen.values()));
+  });
 }
 
 function readStoredPlaybackVolume(): number {
@@ -601,7 +683,15 @@ async function readPlaybackSourceOptions(
 
     for (const event of parsed.events) {
       if (event.event === "result") {
-        onResult(event.data);
+        onResult({
+          id: event.data.id,
+          key: event.data.key,
+          name: event.data.name,
+          probe_url: event.data.probe_url,
+          quality: event.data.quality,
+          source_name: event.data.source_name,
+          total_episodes: event.data.total_episodes,
+        });
       }
     }
   }
@@ -874,8 +964,12 @@ export function PlayPageShell({
         await readPlaybackSourceOptions(
           response,
           (source) => {
-            seen.set(`${source.key}:${source.id}`, source);
-            setPlaybackSourceOptions(Array.from(seen.values()));
+            upsertPlaybackSourceOption(
+              source,
+              seen,
+              setPlaybackSourceOptions,
+              controller.signal,
+            );
           },
           controller.signal,
         );
@@ -919,8 +1013,12 @@ export function PlayPageShell({
         await readPlaybackSourceOptions(
           response,
           (source) => {
-            seen.set(`${source.key}:${source.id}`, source);
-            setPlaceholderSourceOptions(Array.from(seen.values()));
+            upsertPlaybackSourceOption(
+              source,
+              seen,
+              setPlaceholderSourceOptions,
+              controller.signal,
+            );
           },
           controller.signal,
         );

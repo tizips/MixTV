@@ -29,7 +29,7 @@ export interface PlaybackSourceItem {
   id: string;
   key: string;
   name: string;
-  ping: number;
+  probe_url: string;
   quality?: string;
   source_name: string;
   total_episodes: number;
@@ -112,16 +112,16 @@ function toEndpoint(source: { apiUrl: string; key: string; name: string }): Vide
 
 function toPublicSourceItem(
   sourceName: string,
+  probeUrl: string,
   resource: Awaited<ReturnType<typeof getVideoSourceDetail>>,
   fallbackId: string,
-  ping: number,
   fallbackQuality?: string,
 ): PlaybackSourceItem {
   return {
     id: resource.id || fallbackId,
     key: resource.sourceKey,
     name: resource.sourceName || sourceName,
-    ping,
+    probe_url: probeUrl,
     quality: resource.quality ?? fallbackQuality,
     source_name: resource.sourceName || sourceName,
     total_episodes: resource.episodes.length,
@@ -134,13 +134,8 @@ function toIndexCacheEntry(item: PlaybackSourceItem) {
     quality: item.quality ?? "",
     resourceKey: item.key,
     name: item.name,
-    ping: item.ping,
     total_episodes: item.total_episodes,
   }];
-}
-
-function readPingMs(startedAt: number) {
-  return Math.max(0, Math.round(performance.now() - startedAt));
 }
 
 export async function getPlaybackSources(
@@ -192,18 +187,21 @@ export async function getPlaybackSources(
 
   const cachedByKey = new Map(cachedEntries.map((entry) => [entry.resourceKey, entry]));
   const cachedPlayableSources = sources
-    .map((source) => cachedByKey.get(source.key))
-    .filter((entry): entry is NonNullable<typeof entry> => entry !== undefined);
+    .map((source) => {
+      const entry = cachedByKey.get(source.key);
+      return entry ? { entry, source } : null;
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
 
-  if (cachedPlayableSources.length > 0 && cachedPlayableSources.every((entry) => entry.total_episodes > 0)) {
+  if (cachedPlayableSources.length > 0 && cachedPlayableSources.every(({ entry }) => entry.total_episodes > 0)) {
     onStart?.({ total: cachedPlayableSources.length });
 
-    for (const entry of cachedPlayableSources) {
+    for (const { entry, source } of cachedPlayableSources) {
       onResult?.({
         id: entry.id,
         key: entry.resourceKey,
         name: entry.name,
-        ping: entry.ping,
+        probe_url: source.apiUrl,
         quality: entry.quality || undefined,
         source_name: entry.name,
         total_episodes: entry.total_episodes,
@@ -223,12 +221,10 @@ export async function getPlaybackSources(
       return null;
     }
 
-    const sourceStartedAt = performance.now();
     const cachedEntry = cachedByKey.get(source.key);
     const cacheKey = cachedEntry ? createPlaybackCacheKey(source.key, cachedEntry.id) : "";
     let fallbackId = cachedEntry?.id;
     let fallbackQuality = cachedEntry?.quality;
-    let usedLiveSourceLookup = false;
     let detail = cachedEntry
       ? await readPlaybackCacheEntry(cacheStore, cacheKey)
       : null;
@@ -255,13 +251,11 @@ export async function getPlaybackSources(
             ...(fetcher ? { fetcher } : {}),
             ...(timeoutMs === undefined ? {} : { timeoutMs }),
           });
-          usedLiveSourceLookup = true;
         } else {
           detail = await detailFetcher(toEndpoint(source), cachedEntry.id, {
             ...(fetcher ? { fetcher } : {}),
             ...(timeoutMs === undefined ? {} : { timeoutMs }),
           });
-          usedLiveSourceLookup = true;
         }
 
         if (!detail.episodes.length) {
@@ -282,14 +276,11 @@ export async function getPlaybackSources(
       }
     }
 
-    const ping = usedLiveSourceLookup
-      ? readPingMs(sourceStartedAt)
-      : cachedEntry?.ping ?? readPingMs(sourceStartedAt);
     const result = toPublicSourceItem(
       source.name,
+      source.apiUrl,
       detail,
       fallbackId ?? detail.id,
-      ping,
       fallbackQuality,
     );
     try {

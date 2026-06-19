@@ -36,6 +36,7 @@ describe("playback source API route", () => {
         key: "alpha",
         name: "Alpha Source",
         ping: 72,
+        probe_url: "https://alpha.test/api.php/provide/vod",
         quality: "1080P",
         source_name: "Alpha Source",
         total_episodes: 2,
@@ -52,7 +53,8 @@ describe("playback source API route", () => {
     expect(body).toContain('"total":1');
     expect(body).toContain("event: result");
     expect(body).toContain('"key":"alpha"');
-    expect(body).toContain('"ping":72');
+    expect(body).toContain('"probe_url":"https://alpha.test/api.php/provide/vod"');
+    expect(body).not.toContain('"ping"');
     expect(body).toContain("event: complete");
     expect(getPlaybackSourcesMock).toHaveBeenCalledWith(
       { index: "2026:anime:深空彼岸", keyword: "深空彼岸" },

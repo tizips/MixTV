@@ -14,6 +14,7 @@ describe("playback cache", () => {
               name: "测试源",
               order: 0,
               ping: 42,
+              probe_url: "https://alpha.test/api.php/provide/vod",
               quality: "1080P",
               source_name: "测试源",
               total_episodes: 1,
@@ -57,9 +58,10 @@ describe("playback cache", () => {
         id: "resource-1",
         key: "alpha",
         name: "测试源",
-        ping: 42,
+        probe_url: "https://alpha.test/api.php/provide/vod",
       }),
     ]);
+    expect(sources?.[0]).not.toHaveProperty("ping");
     expect(consoleInfoSpy).not.toHaveBeenCalled();
   });
 });

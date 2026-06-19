@@ -691,14 +691,29 @@ describe("PlayPageShell client playback cover", () => {
   });
 
   it("shows playable source links when playback lookup fails but the index is available", async () => {
+    let now = 0;
+    const probeResolvers = new Map<string, () => void>();
+    vi.spyOn(performance, "now").mockImplementation(() => now);
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
       if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}&keyword=${encodeURIComponent("资源站标题")}`) {
         return new Response(
-          'event: start\ndata: {"total":2}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","ping":72,"quality":"1080P","source_name":"Alpha API","total_episodes":2}\n\nevent: result\ndata: {"id":"90475","key":"beta","name":"Beta Source","ping":1450,"quality":"720P","source_name":"Beta CDN","total_episodes":24}\n\nevent: complete\ndata: {"completed":2,"total":2}\n\n',
+          'event: start\ndata: {"total":2}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","probe_url":"https://alpha.test/api.php/provide/vod","quality":"1080P","source_name":"Alpha API","total_episodes":2}\n\nevent: result\ndata: {"id":"90475","key":"beta","name":"Beta Source","probe_url":"https://beta.test/api.php/provide/vod","quality":"720P","source_name":"Beta CDN","total_episodes":24}\n\nevent: complete\ndata: {"completed":2,"total":2}\n\n',
           { headers: { "Content-Type": "text/event-stream" } },
         );
+      }
+
+      if (url.startsWith("https://alpha.test/api.php/provide/vod")) {
+        return new Promise<Response>((resolve) => {
+          probeResolvers.set("alpha", () => resolve(new Response(null, { status: 204 })));
+        });
+      }
+
+      if (url.startsWith("https://beta.test/api.php/provide/vod")) {
+        return new Promise<Response>((resolve) => {
+          probeResolvers.set("beta", () => resolve(new Response(null, { status: 204 })));
+        });
       }
 
       return new Response(JSON.stringify({ favorites: [] }));
@@ -739,9 +754,27 @@ describe("PlayPageShell client playback cover", () => {
     expect(host.textContent).toContain("源 alpha");
     expect(host.textContent).toContain("ID 80474");
     expect(host.textContent).toContain("1080P");
+    expect(fetchMock.mock.calls.some(([input]) => String(input).startsWith("https://alpha.test/api.php/provide/vod"))).toBe(true);
+    expect(fetchMock.mock.calls.some(([input]) => String(input).startsWith("https://beta.test/api.php/provide/vod"))).toBe(true);
+
+    await act(async () => {
+      now = 72;
+      probeResolvers.get("alpha")?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
     expect(host.textContent).toContain("72 ms");
     expect(host.textContent).toContain("2 集");
     expect(host.textContent).toContain("Beta Source");
+    await act(async () => {
+      now = 1450;
+      probeResolvers.get("beta")?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(host.textContent).toContain("1.4 s");
     expect(host.textContent).toContain("24 集");
 
     act(() => {
@@ -1155,14 +1188,23 @@ describe("PlayPageShell client playback cover", () => {
   });
 
   it("switches playback sources in place and updates the route", async () => {
+    let now = 0;
+    let resolveAlphaProbe: (() => void) | undefined;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
       if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}&keyword=${encodeURIComponent("资源站标题")}`) {
         return new Response(
-          'event: start\ndata: {"total":1}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","quality":"1080P","source_name":"Alpha Source","total_episodes":2}\n\nevent: complete\ndata: {"completed":1,"total":1}\n\n',
+          'event: start\ndata: {"total":1}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","probe_url":"https://alpha.test/api.php/provide/vod","quality":"1080P","source_name":"Alpha Source","total_episodes":2}\n\nevent: complete\ndata: {"completed":1,"total":1}\n\n',
           { headers: { "Content-Type": "text/event-stream" } },
         );
+      }
+
+      if (url.startsWith("https://alpha.test/api.php/provide/vod")) {
+        return new Promise<Response>((resolve) => {
+          resolveAlphaProbe = () => resolve(new Response(null, { status: 204 }));
+        });
       }
 
       if (url === "/api/play/source-switch" && init?.method === "POST") {
@@ -1238,6 +1280,17 @@ describe("PlayPageShell client playback cover", () => {
     if (!sourceButton) {
       throw new Error("Playback source button was not rendered");
     }
+
+    expect(fetchMock.mock.calls.some(([input]) => String(input).startsWith("https://alpha.test/api.php/provide/vod"))).toBe(true);
+
+    await act(async () => {
+      now = 125;
+      resolveAlphaProbe?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(sourceButton.textContent).toContain("延迟 125 ms");
 
     await act(async () => {
       sourceButton.click();

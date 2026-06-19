@@ -192,6 +192,7 @@ describe("playback source service", () => {
           name: "Alpha Source",
           order: 0,
           ping: 123,
+          probe_url: "https://alpha.test/api.php/provide/vod",
           quality: "1080P",
           source_name: "Alpha Source",
           total_episodes: 2,
@@ -229,7 +230,7 @@ describe("playback source service", () => {
       id: "80474",
       key: "alpha",
       name: "Alpha Source",
-      ping: 123,
+      probe_url: "https://alpha.test/api.php/provide/vod",
       quality: "1080P",
       source_name: "Alpha Source",
       total_episodes: 2,
@@ -282,7 +283,7 @@ describe("playback source service", () => {
       id: "80474",
       key: "alpha",
       name: "Alpha Source",
-      ping: 87,
+      probe_url: "https://alpha.test/api.php/provide/vod",
       quality: "1080P",
       source_name: "Alpha Source",
       total_episodes: 2,
@@ -326,7 +327,7 @@ describe("playback source service", () => {
       id: "80474",
       key: "alpha",
       name: "Alpha Source",
-      ping: 88,
+      probe_url: "https://alpha.test/api.php/provide/vod",
       quality: "1080P",
       source_name: "Alpha Source",
       total_episodes: 2,
@@ -361,10 +362,7 @@ describe("playback source service", () => {
     expect(cacheStore.del).toHaveBeenCalledWith("cache:video:alpha:80474");
   });
 
-  it("refreshes ping when cached source entries still need live detail lookup", async () => {
-    const nowSpy = vi.spyOn(performance, "now")
-      .mockReturnValueOnce(100)
-      .mockReturnValueOnce(150);
+  it("does not expose server-side ping when cached source entries still need live detail lookup", async () => {
     const indexStore = createHashStore({
       "2026:anime:深空彼岸": {
         alpha: JSON.stringify({ id: "80474", name: "Alpha Source", ping: 12, quality: "1080P" }),
@@ -374,27 +372,22 @@ describe("playback source service", () => {
     const detailFetcher = vi.fn(async () => createDetail());
     const onResult = vi.fn();
 
-    try {
-      const summary = await getPlaybackSources(
-        { index: "2026:anime:深空彼岸", keyword: "深空彼岸" },
-        {
-          cacheStore,
-          detailFetcher,
-          indexCacheStore: indexStore,
-          onResult,
-          siteConfigStore: createSiteConfigStore(false),
-          videoSourceStore: createSourceStore(),
-        },
-      );
+    const summary = await getPlaybackSources(
+      { index: "2026:anime:深空彼岸", keyword: "深空彼岸" },
+      {
+        cacheStore,
+        detailFetcher,
+        indexCacheStore: indexStore,
+        onResult,
+        siteConfigStore: createSiteConfigStore(false),
+        videoSourceStore: createSourceStore(),
+      },
+    );
 
-      expect(detailFetcher).toHaveBeenCalledOnce();
-      expect(onResult).toHaveBeenCalledWith(expect.objectContaining({
-        ping: 50,
-      }));
-      expect(summary).toEqual({ completed: 1, total: 1 });
-    } finally {
-      nowSpy.mockRestore();
-    }
+    expect(detailFetcher).toHaveBeenCalledOnce();
+    expect(onResult.mock.calls[0]?.[0]).not.toHaveProperty("ping");
+    expect(onResult.mock.calls[0]?.[0]).toHaveProperty("probe_url", "https://alpha.test/api.php/provide/vod");
+    expect(summary).toEqual({ completed: 1, total: 1 });
   });
 
   it("falls back to live source search when the index cache is missing", async () => {
@@ -434,11 +427,11 @@ describe("playback source service", () => {
       "80474",
       {},
     );
-    expect(onResult).toHaveBeenCalledWith(expect.objectContaining({
-      ping: expect.any(Number),
-    }));
-    expect(onResult.mock.calls[0]?.[0].ping).toBeGreaterThanOrEqual(0);
+    expect(onResult.mock.calls[0]?.[0]).not.toHaveProperty("ping");
+    expect(onResult.mock.calls[0]?.[0]).toHaveProperty("probe_url", "https://alpha.test/api.php/provide/vod");
     expect(cacheStore.dumpValue("cache:video:alpha:80474")).toContain('"id":"80474"');
+    expect(indexStore.dumpHash("2026:anime:深空彼岸").alpha).not.toContain('"ping"');
+    expect(indexStore.dumpHash("2026:anime:深空彼岸").alpha).not.toContain('"probe_url"');
     expect(summary).toEqual({ completed: 1, total: 1 });
   });
 

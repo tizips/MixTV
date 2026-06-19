@@ -15,6 +15,17 @@ function encodeSseEvent(event: string, data: unknown) {
   return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
+function toPublicSseData(event: string, data: unknown) {
+  if (event !== "result" || !data || typeof data !== "object" || Array.isArray(data)) {
+    return data;
+  }
+
+  const publicData = { ...(data as Record<string, unknown>) };
+  delete publicData.ping;
+
+  return publicData;
+}
+
 function createPlaybackSourcesTimeout() {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const promise = new Promise<never>((_, reject) => {
@@ -78,7 +89,7 @@ export async function GET(request: Request) {
       let isClosed = false;
       const enqueueEvent = (event: string, data: unknown) => {
         if (!isClosed) {
-          controller.enqueue(encodeSseEvent(event, data));
+          controller.enqueue(encodeSseEvent(event, toPublicSseData(event, data)));
         }
       };
 
