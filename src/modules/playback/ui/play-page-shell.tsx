@@ -162,6 +162,15 @@ function createPlayUrl(input: { id: string; source: string }) {
   return `/play?${searchParams.toString()}`;
 }
 
+function createPlaybackSourcesUrl(input: { index: string; keyword: string }) {
+  const searchParams = new URLSearchParams({
+    index: input.index.trim(),
+    keyword: input.keyword.trim(),
+  });
+
+  return `/api/play/sources?${searchParams.toString()}`;
+}
+
 function formatPlaybackSourcePing(ping: unknown) {
   const value = typeof ping === "number" ? ping : Number(ping);
 
@@ -597,10 +606,12 @@ async function readPlaybackSourceOptions(
 
 export function PlayPageShell({
   initialData,
+  playbackKeyword,
   playbackPlaceholderError,
   playbackIndex,
 }: {
   initialData?: PlayPageData;
+  playbackKeyword?: string;
   playbackPlaceholderError?: string;
   playbackIndex?: string;
 } = {}) {
@@ -834,7 +845,7 @@ export function PlayPageShell({
     }).catch(() => undefined);
   }, [hasPlaybackPlaceholderError, playbackData]);
   useEffect(() => {
-    if (!playbackData?.index) {
+    if (!playbackData?.index || !playbackData.title.trim()) {
       return;
     }
 
@@ -847,7 +858,10 @@ export function PlayPageShell({
     });
 
     void fetch(
-      `/api/play/sources?index=${encodeURIComponent(playbackData.index)}`,
+      createPlaybackSourcesUrl({
+        index: playbackData.index,
+        keyword: playbackData.title,
+      }),
       {
         headers: { Accept: "text/event-stream" },
         signal: controller.signal,
@@ -866,9 +880,13 @@ export function PlayPageShell({
       .catch(() => undefined);
 
     return () => controller.abort();
-  }, [playbackData?.index]);
+  }, [playbackData?.index, playbackData?.title]);
   useEffect(() => {
-    if (!hasPlaybackPlaceholderError || !playbackIndex?.trim()) {
+    if (
+      !hasPlaybackPlaceholderError ||
+      !playbackIndex?.trim() ||
+      !playbackKeyword?.trim()
+    ) {
       return;
     }
 
@@ -881,7 +899,10 @@ export function PlayPageShell({
     });
 
     void fetch(
-      `/api/play/sources?index=${encodeURIComponent(playbackIndex.trim())}`,
+      createPlaybackSourcesUrl({
+        index: playbackIndex,
+        keyword: playbackKeyword,
+      }),
       {
         headers: { Accept: "text/event-stream" },
         signal: controller.signal,
@@ -913,7 +934,7 @@ export function PlayPageShell({
       });
 
     return () => controller.abort();
-  }, [hasPlaybackPlaceholderError, playbackIndex]);
+  }, [hasPlaybackPlaceholderError, playbackIndex, playbackKeyword]);
   const switchPlaybackSource = useCallback(
     async (source: PlaybackSourceOption) => {
       if (!playbackData || isSourceSwitching) {
@@ -931,7 +952,7 @@ export function PlayPageShell({
       setPlaybackError(null);
 
       try {
-        const response = await fetch("/api/play/sources", {
+        const response = await fetch("/api/play/source-switch", {
           body: JSON.stringify({
             currentId: playbackData.progress_id,
             currentSource: playbackData.progress_source,
@@ -1712,7 +1733,7 @@ export function PlayPageShell({
               <p className="text-sm leading-6 text-default-500">
                 {placeholderMessage}
               </p>
-              {playbackIndex?.trim() ? (
+              {playbackIndex?.trim() && playbackKeyword?.trim() ? (
                 <div className="mt-4 grid w-full gap-3 text-left">
                   <div className="flex items-center justify-between gap-3">
                     <h2 className="text-sm font-semibold text-default-700">

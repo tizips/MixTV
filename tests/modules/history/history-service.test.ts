@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DbPort, DbScriptOptions } from "@/shared/db/db-port";
-import { deleteHistoryPlaybackProgress, listPlaybackHistory } from "@/modules/history/server/history-service";
+import {
+  deleteHistoryPlaybackProgress,
+  getPlaybackHistoryItem,
+  listPlaybackHistory,
+} from "@/modules/history/server/history-service";
 
 type ScriptHistoryStore = DbPort<unknown, string> & {
   dumpHash: (key: string) => Record<string, string>;
@@ -27,6 +31,10 @@ function createHistoryStore(initialValues: Record<string, string> = {}): ScriptH
         hashes.set(key, hash);
 
         return Object.entries(hash).flat() as TResult;
+      }
+
+      if (script.includes("HGET") && !script.includes("HGETALL")) {
+        return (hash[field] ?? null) as TResult;
       }
 
       if (script.includes("HGETALL")) {
@@ -76,6 +84,46 @@ describe("history service", () => {
       expect.objectContaining({ id: "200", source: "beta", title: "Beta Movie" }),
       expect.objectContaining({ id: "100", source: "alpha", title: "Alpha Movie" }),
     ]);
+  });
+
+  it("gets one playback history item by source and id", async () => {
+    const store = createHistoryStore({
+      "alpha:100": JSON.stringify({
+        cover: "https://image.test/one.jpg",
+        douban_id: 0,
+        index: "2026:movie:alpha movie",
+        original_episodes: 12,
+        play_time: 1061,
+        play_episodes: 2,
+        remarks: "更新至12集",
+        save_time: 1768471200000,
+        search_title: "",
+        source_name: "Alpha",
+        title: "Alpha Movie",
+        total_time: 1247,
+        year: "2026",
+      }),
+    });
+    const scriptSpy = vi.spyOn(store, "script");
+
+    await expect(
+      getPlaybackHistoryItem("user-1", { id: "100", source: "alpha" }, { store }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: "100",
+        index: "2026:movie:alpha movie",
+        source: "alpha",
+        title: "Alpha Movie",
+      }),
+    );
+    await expect(
+      getPlaybackHistoryItem("user-1", { id: "missing", source: "alpha" }, { store }),
+    ).resolves.toBeNull();
+    expect(scriptSpy).toHaveBeenLastCalledWith(expect.stringContaining("HGET"), {
+      args: ["alpha:missing"],
+      keys: ["user-1:pr"],
+      readOnly: true,
+    });
   });
 
   it("deletes a history entry and returns the remaining list", async () => {

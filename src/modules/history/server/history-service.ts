@@ -19,6 +19,10 @@ const readHistoryScript = `
 return redis.call("HGETALL", KEYS[1])
 `;
 
+const readHistoryItemScript = `
+return redis.call("HGET", KEYS[1], ARGV[1])
+`;
+
 const deleteHistoryScript = `
 redis.call("HDEL", KEYS[1], ARGV[1])
 return redis.call("HGETALL", KEYS[1])
@@ -196,6 +200,39 @@ export async function listPlaybackHistory(userId: string, { store = createPlayba
   );
 
   return sortHistory(historyEntries.map((entry) => entry.item));
+}
+
+export async function getPlaybackHistoryItem(
+  userId: string,
+  input: unknown,
+  { store = createPlaybackProgressStore() }: HistoryServiceOptions = {},
+) {
+  const { id, source } = readHistoryInput(input);
+  const field = createPlaybackProgressField(source, id);
+  const rawHistory = await store.script<string | null>(readHistoryItemScript, {
+    args: [field],
+    keys: [createUserPlaybackProgressHashKey(userId)],
+    readOnly: true,
+  });
+
+  if (typeof rawHistory !== "string") {
+    return null;
+  }
+
+  const parsed = parseHistoryEntry(field, rawHistory);
+
+  if (!parsed.item) {
+    return null;
+  }
+
+  if (parsed.needsMigration) {
+    await store.script(saveHistoryScript, {
+      args: [field, JSON.stringify(parsed.item)],
+      keys: [createUserPlaybackProgressHashKey(userId)],
+    });
+  }
+
+  return parsed.item;
 }
 
 export async function deleteHistoryPlaybackProgress(

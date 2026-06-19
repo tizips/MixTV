@@ -1,14 +1,54 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlayPageData } from "@/modules/playback/domain/playback-page-data";
 import { PlayPageShell } from "@/modules/playback";
 import PlayPage, { runtime } from "./page";
 
 const authMock = vi.hoisted(() => vi.fn());
+const getFavoriteItemMock = vi.hoisted(() => vi.fn());
+const getPlaybackHistoryItemMock = vi.hoisted(() => vi.fn());
+const getPlaybackPageDataMock = vi.hoisted(() => vi.fn());
+const createPlaybackProgressStoreMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/auth", () => ({
   auth: authMock,
 }));
+
+vi.mock("@/modules/favorites", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/favorites")>();
+
+  return {
+    ...actual,
+    getFavoriteItem: getFavoriteItemMock,
+  };
+});
+
+vi.mock("@/modules/history", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/history")>();
+
+  return {
+    ...actual,
+    getPlaybackHistoryItem: getPlaybackHistoryItemMock,
+  };
+});
+
+vi.mock("@/modules/playback", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/playback")>();
+
+  return {
+    ...actual,
+    getPlaybackPageData: getPlaybackPageDataMock,
+  };
+});
+
+vi.mock("@/modules/playback/server/playback-progress-service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/playback/server/playback-progress-service")>();
+
+  return {
+    ...actual,
+    createPlaybackProgressStore: createPlaybackProgressStoreMock,
+  };
+});
 
 function createInitialData(): PlayPageData {
     return {
@@ -42,9 +82,37 @@ function createInitialData(): PlayPageData {
 }
 
 describe("PlayPage", () => {
+  const originalStorageType = process.env.STORAGE_TYPE;
+
   beforeEach(() => {
     authMock.mockReset();
     authMock.mockResolvedValue({ user: { id: "user-1" } });
+    getFavoriteItemMock.mockReset();
+    getFavoriteItemMock.mockResolvedValue(null);
+    getPlaybackHistoryItemMock.mockReset();
+    getPlaybackHistoryItemMock.mockResolvedValue(null);
+    getPlaybackPageDataMock.mockReset();
+    getPlaybackPageDataMock.mockResolvedValue({
+      status: "error",
+      error: "缺少 source 或 id 参数，无法加载播放信息。",
+    });
+    createPlaybackProgressStoreMock.mockReset();
+    createPlaybackProgressStoreMock.mockReturnValue({
+      del: vi.fn(),
+      get: vi.fn(),
+      script: vi.fn(),
+      set: vi.fn(),
+    });
+    process.env.STORAGE_TYPE = "upstash";
+  });
+
+  afterEach(() => {
+    if (originalStorageType === undefined) {
+      delete process.env.STORAGE_TYPE;
+      return;
+    }
+
+    process.env.STORAGE_TYPE = originalStorageType;
   });
 
   it("renders the playback layout sections", () => {
@@ -65,6 +133,83 @@ describe("PlayPage", () => {
 
     expect(html).toContain("缺少 source 或 id 参数，无法加载播放信息。");
     expect(html).not.toContain("aria-label=\"播放进度\"");
+  });
+
+  it("uses playback history index for source fallback when playback details fail", async () => {
+    const progressStore = {
+      del: vi.fn(),
+      get: vi.fn(),
+      script: vi.fn(),
+      set: vi.fn(),
+    };
+    createPlaybackProgressStoreMock.mockReturnValue(progressStore);
+    getPlaybackPageDataMock.mockResolvedValue({
+      status: "error",
+      error: "播放信息加载失败，请稍后重试。",
+    });
+    getPlaybackHistoryItemMock.mockResolvedValue({
+      id: "79126",
+      index: "2026:tv:历史标题",
+      search_title: "",
+      source: "iqiyizyapi.com",
+      title: "历史标题",
+    });
+    getFavoriteItemMock.mockResolvedValue({
+      id: "79126",
+      index: "2026:tv:收藏标题",
+      search_title: "",
+      source: "iqiyizyapi.com",
+      title: "收藏标题",
+    });
+
+    const html = renderToStaticMarkup(
+      await PlayPage({
+        searchParams: Promise.resolve({
+          id: "79126",
+          source: "iqiyizyapi.com",
+        }),
+      }),
+    );
+
+    expect(html).toContain("播放信息加载失败，请稍后重试。");
+    expect(html).toContain("可用片源");
+    expect(getPlaybackHistoryItemMock).toHaveBeenCalledWith(
+      "user-1",
+      { id: "79126", source: "iqiyizyapi.com" },
+      { store: progressStore },
+    );
+    expect(getFavoriteItemMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to favorite index when playback history has no matching item", async () => {
+    getPlaybackPageDataMock.mockResolvedValue({
+      status: "error",
+      error: "播放信息加载失败，请稍后重试。",
+    });
+    getPlaybackHistoryItemMock.mockResolvedValue(null);
+    getFavoriteItemMock.mockResolvedValue({
+      id: "79126",
+      index: "2026:tv:收藏标题",
+      search_title: "",
+      source: "iqiyizyapi.com",
+      title: "收藏标题",
+    });
+
+    const html = renderToStaticMarkup(
+      await PlayPage({
+        searchParams: Promise.resolve({
+          id: "79126",
+          source: "iqiyizyapi.com",
+        }),
+      }),
+    );
+
+    expect(html).toContain("播放信息加载失败，请稍后重试。");
+    expect(html).toContain("可用片源");
+    expect(getFavoriteItemMock).toHaveBeenCalledWith("user-1", {
+      id: "79126",
+      source: "iqiyizyapi.com",
+    });
   });
 
   it("requires login before rendering playback", async () => {

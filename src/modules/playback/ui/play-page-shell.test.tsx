@@ -694,7 +694,7 @@ describe("PlayPageShell client playback cover", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
-      if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}`) {
+      if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}&keyword=${encodeURIComponent("资源站标题")}`) {
         return new Response(
           'event: start\ndata: {"total":1}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","ping":72,"quality":"1080P","source_name":"Alpha Source","total_episodes":2}\n\nevent: complete\ndata: {"completed":1,"total":1}\n\n',
           { headers: { "Content-Type": "text/event-stream" } },
@@ -710,7 +710,13 @@ describe("PlayPageShell client playback cover", () => {
     const root = createRoot(host);
 
     await act(async () => {
-      root.render(<PlayPageShell playbackIndex="2026:tv:资源站标题" playbackPlaceholderError="查询失效，请重新选择片源。" />);
+      root.render(
+        <PlayPageShell
+          playbackIndex="2026:tv:资源站标题"
+          playbackKeyword="资源站标题"
+          playbackPlaceholderError="查询失效，请重新选择片源。"
+        />,
+      );
     });
     await act(async () => {
       await Promise.resolve();
@@ -720,7 +726,7 @@ describe("PlayPageShell client playback cover", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}`,
+      `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}&keyword=${encodeURIComponent("资源站标题")}`,
       expect.objectContaining({ headers: { Accept: "text/event-stream" } }),
     );
     expect(host.querySelector('a[href*="source=alpha"][href*="id=80474"]')).not.toBeNull();
@@ -1074,14 +1080,14 @@ describe("PlayPageShell client playback cover", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
-      if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}`) {
+      if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}&keyword=${encodeURIComponent("资源站标题")}`) {
         return new Response(
           'event: start\ndata: {"total":1}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","quality":"1080P","source_name":"Alpha Source","total_episodes":2}\n\nevent: complete\ndata: {"completed":1,"total":1}\n\n',
           { headers: { "Content-Type": "text/event-stream" } },
         );
       }
 
-      if (url === "/api/play/sources" && init?.method === "POST") {
+      if (url === "/api/play/source-switch" && init?.method === "POST") {
         return new Response(
           JSON.stringify({
             episodes: [
@@ -1163,7 +1169,7 @@ describe("PlayPageShell client playback cover", () => {
 
     const switchCall = fetchMock.mock.calls.find(([input, init]) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      return url === "/api/play/sources" && init?.method === "POST";
+      return url === "/api/play/source-switch" && init?.method === "POST";
     });
 
     if (!switchCall) {
@@ -1197,14 +1203,14 @@ describe("PlayPageShell client playback cover", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
-      if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}`) {
+      if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}&keyword=${encodeURIComponent("资源站标题")}`) {
         return new Response(
           'event: start\ndata: {"total":1}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","quality":"1080P","source_name":"Alpha Source","total_episodes":1}\n\nevent: complete\ndata: {"completed":1,"total":1}\n\n',
           { headers: { "Content-Type": "text/event-stream" } },
         );
       }
 
-      if (url === "/api/play/sources" && init?.method === "POST") {
+      if (url === "/api/play/source-switch" && init?.method === "POST") {
         return new Response(
           JSON.stringify({
             episodes: [{ duration: "未知", number: 1, title: "第1集" }],
@@ -1305,14 +1311,14 @@ describe("PlayPageShell client playback cover", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
-      if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}`) {
+      if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}&keyword=${encodeURIComponent("资源站标题")}`) {
         return new Response(
           'event: start\ndata: {"total":1}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","quality":"1080P","source_name":"Alpha Source","total_episodes":2}\n\nevent: complete\ndata: {"completed":1,"total":1}\n\n',
           { headers: { "Content-Type": "text/event-stream" } },
         );
       }
 
-      if (url === "/api/play/sources" && init?.method === "POST") {
+      if (url === "/api/play/source-switch" && init?.method === "POST") {
         return new Response(JSON.stringify({ message: "换源失败，请稍后重试。" }), {
           headers: { "Content-Type": "application/json" },
           status: 500,

@@ -378,6 +378,26 @@ export async function listFavorites(userId: string, { store = createFavoriteStor
   );
 }
 
+export async function getFavoriteItem(
+  userId: string,
+  input: unknown,
+  { store = createFavoriteStore() }: { store?: FavoriteStore } = {},
+) {
+  const { id, source } = readFavoriteInput(input);
+  const favoriteKey = createFavoriteKey(source, id);
+  const rawFavorite = await store.script<string | null>(readFavoriteScript, {
+    args: [favoriteKey],
+    keys: [createUserFavoriteHashKey(userId)],
+    readOnly: true,
+  });
+
+  if (typeof rawFavorite !== "string") {
+    return null;
+  }
+
+  return parseFavoriteEntry(favoriteKey, rawFavorite);
+}
+
 export async function hasFavorite(
   userId: string,
   input: unknown,

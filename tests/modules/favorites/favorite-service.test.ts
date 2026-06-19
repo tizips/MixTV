@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { createFavorite, deleteFavorite, hasFavorite, listFavorites } from "@/modules/favorites/server/favorite-service";
+import {
+  createFavorite,
+  deleteFavorite,
+  getFavoriteItem,
+  hasFavorite,
+  listFavorites,
+} from "@/modules/favorites/server/favorite-service";
 import type { VideoSourceResource } from "@/integrations/video-sources";
 import type { VideoSourceStore } from "@/modules/admin/server/video-source-service";
 import { createScriptFavoriteStore } from "./favorite-test-store";
@@ -140,6 +146,35 @@ describe("favorite service", () => {
 
     await expect(hasFavorite("user-1", { id: "100", source: "alpha" }, { store })).resolves.toBe(true);
     await expect(hasFavorite("user-1", { id: "missing", source: "alpha" }, { store })).resolves.toBe(false);
+    expect(scriptSpy).toHaveBeenLastCalledWith(expect.stringContaining("HGET"), {
+      args: ["alpha:missing"],
+      keys: ["user-1:fav"],
+      readOnly: true,
+    });
+  });
+
+  it("gets one favorite item by source and id", async () => {
+    const store = createScriptFavoriteStore();
+    const scriptSpy = vi.spyOn(store, "script");
+    const options = {
+      detailFetcher: vi.fn(async () => createDetail()),
+      now: () => 1768435200000,
+      store,
+      userId: "user-1",
+      videoSourceStore: createVideoSourceStore(),
+    };
+
+    await createFavorite({ id: "100", source: "alpha" }, options);
+
+    await expect(getFavoriteItem("user-1", { id: "100", source: "alpha" }, { store })).resolves.toEqual(
+      expect.objectContaining({
+        id: "100",
+        index: "2026:unknown:alphamovie",
+        source: "alpha",
+        title: "Alpha Movie",
+      }),
+    );
+    await expect(getFavoriteItem("user-1", { id: "missing", source: "alpha" }, { store })).resolves.toBeNull();
     expect(scriptSpy).toHaveBeenLastCalledWith(expect.stringContaining("HGET"), {
       args: ["alpha:missing"],
       keys: ["user-1:fav"],

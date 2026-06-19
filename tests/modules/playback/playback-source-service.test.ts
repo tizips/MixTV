@@ -204,7 +204,7 @@ describe("playback source service", () => {
     const detailFetcher = vi.fn();
 
     const summary = await getPlaybackSources(
-      { index: "2026:anime:深空彼岸" },
+      { index: "2026:anime:深空彼岸", keyword: "深空彼岸" },
       {
         cacheStore,
         detailFetcher,
@@ -264,7 +264,7 @@ describe("playback source service", () => {
     const onResult = vi.fn();
 
     const summary = await getPlaybackSources(
-      { index: "2026:anime:深空彼岸" },
+      { index: "2026:anime:深空彼岸", keyword: "深空彼岸" },
       {
         cacheStore,
         detailFetcher,
@@ -308,7 +308,7 @@ describe("playback source service", () => {
     const onResult = vi.fn();
 
     const summary = await getPlaybackSources(
-      { index: "2026:anime:深空彼岸" },
+      { index: "2026:anime:深空彼岸", keyword: "深空彼岸" },
       {
         cacheStore,
         detailFetcher,
@@ -346,7 +346,7 @@ describe("playback source service", () => {
     });
 
     const summary = await getPlaybackSources(
-      { index: "2026:anime:深空彼岸" },
+      { index: "2026:anime:深空彼岸", keyword: "深空彼岸" },
       {
         cacheStore,
         detailFetcher,
@@ -376,7 +376,7 @@ describe("playback source service", () => {
 
     try {
       const summary = await getPlaybackSources(
-        { index: "2026:anime:深空彼岸" },
+        { index: "2026:anime:深空彼岸", keyword: "深空彼岸" },
         {
           cacheStore,
           detailFetcher,
@@ -400,12 +400,18 @@ describe("playback source service", () => {
   it("falls back to live source search when the index cache is missing", async () => {
     const indexStore = createHashStore();
     const cacheStore = createValueStore();
-    const searcher = vi.fn(async () => [createDetail()]);
-    const detailFetcher = vi.fn(async () => createDetail());
+    const searcher = vi.fn(async () => [
+      createDetail({
+        id: "wrong-80474",
+        title: "错误标题",
+      }),
+      createDetail(),
+    ]);
+    const detailFetcher = vi.fn(async (_source, id: string) => createDetail({ id }));
     const onResult = vi.fn();
 
     const summary = await getPlaybackSources(
-      { index: "2026:anime:深空彼岸" },
+      { index: "2026:anime:深空彼岸", keyword: "深空彼岸" },
       {
         cacheStore,
         detailFetcher,
@@ -418,7 +424,16 @@ describe("playback source service", () => {
     );
 
     expect(searcher).toHaveBeenCalledOnce();
-    expect(detailFetcher).toHaveBeenCalledOnce();
+    expect(searcher).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "alpha" }),
+      "深空彼岸",
+      {},
+    );
+    expect(detailFetcher).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "alpha" }),
+      "80474",
+      {},
+    );
     expect(onResult).toHaveBeenCalledWith(expect.objectContaining({
       ping: expect.any(Number),
     }));
@@ -463,7 +478,7 @@ describe("playback source service", () => {
     }));
 
     const summaryPromise = getPlaybackSources(
-      { index: "2026:anime:深空彼岸" },
+      { index: "2026:anime:深空彼岸", keyword: "深空彼岸" },
       {
         cacheStore,
         detailFetcher,

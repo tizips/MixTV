@@ -11,6 +11,7 @@ import {
   saveMediaSearchCacheEntries,
   type MediaSearchCacheStore,
 } from "@/modules/search/server/media-search-cache-service";
+import { createMediaSearchIndex } from "@/shared/media/search-index";
 import {
   createPlaybackCacheKey,
   createPlaybackCacheStore,
@@ -36,6 +37,7 @@ export interface PlaybackSourceItem {
 
 export interface PlaybackSourcesInput {
   index: string;
+  keyword: string;
 }
 
 export interface PlaybackSourcesOptions {
@@ -74,9 +76,30 @@ function readIndex(input: PlaybackSourcesInput) {
   return index;
 }
 
-function readSearchTitle(index: string) {
-  const parts = index.trim().split(":");
-  return parts.slice(2).join(":").trim() || index.trim();
+function readKeyword(input: PlaybackSourcesInput) {
+  const keyword = input.keyword.trim();
+
+  if (!keyword) {
+    throw new PlaybackSourcesValidationError("keyword is required.");
+  }
+
+  return keyword;
+}
+
+function createResourceIndex(resource: Awaited<ReturnType<typeof getVideoSourceDetail>>) {
+  return createMediaSearchIndex({
+    className: resource.className,
+    title: resource.title,
+    typeName: resource.typeName,
+    year: resource.year,
+  });
+}
+
+function findIndexedSearchResult(
+  results: Awaited<ReturnType<typeof searchVideoSource>>,
+  index: string,
+) {
+  return results.find((result) => createResourceIndex(result) === index) ?? null;
 }
 
 function toEndpoint(source: { apiUrl: string; key: string; name: string }): VideoSourceEndpoint {
@@ -137,7 +160,7 @@ export async function getPlaybackSources(
   }: PlaybackSourcesOptions = {},
 ): Promise<PlaybackSourcesSummary> {
   const index = readIndex(input);
-  const searchTitle = readSearchTitle(index);
+  const keyword = readKeyword(input);
   const playbackSourcesCacheKey = createPlaybackSourcesCacheKey(index);
   const cachedSources = await readPlaybackSourcesCacheEntry(cacheStore, playbackSourcesCacheKey);
 
@@ -213,13 +236,13 @@ export async function getPlaybackSources(
     if (!detail) {
       try {
         if (!cachedEntry) {
-          const results = await searcher(toEndpoint(source), searchTitle, {
+          const results = await searcher(toEndpoint(source), keyword, {
             ...(fetcher ? { fetcher } : {}),
             ...(maxPages === undefined ? {} : { maxPages }),
             ...(timeoutMs === undefined ? {} : { timeoutMs }),
           });
 
-          const firstMatch = results[0];
+          const firstMatch = findIndexedSearchResult(results, index);
 
           if (!firstMatch) {
             await deleteMediaSearchCacheEntry(index, source.key, { store: indexCacheStore });
