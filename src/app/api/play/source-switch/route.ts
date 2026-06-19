@@ -104,32 +104,29 @@ function asObject(input: unknown) {
 }
 
 async function readJsonObjectPayload(request: Request) {
-  const body = await request.text();
-
-  if (!body.trim()) {
-    return null;
-  }
+  let parsed: unknown;
 
   try {
-    const parsed = JSON.parse(body);
-    const payload = asObject(parsed);
-
-    if (payload) {
-      return payload;
-    }
-
-    if (typeof parsed === "string") {
-      try {
-        return asObject(JSON.parse(parsed));
-      } catch {
-        return null;
-      }
-    }
-
-    return null;
+    parsed = await request.json();
   } catch {
     return null;
   }
+
+  const payload = asObject(parsed);
+
+  if (payload) {
+    return payload;
+  }
+
+  if (typeof parsed === "string") {
+    try {
+      return asObject(JSON.parse(parsed));
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
 }
 
 function readString(payload: Record<string, unknown>, key: string) {
