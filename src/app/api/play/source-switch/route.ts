@@ -144,6 +144,19 @@ export async function POST(request: Request) {
   const startedAt = performance.now();
   logSourceSwitchCheckpoint(request, "entered", startedAt);
 
+  let payload: Record<string, unknown> | null;
+  try {
+    logSourceSwitchCheckpoint(request, "before-read-body", startedAt);
+    payload = await readJsonObjectPayload(request);
+    logSourceSwitchCheckpoint(request, "after-read-body", startedAt, {
+      hasPayload: Boolean(payload),
+      payloadKeys: payload ? Object.keys(payload).sort() : [],
+    });
+  } catch (error) {
+    logSourceSwitchError(request, "read-body-failed", startedAt, error);
+    throw error;
+  }
+
   let userId = "";
   try {
     logSourceSwitchCheckpoint(request, "before-auth", startedAt);
@@ -159,19 +172,6 @@ export async function POST(request: Request) {
   if (!userId) {
     recordSourceSwitchTraffic(request, startedAt, false, "unauthorized");
     return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
-  }
-
-  let payload: Record<string, unknown> | null;
-  try {
-    logSourceSwitchCheckpoint(request, "before-read-body", startedAt);
-    payload = await readJsonObjectPayload(request);
-    logSourceSwitchCheckpoint(request, "after-read-body", startedAt, {
-      hasPayload: Boolean(payload),
-      payloadKeys: payload ? Object.keys(payload).sort() : [],
-    });
-  } catch (error) {
-    logSourceSwitchError(request, "read-body-failed", startedAt, error);
-    throw error;
   }
 
   if (!payload) {

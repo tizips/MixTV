@@ -291,6 +291,60 @@ describe("playback source switch API route", () => {
     );
   });
 
+  it("reads the playback source switch payload before authentication can make the body unavailable", async () => {
+    let authWasCalled = false;
+    authMock.mockImplementation(async () => {
+      authWasCalled = true;
+      return { user: { id: "user-1" } };
+    });
+    switchPlaybackSourceMock.mockResolvedValue({
+      episodes: [],
+      progress: {
+        id: "82236",
+        play_episodes: 10,
+        play_time: 752,
+        source: "dyttzyapi.com",
+        total_time: 1074,
+      },
+      source_name: "Dytt Source",
+      sources: [],
+    });
+    const payload = {
+      currentId: "79126",
+      currentSource: "iqiyizyapi.com",
+      play_episodes: 10,
+      play_time: 752,
+      targetId: "82236",
+      targetSource: "dyttzyapi.com",
+      total_time: 1074,
+    };
+    const request = {
+      json: vi.fn(async () => {
+        if (authWasCalled) {
+          throw new TypeError("Body is unusable");
+        }
+
+        return payload;
+      }),
+      method: "POST",
+      url: "http://localhost/api/play/source-switch",
+    } as unknown as Request;
+
+    const response = await route.POST(request);
+
+    expect(response.status).toBe(200);
+    expect(switchPlaybackSourceMock).toHaveBeenCalledWith(
+      {
+        current: { id: "79126", source: "iqiyizyapi.com" },
+        play_episodes: 10,
+        play_time: 752,
+        target: { id: "82236", source: "dyttzyapi.com" },
+        total_time: 1074,
+      },
+      expect.objectContaining({ userId: "user-1" }),
+    );
+  });
+
   it("removes matching history entries for the current playback source after switching playback sources", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } });
     createPlaybackProgressStoreMock.mockReturnValue(progressStore);
