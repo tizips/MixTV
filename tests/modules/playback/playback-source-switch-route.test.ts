@@ -154,51 +154,6 @@ describe("playback source switch API route", () => {
     );
   });
 
-  it("accepts a JSON body that was stringified twice", async () => {
-    authMock.mockResolvedValue({ user: { id: "user-1" } });
-    switchPlaybackSourceMock.mockResolvedValue({
-      episodes: [],
-      progress: {
-        id: "67899",
-        play_episodes: 6,
-        play_time: 141,
-        source: "ikunzy.com",
-        total_time: 2173,
-      },
-      source_name: "Ikun Source",
-      sources: [],
-    });
-
-    const response = await route.POST(
-      new Request("http://localhost/api/play/source-switch", {
-        body: JSON.stringify(
-          JSON.stringify({
-            currentId: "74183",
-            currentSource: "iqiyizyapi.com",
-            play_episodes: 6,
-            play_time: 141,
-            targetId: "67899",
-            targetSource: "ikunzy.com",
-            total_time: 2173,
-          }),
-        ),
-        method: "POST",
-      }),
-    );
-
-    expect(response.status).toBe(200);
-    expect(switchPlaybackSourceMock).toHaveBeenCalledWith(
-      {
-        current: { id: "74183", source: "iqiyizyapi.com" },
-        play_episodes: 6,
-        play_time: 141,
-        target: { id: "67899", source: "ikunzy.com" },
-        total_time: 2173,
-      },
-      expect.objectContaining({ userId: "user-1" }),
-    );
-  });
-
   it("accepts the playback source switch payload sent by the player", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } });
     switchPlaybackSourceMock.mockResolvedValue({
@@ -214,22 +169,27 @@ describe("playback source switch API route", () => {
       sources: [],
     });
 
-    const response = await route.POST(
-      new Request("http://localhost/api/play/source-switch", {
-        body: JSON.stringify({
-          currentId: "79126",
-          currentSource: "iqiyizyapi.com",
-          play_episodes: 10,
-          play_time: 752,
-          targetId: "82236",
-          targetSource: "dyttzyapi.com",
-          total_time: 1074,
-        }),
-        method: "POST",
-      }),
-    );
+    const payload = {
+      currentId: "79126",
+      currentSource: "iqiyizyapi.com",
+      play_episodes: 10,
+      play_time: 752,
+      targetId: "82236",
+      targetSource: "dyttzyapi.com",
+      total_time: 1074,
+    };
+    const request = new Request("http://localhost/api/play/source-switch", {
+      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+    const json = vi.fn(async () => payload);
+    Object.defineProperty(request, "json", { value: json });
+
+    const response = await route.POST(request);
 
     expect(response.status).toBe(200);
+    expect(json).toHaveBeenCalledTimes(1);
     expect(switchPlaybackSourceMock).toHaveBeenCalledWith(
       {
         current: { id: "79126", source: "iqiyizyapi.com" },
@@ -242,7 +202,7 @@ describe("playback source switch API route", () => {
     );
   });
 
-  it("reads the playback source switch payload through request json when request text is unavailable", async () => {
+  it("reads the playback source switch payload with request json exactly once", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } });
     switchPlaybackSourceMock.mockResolvedValue({
       episodes: [],
@@ -266,11 +226,9 @@ describe("playback source switch API route", () => {
       total_time: 1074,
     };
     const request = {
+      headers: new Headers({ "Content-Type": "application/json" }),
       json: vi.fn(async () => payload),
       method: "POST",
-      text: vi.fn(async () => {
-        throw new TypeError("Cannot set property socket of #<ComputeJsIncomingMessage> which has only a getter");
-      }),
       url: "http://localhost/api/play/source-switch",
     } as unknown as Request;
 
@@ -278,7 +236,6 @@ describe("playback source switch API route", () => {
 
     expect(response.status).toBe(200);
     expect((request as unknown as { json: ReturnType<typeof vi.fn> }).json).toHaveBeenCalledTimes(1);
-    expect((request as unknown as { text: ReturnType<typeof vi.fn> }).text).not.toHaveBeenCalled();
     expect(switchPlaybackSourceMock).toHaveBeenCalledWith(
       {
         current: { id: "79126", source: "iqiyizyapi.com" },
@@ -291,65 +248,7 @@ describe("playback source switch API route", () => {
     );
   });
 
-  it("reads the playback source switch payload from the body stream when request body helpers are unavailable", async () => {
-    authMock.mockResolvedValue({ user: { id: "user-1" } });
-    switchPlaybackSourceMock.mockResolvedValue({
-      episodes: [],
-      progress: {
-        id: "82236",
-        play_episodes: 10,
-        play_time: 752,
-        source: "dyttzyapi.com",
-        total_time: 1074,
-      },
-      source_name: "Dytt Source",
-      sources: [],
-    });
-    const payload = {
-      currentId: "79126",
-      currentSource: "iqiyizyapi.com",
-      play_episodes: 10,
-      play_time: 752,
-      targetId: "82236",
-      targetSource: "dyttzyapi.com",
-      total_time: 1074,
-    };
-    const request = new Request("http://localhost/api/play/source-switch", {
-      body: JSON.stringify(payload),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-    const helperError = new TypeError("Cannot set property socket of #<ComputeJsIncomingMessage> which has only a getter");
-    const json = vi.fn(async () => {
-      throw helperError;
-    });
-    const text = vi.fn(async () => {
-      throw helperError;
-    });
-
-    Object.defineProperties(request, {
-      json: { value: json },
-      text: { value: text },
-    });
-
-    const response = await route.POST(request);
-
-    expect(response.status).toBe(200);
-    expect(json).not.toHaveBeenCalled();
-    expect(text).not.toHaveBeenCalled();
-    expect(switchPlaybackSourceMock).toHaveBeenCalledWith(
-      {
-        current: { id: "79126", source: "iqiyizyapi.com" },
-        play_episodes: 10,
-        play_time: 752,
-        target: { id: "82236", source: "dyttzyapi.com" },
-        total_time: 1074,
-      },
-      expect.objectContaining({ userId: "user-1" }),
-    );
-  });
-
-  it("reads the playback source switch payload before authentication can make the body unavailable", async () => {
+  it("passes the parsed playback source switch payload through authentication without reading it again", async () => {
     let authWasCalled = false;
     authMock.mockImplementation(async () => {
       authWasCalled = true;
@@ -377,6 +276,7 @@ describe("playback source switch API route", () => {
       total_time: 1074,
     };
     const request = {
+      headers: new Headers({ "Content-Type": "application/json" }),
       json: vi.fn(async () => {
         if (authWasCalled) {
           throw new TypeError("Body is unusable");
@@ -391,6 +291,7 @@ describe("playback source switch API route", () => {
     const response = await route.POST(request);
 
     expect(response.status).toBe(200);
+    expect((request as unknown as { json: ReturnType<typeof vi.fn> }).json).toHaveBeenCalledTimes(1);
     expect(switchPlaybackSourceMock).toHaveBeenCalledWith(
       {
         current: { id: "79126", source: "iqiyizyapi.com" },
