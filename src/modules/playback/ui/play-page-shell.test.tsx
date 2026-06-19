@@ -696,7 +696,7 @@ describe("PlayPageShell client playback cover", () => {
 
       if (url === `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}&keyword=${encodeURIComponent("资源站标题")}`) {
         return new Response(
-          'event: start\ndata: {"total":1}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","ping":72,"quality":"1080P","source_name":"Alpha Source","total_episodes":2}\n\nevent: complete\ndata: {"completed":1,"total":1}\n\n',
+          'event: start\ndata: {"total":2}\n\nevent: result\ndata: {"id":"80474","key":"alpha","name":"Alpha Source","ping":72,"quality":"1080P","source_name":"Alpha API","total_episodes":2}\n\nevent: result\ndata: {"id":"90475","key":"beta","name":"Beta Source","ping":1450,"quality":"720P","source_name":"Beta CDN","total_episodes":24}\n\nevent: complete\ndata: {"completed":2,"total":2}\n\n',
           { headers: { "Content-Type": "text/event-stream" } },
         );
       }
@@ -729,11 +729,20 @@ describe("PlayPageShell client playback cover", () => {
       `/api/play/sources?index=${encodeURIComponent("2026:tv:资源站标题")}&keyword=${encodeURIComponent("资源站标题")}`,
       expect.objectContaining({ headers: { Accept: "text/event-stream" } }),
     );
+    const sourceGrid = host.querySelector('[aria-label="可用片源列表"]');
+    expect(sourceGrid?.className).toContain("sm:grid-cols-2");
+    expect(sourceGrid?.className).toContain("2xl:grid-cols-4");
     expect(host.querySelector('a[href*="source=alpha"][href*="id=80474"]')).not.toBeNull();
     expect(host.querySelector('a[href*="index="]')).toBeNull();
     expect(host.textContent).toContain("Alpha Source");
+    expect(host.textContent).toContain("Alpha API");
+    expect(host.textContent).toContain("源 alpha");
+    expect(host.textContent).toContain("ID 80474");
+    expect(host.textContent).toContain("1080P");
     expect(host.textContent).toContain("72 ms");
     expect(host.textContent).toContain("2 集");
+    expect(host.textContent).toContain("Beta Source");
+    expect(host.textContent).toContain("24 集");
 
     act(() => {
       root.unmount();

@@ -1,12 +1,15 @@
 "use client";
 
 import {
+  ApiOutlined,
+  ClockCircleOutlined,
   FastBackwardFilled,
   FastForwardFilled,
   ForwardOutlined,
   GlobalOutlined,
   HeartFilled,
   HeartOutlined,
+  NumberOutlined,
   PlaySquareFilled,
   RightOutlined,
   SortAscendingOutlined,
@@ -1723,18 +1726,20 @@ export function PlayPageShell({
       <div className="min-h-screen px-4 py-5 text-foreground md:px-6 lg:px-8">
         <div className="mx-auto grid w-full max-w-400 gap-5">
           <div className="grid min-h-[50vh] place-items-center rounded-2xl border border-default-200/70 bg-surface px-6 text-center shadow-sm">
-            <div className="grid max-w-2xl justify-items-center gap-3">
-              <span className="grid h-14 w-14 place-items-center rounded-full border border-white/12 bg-white/8 text-2xl text-red-300">
-                <WarningOutlined />
-              </span>
-              <h1 className="text-lg font-semibold tracking-normal">
-                播放信息不可用
-              </h1>
-              <p className="text-sm leading-6 text-default-500">
-                {placeholderMessage}
-              </p>
+            <div className="grid w-full max-w-6xl justify-items-center gap-5 py-8">
+              <div className="grid max-w-2xl justify-items-center gap-3">
+                <span className="grid h-14 w-14 place-items-center rounded-full border border-white/12 bg-white/8 text-2xl text-red-300">
+                  <WarningOutlined />
+                </span>
+                <h1 className="text-lg font-semibold tracking-normal">
+                  播放信息不可用
+                </h1>
+                <p className="text-sm leading-6 text-default-500">
+                  {placeholderMessage}
+                </p>
+              </div>
               {playbackIndex?.trim() && playbackKeyword?.trim() ? (
-                <div className="mt-4 grid w-full gap-3 text-left">
+                <section className="grid w-full gap-3 text-left">
                   <div className="flex items-center justify-between gap-3">
                     <h2 className="text-sm font-semibold text-default-700">
                       可用片源
@@ -1757,37 +1762,79 @@ export function PlayPageShell({
                       没有找到可切换的片源。
                     </p>
                   ) : null}
-                  <div className="grid gap-3">
-                    {placeholderSourceOptions.map((source) => (
-                      <a
-                        key={`${source.key}:${source.id}`}
-                        className="grid gap-3 rounded-lg border border-default-200 bg-surface-secondary/50 p-4 text-left transition-colors hover:border-accent hover:bg-surface"
-                        href={createPlayUrl({
-                          id: source.id,
-                          source: source.key,
-                        })}
-                      >
-                        <span className="flex min-w-0 items-center gap-3 pr-16">
-                          <span className="min-w-0 truncate font-medium text-foreground">
-                            {source.name}
-                          </span>
-                        </span>
-                        <span className="flex flex-wrap items-center justify-between gap-3 text-xs text-default-500">
-                          <span className="flex min-w-0 flex-wrap items-center gap-2">
-                            {source.quality ? (
-                              <Tag color="processing">{source.quality}</Tag>
-                            ) : null}
-                            <Tag color={getPlaybackSourcePingTagColor(source.ping)}>
-                              延迟 {formatPlaybackSourcePing(source.ping)}
-                            </Tag>
-                            <span>{source.source_name}</span>
-                          </span>
-                          <Tag>{source.total_episodes} 集</Tag>
-                        </span>
-                      </a>
-                    ))}
+                  <div
+                    role="list"
+                    aria-label="可用片源列表"
+                    className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+                  >
+                    {placeholderSourceOptions.map((source) => {
+                      const sourceName =
+                        source.name.trim() ||
+                        source.source_name.trim() ||
+                        source.key;
+                      const sourceProvider = source.source_name.trim() || "未知接口";
+                      const sourceQuality = source.quality?.trim();
+
+                      return (
+                        <div key={`${source.key}:${source.id}`} role="listitem">
+                          <a
+                            className="group grid min-h-36 cursor-pointer content-between gap-4 rounded-lg border border-default-200 bg-surface-secondary/70 p-4 text-left transition-colors duration-200 hover:border-accent hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                            href={createPlayUrl({
+                              id: source.id,
+                              source: source.key,
+                            })}
+                            title={`${sourceName} / ${source.key} / ${source.id}`}
+                          >
+                            <span className="grid min-w-0 gap-3">
+                              <span className="flex min-w-0 items-start justify-between gap-3">
+                                <span className="min-w-0 truncate text-sm font-semibold text-foreground">
+                                  {sourceName}
+                                </span>
+                                {sourceQuality ? (
+                                  <Tag color="processing" className="m-0 shrink-0">
+                                    {sourceQuality}
+                                  </Tag>
+                                ) : null}
+                              </span>
+                              <span className="grid gap-2 text-xs text-default-500">
+                                <span className="flex min-w-0 items-center gap-2">
+                                  <ApiOutlined aria-hidden="true" className="shrink-0 text-default-400" />
+                                  <span className="min-w-0 truncate">
+                                    {sourceProvider}
+                                  </span>
+                                </span>
+                                <span className="grid grid-cols-2 gap-2">
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <GlobalOutlined aria-hidden="true" className="shrink-0 text-default-400" />
+                                    <span className="min-w-0 truncate">
+                                      源 {source.key}
+                                    </span>
+                                  </span>
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <NumberOutlined aria-hidden="true" className="shrink-0 text-default-400" />
+                                    <span className="min-w-0 truncate">
+                                      ID {source.id}
+                                    </span>
+                                  </span>
+                                </span>
+                              </span>
+                            </span>
+                            <span className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-xs text-default-500">
+                              <Tag
+                                color={getPlaybackSourcePingTagColor(source.ping)}
+                                className="m-0"
+                              >
+                                <ClockCircleOutlined aria-hidden="true" className="mr-1" />
+                                延迟 {formatPlaybackSourcePing(source.ping)}
+                              </Tag>
+                              <Tag className="m-0">{source.total_episodes} 集</Tag>
+                            </span>
+                          </a>
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
+                </section>
               ) : null}
             </div>
           </div>
