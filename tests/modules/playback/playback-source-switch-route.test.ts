@@ -183,13 +183,13 @@ describe("playback source switch API route", () => {
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
-    const json = vi.fn(async () => payload);
-    Object.defineProperty(request, "json", { value: json });
+    const text = vi.fn(async () => JSON.stringify(payload));
+    Object.defineProperty(request, "text", { value: text });
 
     const response = await route.POST(request);
 
     expect(response.status).toBe(200);
-    expect(json).toHaveBeenCalledTimes(1);
+    expect(text).toHaveBeenCalledTimes(1);
     expect(switchPlaybackSourceMock).toHaveBeenCalledWith(
       {
         current: { id: "79126", source: "iqiyizyapi.com" },
@@ -202,7 +202,7 @@ describe("playback source switch API route", () => {
     );
   });
 
-  it("reads the playback source switch payload with request json exactly once", async () => {
+  it("reads the playback source switch payload with request text exactly once", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } });
     switchPlaybackSourceMock.mockResolvedValue({
       episodes: [],
@@ -227,15 +227,15 @@ describe("playback source switch API route", () => {
     };
     const request = {
       headers: new Headers({ "Content-Type": "application/json" }),
-      json: vi.fn(async () => payload),
       method: "POST",
+      text: vi.fn(async () => JSON.stringify(payload)),
       url: "http://localhost/api/play/source-switch",
     } as unknown as Request;
 
     const response = await route.POST(request);
 
     expect(response.status).toBe(200);
-    expect((request as unknown as { json: ReturnType<typeof vi.fn> }).json).toHaveBeenCalledTimes(1);
+    expect((request as unknown as { text: ReturnType<typeof vi.fn> }).text).toHaveBeenCalledTimes(1);
     expect(switchPlaybackSourceMock).toHaveBeenCalledWith(
       {
         current: { id: "79126", source: "iqiyizyapi.com" },
@@ -277,21 +277,21 @@ describe("playback source switch API route", () => {
     };
     const request = {
       headers: new Headers({ "Content-Type": "application/json" }),
-      json: vi.fn(async () => {
+      method: "POST",
+      text: vi.fn(async () => {
         if (authWasCalled) {
           throw new TypeError("Body is unusable");
         }
 
-        return payload;
+        return JSON.stringify(payload);
       }),
-      method: "POST",
       url: "http://localhost/api/play/source-switch",
     } as unknown as Request;
 
     const response = await route.POST(request);
 
     expect(response.status).toBe(200);
-    expect((request as unknown as { json: ReturnType<typeof vi.fn> }).json).toHaveBeenCalledTimes(1);
+    expect((request as unknown as { text: ReturnType<typeof vi.fn> }).text).toHaveBeenCalledTimes(1);
     expect(switchPlaybackSourceMock).toHaveBeenCalledWith(
       {
         current: { id: "79126", source: "iqiyizyapi.com" },

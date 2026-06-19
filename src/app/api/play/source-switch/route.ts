@@ -11,7 +11,7 @@ import { recordApiRequest } from "@/modules/stats";
 export const runtime = "nodejs";
 
 const sourceSwitchLogPrefix = "[play/source-switch]";
-const sourceSwitchDiagnosticVersion = "request-json-once-v4";
+const sourceSwitchDiagnosticVersion = "request-text-once-v5";
 
 function readRequestPath(request: Request) {
   try {
@@ -118,17 +118,30 @@ function asObject(input: unknown) {
     : null;
 }
 
-function readJsonObjectPayload(parsed: unknown, diagnostics: Record<string, unknown>) {
-  const parsedType = Array.isArray(parsed) ? "array" : typeof parsed;
-  const payload = asObject(parsed);
+function readJsonObjectPayload(rawBody: string, diagnostics: Record<string, unknown>) {
+  try {
+    const parsed = JSON.parse(rawBody) as unknown;
+    const parsedType = Array.isArray(parsed) ? "array" : typeof parsed;
+    const payload = asObject(parsed);
 
-  return {
-    diagnostics: {
-      ...diagnostics,
-      parsedType,
-    },
-    payload,
-  };
+    return {
+      diagnostics: {
+        ...diagnostics,
+        parsedType,
+      },
+      payload,
+    };
+  } catch (error) {
+    return {
+      diagnostics: {
+        ...diagnostics,
+        parseErrorMessage: error instanceof Error ? error.message : String(error),
+        parseErrorName: error instanceof Error ? error.name : typeof error,
+        parsedType: "unparsed",
+      },
+      payload: null,
+    };
+  }
 }
 
 function readString(payload: Record<string, unknown>, key: string) {
@@ -149,10 +162,12 @@ export async function POST(request: Request) {
   let payload: Record<string, unknown> | null;
   try {
     logSourceSwitchCheckpoint(request, "before-read-body", startedAt);
-    const parsed = await request.json() as unknown;
-    const payloadResult = readJsonObjectPayload(parsed, {
+    const rawBody = await request.text();
+    const payloadResult = readJsonObjectPayload(rawBody, {
       bodyUsedAfterRead: request.bodyUsed,
-      readMode: "request-json",
+      rawBody,
+      rawBodyLength: rawBody.length,
+      readMode: "request-text",
     });
     payload = payloadResult.payload;
     logSourceSwitchCheckpoint(request, "after-read-body", startedAt, {
@@ -163,7 +178,7 @@ export async function POST(request: Request) {
   } catch (error) {
     logSourceSwitchError(request, "read-body-failed", startedAt, error, {
       bodyUsedAfterRead: request.bodyUsed,
-      readMode: "request-json",
+      readMode: "request-text",
     });
     payload = null;
   }
