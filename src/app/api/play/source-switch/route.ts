@@ -11,6 +11,7 @@ import { recordApiRequest } from "@/modules/stats";
 export const runtime = "nodejs";
 
 const sourceSwitchLogPrefix = "[play/source-switch]";
+const sourceSwitchDiagnosticVersion = "body-json-before-auth-v2";
 
 function readRequestPath(request: Request) {
   try {
@@ -31,6 +32,18 @@ function readStorageDiagnostics() {
   };
 }
 
+function readRequestDiagnostics(request: Request) {
+  const headers = request.headers;
+
+  return {
+    bodyUsed: request.bodyUsed,
+    contentLength: headers?.get("content-length") ?? "",
+    contentType: headers?.get("content-type") ?? "",
+    diagnosticVersion: sourceSwitchDiagnosticVersion,
+    hasBodyStream: Boolean(request.body),
+  };
+}
+
 function logSourceSwitchCheckpoint(
   request: Request,
   checkpoint: string,
@@ -43,6 +56,7 @@ function logSourceSwitchCheckpoint(
     method: request.method,
     path: readRequestPath(request),
     runtime,
+    ...readRequestDiagnostics(request),
     ...readStorageDiagnostics(),
     ...extra,
   });
@@ -63,6 +77,7 @@ function logSourceSwitchError(
     method: request.method,
     path: readRequestPath(request),
     runtime,
+    ...readRequestDiagnostics(request),
     ...readStorageDiagnostics(),
     ...extra,
   });
@@ -108,25 +123,50 @@ async function readJsonObjectPayload(request: Request) {
 
   try {
     parsed = await request.json();
-  } catch {
-    return null;
+  } catch (error) {
+    return {
+      payload: null,
+      diagnostics: {
+        bodyUsedAfterRead: request.bodyUsed,
+        parseErrorMessage: error instanceof Error ? error.message : String(error),
+        parseErrorName: error instanceof Error ? error.name : typeof error,
+        parsedType: "unparsed",
+      },
+    };
   }
 
+  const parsedType = Array.isArray(parsed) ? "array" : typeof parsed;
+  const diagnostics = {
+    bodyUsedAfterRead: request.bodyUsed,
+    parsedStringLength: typeof parsed === "string" ? parsed.length : 0,
+    parsedType,
+  };
   const payload = asObject(parsed);
 
   if (payload) {
-    return payload;
+    return { diagnostics, payload };
   }
 
   if (typeof parsed === "string") {
     try {
-      return asObject(JSON.parse(parsed));
-    } catch {
-      return null;
+      return { diagnostics: { ...diagnostics, parsedNestedJson: true }, payload: asObject(JSON.parse(parsed)) };
+    } catch (error) {
+      return {
+        payload: null,
+        diagnostics: {
+          ...diagnostics,
+          nestedParseErrorMessage: error instanceof Error ? error.message : String(error),
+          nestedParseErrorName: error instanceof Error ? error.name : typeof error,
+          parsedNestedJson: false,
+        },
+      };
     }
   }
 
-  return null;
+  return {
+    payload: null,
+    diagnostics,
+  };
 }
 
 function readString(payload: Record<string, unknown>, key: string) {
@@ -147,8 +187,10 @@ export async function POST(request: Request) {
   let payload: Record<string, unknown> | null;
   try {
     logSourceSwitchCheckpoint(request, "before-read-body", startedAt);
-    payload = await readJsonObjectPayload(request);
+    const payloadResult = await readJsonObjectPayload(request);
+    payload = payloadResult.payload;
     logSourceSwitchCheckpoint(request, "after-read-body", startedAt, {
+      ...payloadResult.diagnostics,
       hasPayload: Boolean(payload),
       payloadKeys: payload ? Object.keys(payload).sort() : [],
     });
