@@ -3,22 +3,18 @@ import { checkAllHistoryUpdates } from "@/modules/history";
 import { withApiTraffic } from "@/modules/stats";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 async function runScheduledHistoryUpdateCheck() {
-  try {
-    await checkAllHistoryUpdates();
-  } catch (error) {
-    console.error("Failed to run scheduled history update check.", error);
-  }
-}
-
-function scheduleHistoryUpdateCheck() {
-  setTimeout(() => {
-    void runScheduledHistoryUpdateCheck();
-  }, 0);
+  return checkAllHistoryUpdates();
 }
 
 export const GET = withApiTraffic(async function GET() {
-  scheduleHistoryUpdateCheck();
-  return NextResponse.json({ message: "History update check scheduled." });
+  try {
+    const result = await runScheduledHistoryUpdateCheck();
+    return NextResponse.json({ message: "History update check completed.", result });
+  } catch (error) {
+    console.error("Failed to run scheduled history update check.", error);
+    return NextResponse.json({ message: "Failed to run scheduled history update check." }, { status: 500 });
+  }
 });

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runConfigFilesSubscriptionAutoUpdateMock = vi.fn();
-const waitForBackgroundTask = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 vi.mock("@/modules/admin", () => ({
   runConfigFilesSubscriptionAutoUpdate: runConfigFilesSubscriptionAutoUpdateMock,
@@ -14,32 +13,39 @@ describe("subscription cron route", () => {
     runConfigFilesSubscriptionAutoUpdateMock.mockReset();
   });
 
-  it("returns success before running the background subscription update", async () => {
+  it("returns the update result after the scheduled subscription update completes", async () => {
     route ??= await import("@/app/api/cron/subscription/route");
+    const result = {
+      subscription: { autoUpdate: true, updatedAt: "2026-06-20T00:00:00.000Z", url: "https://example.com/config.json" },
+      updated: true,
+    };
     let finishUpdate: (() => void) | undefined;
 
     runConfigFilesSubscriptionAutoUpdateMock.mockReturnValue(
-      new Promise<void>((resolve) => {
+      new Promise<typeof result>((resolve) => {
         finishUpdate = resolve;
-      }),
+      }).then(() => result),
     );
 
+    expect(route.runtime).toBe("nodejs");
+    expect(route.maxDuration).toBe(120);
+
     const responsePromise = route.GET();
-    const response = await Promise.race([
+    const pendingResponse = await Promise.race([
       responsePromise,
       new Promise<"not returned">((resolve) => setTimeout(() => resolve("not returned"), 10)),
     ]);
 
-    if (!(response instanceof Response)) {
-      throw new Error("subscription cron response did not return before the background task finished.");
-    }
+    expect(pendingResponse).toBe("not returned");
+    expect(runConfigFilesSubscriptionAutoUpdateMock).toHaveBeenCalledTimes(1);
+
+    finishUpdate?.();
+    const response = await responsePromise;
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ message: "Subscription update scheduled." });
-    expect(runConfigFilesSubscriptionAutoUpdateMock).not.toHaveBeenCalled();
-
-    await waitForBackgroundTask();
-    expect(runConfigFilesSubscriptionAutoUpdateMock).toHaveBeenCalledTimes(1);
-    finishUpdate?.();
+    await expect(response.json()).resolves.toEqual({
+      message: "Subscription update completed.",
+      result,
+    });
   });
 });

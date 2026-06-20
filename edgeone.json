@@ -1,0 +1,30 @@
+{
+  "cloudFunctions": {
+    "nodejs": {
+      "maxDuration": 120
+    }
+  },
+  "schedules": [
+    {
+      "name": "history-update",
+      "cron": "*/30 * * * *",
+      "path": "/api/cron/history",
+      "method": "GET",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "name": "subscription-update",
+      "cron": "0 2 * * *",
+      "path": "/api/cron/subscription",
+      "method": "GET",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "name": "source-check",
+      "cron": "0 3 * * *",
+      "path": "/api/cron/source-check",
+      "method": "GET",
+      "timezone": "Asia/Shanghai"
+    }
+  ]
+}
