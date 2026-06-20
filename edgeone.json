@@ -7,7 +7,7 @@
   "schedules": [
     {
       "name": "history-update",
-      "cron": "*/30 * * * *",
+      "cron": "0 1 * * *",
       "path": "/api/cron/history",
       "method": "GET",
       "timezone": "Asia/Shanghai"

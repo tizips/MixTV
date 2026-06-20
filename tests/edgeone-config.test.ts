@@ -26,14 +26,14 @@ async function readEdgeOneConfig() {
 }
 
 describe("edgeone.json", () => {
-  it("runs cron APIs on the requested schedules with the maximum node timeout", async () => {
+  it("runs cron APIs on free-plan compatible daily schedules with the maximum node timeout", async () => {
     const config = await readEdgeOneConfig();
 
     expect(config.cloudFunctions?.nodejs?.maxDuration).toBe(120);
     expect(config.schedules).toEqual([
       {
         name: "history-update",
-        cron: "*/30 * * * *",
+        cron: "0 1 * * *",
         path: "/api/cron/history",
         method: "GET",
         timezone: "Asia/Shanghai",

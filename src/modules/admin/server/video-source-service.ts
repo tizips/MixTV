@@ -38,7 +38,6 @@ export interface VideoSourceValidityCheckResult {
 }
 
 export interface VideoSourceValidityCheckOptions {
-  concurrency?: number;
   fetcher?: typeof fetch;
   onResult?: (result: VideoSourceValidityCheckResult) => void;
   onStart?: (summary: { total: number }) => void;
@@ -393,14 +392,6 @@ async function deleteVideoSourceRecord(key: string, store: VideoSourceStore) {
   });
 }
 
-function normalizeValidityCheckConcurrency(concurrency: number | undefined) {
-  if (typeof concurrency !== "number" || !Number.isFinite(concurrency)) {
-    return 1;
-  }
-
-  return Math.max(1, Math.floor(concurrency));
-}
-
 export async function createVideoSource(input: unknown, store: VideoSourceStore = createVideoSourceStore()) {
   const current = await readStoredVideoSourceItems(store);
   const source = normalizeVideoSource(input);
@@ -482,7 +473,6 @@ export async function batchUpdateVideoSources(input: unknown, store: VideoSource
 export async function checkVideoSourceValidities(
   input: unknown,
   {
-    concurrency,
     fetcher = fetch,
     onResult,
     onStart,
@@ -499,18 +489,9 @@ export async function checkVideoSourceValidities(
 
   const current = await readStoredVideoSourceItems(store);
   const checkedSources: VideoSourceItem[] = [];
-  const concurrencyLimit = normalizeValidityCheckConcurrency(concurrency);
-  let nextSourceIndex = 0;
   onStart?.({ total: current.length });
 
-  async function checkNextSource() {
-    const source = current[nextSourceIndex];
-    nextSourceIndex += 1;
-
-    if (!source) {
-      return;
-    }
-
+  for (const source of current) {
     const validity = await detectVideoSourceValidity(source, keyword, fetcher);
     const checkedSource = normalizeVideoSource({ ...source, validity }, source);
 
@@ -527,13 +508,7 @@ export async function checkVideoSourceValidities(
       name: checkedSource.name,
       validity,
     });
-
-    await checkNextSource();
   }
-
-  await Promise.all(
-    Array.from({ length: Math.min(concurrencyLimit, current.length) }, () => checkNextSource()),
-  );
 
   return toVideoSourceCollection(checkedSources);
 }
