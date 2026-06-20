@@ -315,6 +315,75 @@ describe("video source service", () => {
     });
   });
 
+  it("checks every video source while limiting concurrent validity requests", async () => {
+    const store = createFakeStore(
+      Object.fromEntries(
+        Array.from({ length: 12 }, (_, index) => {
+          const no = index + 1;
+          const key = `source-${no.toString().padStart(2, "0")}`;
+
+          return [
+            key,
+            JSON.stringify({
+              adult: false,
+              apiUrl: `https://${key}.test/api`,
+              key,
+              name: `Source ${no}`,
+              no,
+              status: "enabled",
+              type: "normal",
+              updatedAt: null,
+              validity: "warning",
+              weight: 10,
+            }),
+          ];
+        }),
+      ),
+    );
+    const releaseFetches: Array<() => void> = [];
+    const waitForTasks = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const fetcher = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          releaseFetches.push(() => resolve(new Response(JSON.stringify({ list: [{ vod_name: "Movie" }] }), { status: 200 })));
+        }),
+    );
+
+    const checkPromise = checkVideoSourceValidities(
+      { keyword: "movie" },
+      {
+        concurrency: 10,
+        fetcher,
+        store,
+      },
+    );
+
+    await waitForTasks();
+    expect(fetcher).toHaveBeenCalledTimes(10);
+
+    releaseFetches.splice(0).forEach((releaseFetch) => releaseFetch());
+    await waitForTasks();
+    expect(fetcher).toHaveBeenCalledTimes(12);
+
+    releaseFetches.splice(0).forEach((releaseFetch) => releaseFetch());
+    const checked = await checkPromise;
+
+    expect(checked.sources.map((source) => source.key)).toEqual([
+      "source-01",
+      "source-02",
+      "source-03",
+      "source-04",
+      "source-05",
+      "source-06",
+      "source-07",
+      "source-08",
+      "source-09",
+      "source-10",
+      "source-11",
+      "source-12",
+    ]);
+  });
+
   it("syncs config api_site entries into video sources without changing existing source flags", async () => {
     const store = createFakeStore({
       alpha: JSON.stringify({
