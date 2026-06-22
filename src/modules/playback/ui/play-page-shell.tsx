@@ -802,6 +802,8 @@ export function PlayPageShell({
   const shouldResumePlaybackRef = useRef(false);
   const currentPlaybackSecondsRef = useRef(initialResumeTimeSeconds);
   const currentPlaybackDurationRef = useRef(playbackDurationSeconds);
+  const currentPlaybackUrlRef = useRef("");
+  const initialResumeTimeSecondsRef = useRef(initialResumeTimeSeconds);
 
   const episodeGroups = useMemo(
     () => (playbackData ? getEpisodeGroups(playbackData.episodes) : []),
@@ -825,6 +827,8 @@ export function PlayPageShell({
     playbackData?.sources[activeEpisode - 1]?.url ??
     playbackData?.sources[0]?.url ??
     "";
+  const hasPlayablePlaybackData =
+    !hasPlaybackPlaceholderError && Boolean(playbackData);
   const currentPlaybackDanmakuUrl = createPlaybackDanmakuUrl({
     title: playbackData?.title ?? "",
     playEpisodes: activeEpisode,
@@ -847,6 +851,12 @@ export function PlayPageShell({
     skipPlayback: () => undefined,
     playNextEpisode: () => undefined,
   });
+  useEffect(() => {
+    currentPlaybackUrlRef.current = currentPlaybackUrl;
+  }, [currentPlaybackUrl]);
+  useEffect(() => {
+    initialResumeTimeSecondsRef.current = initialResumeTimeSeconds;
+  }, [initialResumeTimeSeconds]);
   useEffect(() => {
     progressEndpointRef.current = progressEndpoint;
   }, [progressEndpoint]);
@@ -904,6 +914,12 @@ export function PlayPageShell({
 
     await danmakuPlugin.load(danmaku);
   }, [loadPlaybackDanmaku]);
+  const loadPlaybackDanmakuIntoPluginRef = useRef(
+    loadPlaybackDanmakuIntoPlugin,
+  );
+  useEffect(() => {
+    loadPlaybackDanmakuIntoPluginRef.current = loadPlaybackDanmakuIntoPlugin;
+  }, [loadPlaybackDanmakuIntoPlugin]);
   useEffect(() => {
     danmakuPreferencesRef.current = danmakuPreferences;
   }, [danmakuPreferences]);
@@ -937,6 +953,10 @@ export function PlayPageShell({
       method: "POST",
     }).catch(() => undefined);
   }, [hasPlaybackPlaceholderError, playbackData]);
+  const uploadPlaybackProgressRef = useRef(uploadPlaybackProgress);
+  useEffect(() => {
+    uploadPlaybackProgressRef.current = uploadPlaybackProgress;
+  }, [uploadPlaybackProgress]);
   useEffect(() => {
     if (!playbackData?.index || !playbackData.title.trim()) {
       return;
@@ -1266,6 +1286,10 @@ export function PlayPageShell({
     },
     [playbackCoverDefaultUrl, setPlaybackPosterVisible],
   );
+  const capturePlaybackCoverRef = useRef(capturePlaybackCover);
+  useEffect(() => {
+    capturePlaybackCoverRef.current = capturePlaybackCover;
+  }, [capturePlaybackCover]);
   const toggleStrongBuffering = useCallback((enabled: boolean) => {
     const art = artPlayerRef.current;
 
@@ -1323,7 +1347,7 @@ export function PlayPageShell({
   useEffect(() => {
     const container = artContainerRef.current;
 
-    if (hasPlaybackPlaceholderError || !container || !playbackData) {
+    if (!hasPlayablePlaybackData || !container) {
       return;
     }
 
@@ -1345,7 +1369,7 @@ export function PlayPageShell({
 
         const art = new ArtplayerConstructor({
           container: artContainerRef.current,
-          url: currentPlaybackUrl,
+          url: currentPlaybackUrlRef.current,
           type: "m3u8",
           poster: playbackCoverDefaultUrl,
           volume: defaultPlaybackVolume / 100,
@@ -1448,7 +1472,8 @@ export function PlayPageShell({
             currentPlaybackDurationRef.current = art.duration;
           }
           const resumeTimeSeconds =
-            currentPlaybackSecondsRef.current || initialResumeTimeSeconds;
+            currentPlaybackSecondsRef.current ||
+            initialResumeTimeSecondsRef.current;
           if (
             !hasAppliedResumeTimeRef.current &&
             resumeTimeSeconds > 0
@@ -1471,10 +1496,10 @@ export function PlayPageShell({
         art.on("video:timeupdate", () => {
           currentPlaybackSecondsRef.current = art.currentTime;
         });
-        art.on("video:loadeddata", () => capturePlaybackCover(art));
+        art.on("video:loadeddata", () => capturePlaybackCoverRef.current(art));
         art.on("video:seeked", () => {
-          capturePlaybackCover(art);
-          uploadPlaybackProgress();
+          capturePlaybackCoverRef.current(art);
+          uploadPlaybackProgressRef.current();
         });
         art.on("video:play", () => {
           setPlaybackError(null);
@@ -1485,17 +1510,17 @@ export function PlayPageShell({
         });
         art.on("video:pause", () => {
           setIsPlaying(false);
-          uploadPlaybackProgress();
+          uploadPlaybackProgressRef.current();
         });
         art.on("video:ended", () => {
-          uploadPlaybackProgress();
-          playNextEpisode();
+          uploadPlaybackProgressRef.current();
+          playbackActionsRef.current.playNextEpisode();
         });
         art.on("video:canplay", () => {
-          capturePlaybackCover(art);
+          capturePlaybackCoverRef.current(art);
         });
         art.on("video:canplaythrough", () => {
-          capturePlaybackCover(art);
+          capturePlaybackCoverRef.current(art);
         });
         art.on("fullscreenWeb", (state) => setIsWebFullscreen(state));
         art.on("video:volumechange", () => {
@@ -1524,7 +1549,7 @@ export function PlayPageShell({
           void art.play();
         }
 
-        void loadPlaybackDanmakuIntoPlugin();
+        void loadPlaybackDanmakuIntoPluginRef.current();
       },
     );
 
@@ -1533,21 +1558,14 @@ export function PlayPageShell({
       artPlayerRef.current?.destroy(false);
       artPlayerRef.current = null;
     };
-    // Intentionally initialize the Artplayer instance once per playback payload.
+    // Keep the Artplayer instance mounted across episode/source URL changes so
+    // browser fullscreen is not torn down while switching videos.
   }, [
-    capturePlaybackCover,
-    hasPlaybackPlaceholderError,
-    initialResumeTimeSeconds,
+    hasPlayablePlaybackData,
     isStrongBuffering,
-    currentPlaybackUrl,
-    loadPlaybackDanmakuIntoPlugin,
-    playbackData,
-    playbackCoverUrl,
     playbackCoverDefaultUrl,
     playerSettings,
-    playNextEpisode,
     setPlaybackPosterVisible,
-    uploadPlaybackProgress,
   ]);
 
   useEffect(() => {
@@ -1653,18 +1671,26 @@ export function PlayPageShell({
       return;
     }
 
-    currentPlaybackSecondsRef.current = 0;
-    hasPlaybackStartedRef.current = false;
+    const shouldResumePlayback =
+      shouldResumePlaybackRef.current || isPlayingRef.current;
+    shouldResumePlaybackRef.current = false;
+    hasAppliedResumeTimeRef.current = false;
     if (art) {
       art.poster = playbackCoverDefaultUrl;
       setPlaybackPosterVisible(art, true);
     }
     setPlaybackError(null);
-    hasAppliedResumeTimeRef.current = true;
 
-    void art.switchUrl(currentSource.url).catch(() => {
-      setPlaybackError("切换线路失败，请稍后重试。");
-    });
+    void art
+      .switchUrl(currentSource.url)
+      .then(() => {
+        if (shouldResumePlayback) {
+          void art.play();
+        }
+      })
+      .catch(() => {
+        setPlaybackError("切换线路失败，请稍后重试。");
+      });
   }, [currentSource, playbackCoverDefaultUrl, setPlaybackPosterVisible]);
 
   const renderPlaybackTabLabel = useCallback(

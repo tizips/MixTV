@@ -1041,7 +1041,7 @@ describe("PlayPageShell client playback cover", () => {
     });
   });
 
-  it("switches to the selected episode source and keeps playing when an episode is changed during playback", async () => {
+  it("switches to the selected episode source in place and keeps playing when an episode is changed during playback", async () => {
     const host = document.createElement("div");
     document.body.append(host);
     const root = createRoot(host);
@@ -1103,15 +1103,10 @@ describe("PlayPageShell client playback cover", () => {
       await Promise.resolve();
     });
 
-    const currentArt = artplayerState.instances.at(-1);
-
-    if (!currentArt) {
-      throw new Error("Artplayer was not reinitialized");
-    }
-
     expect(host.textContent).toContain("第 2 集");
-    expect(currentArt.url).toBe("https://media.test/2.m3u8");
-    expect(currentArt.playing).toBe(true);
+    expect(artplayerState.instances).toHaveLength(1);
+    expect(art.url).toBe("https://media.test/2.m3u8");
+    expect(art.playing).toBe(true);
 
     act(() => {
       root.unmount();
