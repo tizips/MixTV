@@ -15,6 +15,7 @@ export interface DanmakuConfig {
   apiUrl: string;
   apiToken: string;
   requestTimeoutSeconds: number;
+  loadMode: "full" | "segment";
   updatedAt: string | null;
 }
 
@@ -25,7 +26,7 @@ return redis.call("HGETALL", KEYS[1])
 `;
 
 const saveDanmakuConfigScript = `
-redis.call("HSET", KEYS[1], "enabled", ARGV[1], "apiUrl", ARGV[2], "apiToken", ARGV[3], "requestTimeoutSeconds", ARGV[4], "updatedAt", ARGV[5])
+redis.call("HSET", KEYS[1], "enabled", ARGV[1], "apiUrl", ARGV[2], "apiToken", ARGV[3], "requestTimeoutSeconds", ARGV[4], "loadMode", ARGV[5], "updatedAt", ARGV[6])
 return 1
 `;
 
@@ -34,6 +35,7 @@ export const defaultDanmakuConfig: DanmakuConfig = {
   apiUrl: "https://smonedanmu.vercel.app",
   apiToken: "smonetv",
   requestTimeoutSeconds: 30,
+  loadMode: "full",
   updatedAt: null,
 };
 
@@ -77,6 +79,7 @@ function readDanmakuHashConfig(raw: unknown): Partial<DanmakuConfig> | null {
     ...(typeof record.requestTimeoutSeconds === "string"
       ? { requestTimeoutSeconds: readNumber({ requestTimeoutSeconds: record.requestTimeoutSeconds }, "requestTimeoutSeconds", 10, 1, 120) }
       : {}),
+    ...(record.loadMode === "segment" ? { loadMode: "segment" } : record.loadMode === "full" ? { loadMode: "full" } : {}),
     ...(typeof record.updatedAt === "string" ? { updatedAt: record.updatedAt } : {}),
   };
 }
@@ -100,6 +103,7 @@ export async function saveDanmakuConfig(input: unknown, store: AdminModulesStore
     apiUrl: readString(payload, "apiUrl"),
     apiToken: readString(payload, "apiToken"),
     requestTimeoutSeconds: readNumber(payload, "requestTimeoutSeconds", 10, 1, 120),
+    loadMode: payload.loadMode === "segment" ? "segment" : "full",
     updatedAt: now(),
   };
 
@@ -109,6 +113,7 @@ export async function saveDanmakuConfig(input: unknown, store: AdminModulesStore
       saved.apiUrl,
       saved.apiToken,
       String(saved.requestTimeoutSeconds),
+      saved.loadMode,
       saved.updatedAt,
     ],
     keys: [key],

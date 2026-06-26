@@ -208,6 +208,8 @@ export const cloudSearchTestRequestSchema = z
     }
   });
 
+const danmakuLoadModeKeys = ["full", "segment"] as const;
+
 const danmakuApiUrlSchema = z
   .string({ error: "apiUrl is required." })
   .trim()
@@ -232,6 +234,7 @@ export const danmakuConfigRequestSchema = z
     apiUrl: danmakuApiUrlSchema,
     apiToken: danmakuApiTokenSchema,
     requestTimeoutSeconds: z.number({ error: "requestTimeoutSeconds is required." }),
+    loadMode: z.enum(danmakuLoadModeKeys, { error: "loadMode is invalid." }),
   })
   .strict()
   .superRefine((value, context) => {

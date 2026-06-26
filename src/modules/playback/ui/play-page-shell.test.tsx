@@ -438,13 +438,18 @@ describe("PlayPageShell client playback cover", () => {
 
       if (url === `/api/play/danmaku?${new URLSearchParams({ title: "资源站标题 S01E01", play_episodes: "1" })}`) {
         return new Response(
-          JSON.stringify([
-            {
-              text: "这女的戏份真多",
-              time: 0,
-              mode: 0,
-            },
-          ]),
+          JSON.stringify({
+            loadMode: "full",
+            items: [
+              {
+                text: "这女的戏份真多",
+                time: 0,
+                mode: 0,
+              },
+            ],
+            segments: [],
+            episodeId: "episode-1",
+          }),
         );
       }
 
@@ -470,6 +475,7 @@ describe("PlayPageShell client playback cover", () => {
       expect.objectContaining({ headers: { Accept: "application/json" } }),
     );
     expect(artplayerState.danmakuLoads).toEqual([
+      [],
       [
         {
           text: "这女的戏份真多",

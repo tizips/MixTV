@@ -57,6 +57,7 @@ describe("danmaku service", () => {
         apiUrl: " https://danmaku.test ",
         apiToken: " token ",
         requestTimeoutSeconds: 0,
+        loadMode: "full",
       },
       store,
     );
@@ -64,6 +65,7 @@ describe("danmaku service", () => {
     expect(saved.apiUrl).toBe("https://danmaku.test");
     expect(saved.apiToken).toBe("token");
     expect(saved.requestTimeoutSeconds).toBe(1);
+    expect(saved.loadMode).toBe("full");
     expect(store.set).not.toHaveBeenCalledWith("danmaku", expect.anything());
     expect(store.script).toHaveBeenCalledWith(expect.stringContaining("HSET"), {
       args: [
@@ -71,6 +73,7 @@ describe("danmaku service", () => {
         "https://danmaku.test",
         "token",
         "1",
+        "full",
         saved.updatedAt,
       ],
       keys: ["danmaku"],
@@ -84,6 +87,7 @@ describe("danmaku service", () => {
       apiUrl: "https://hash.danmaku.test",
       apiToken: "hash-token",
       requestTimeoutSeconds: 8,
+      loadMode: "segment",
       updatedAt: "2026-05-15T00:00:00.000Z",
     };
 
@@ -92,6 +96,7 @@ describe("danmaku service", () => {
       apiUrl: "https://hash.danmaku.test",
       apiToken: "hash-token",
       requestTimeoutSeconds: "8",
+      loadMode: "segment",
       updatedAt: "2026-05-15T00:00:00.000Z",
     });
     await expect(getDanmakuConfig(hashStore)).resolves.toEqual(storedConfig);
@@ -115,6 +120,8 @@ describe("danmaku service", () => {
         "array-token",
         "requestTimeoutSeconds",
         "12",
+        "loadMode",
+        "segment",
         "updatedAt",
         "2026-05-15T01:00:00.000Z",
       ] as TResult) as AdminModulesStore["script"],
@@ -126,6 +133,7 @@ describe("danmaku service", () => {
       apiUrl: "https://array.danmaku.test",
       apiToken: "array-token",
       requestTimeoutSeconds: 12,
+      loadMode: "segment",
       updatedAt: "2026-05-15T01:00:00.000Z",
     });
   });

@@ -51,6 +51,8 @@ export function createPlaybackDanmakuUrl(input: { playEpisodes: number; title: s
   }).toString()}`;
 }
 
+export const playbackDanmakuSegmentEndpoint = "/api/play/danmaku";
+
 export function formatPlaybackDanmakuRequestTitle(input: { playEpisodes: number; title: string }) {
   const rawTitle = input.title.trim();
 

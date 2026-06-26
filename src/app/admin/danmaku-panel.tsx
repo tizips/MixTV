@@ -15,15 +15,19 @@ import {
   Form,
   Input,
   InputNumber,
+  Select,
   Switch,
   Tag,
 } from "antd";
+
+type DanmakuLoadMode = "full" | "segment";
 
 type DanmakuConfig = {
   enabled: boolean;
   apiUrl: string;
   apiToken: string;
   requestTimeoutSeconds: number;
+  loadMode: DanmakuLoadMode;
   updatedAt: string | null;
 };
 
@@ -32,6 +36,7 @@ type DanmakuFormValues = {
   apiUrl: string;
   apiToken: string;
   requestTimeoutSeconds: number;
+  loadMode: DanmakuLoadMode;
 };
 
 const defaultConfig: DanmakuConfig = {
@@ -39,6 +44,7 @@ const defaultConfig: DanmakuConfig = {
   apiUrl: "https://smonedanmu.vercel.app",
   apiToken: "smonetv",
   requestTimeoutSeconds: 10,
+  loadMode: "full",
   updatedAt: null,
 };
 
@@ -50,6 +56,10 @@ function normalizeTimeout(value: string) {
   }
 
   return Math.min(120, Math.max(1, Math.round(timeout)));
+}
+
+function normalizeLoadMode(value: unknown): DanmakuLoadMode {
+  return value === "segment" ? "segment" : "full";
 }
 
 function normalizeConfig(payload: unknown): DanmakuConfig {
@@ -67,6 +77,7 @@ function normalizeConfig(payload: unknown): DanmakuConfig {
       typeof raw.requestTimeoutSeconds === "number"
         ? normalizeTimeout(String(raw.requestTimeoutSeconds))
         : defaultConfig.requestTimeoutSeconds,
+    loadMode: normalizeLoadMode(raw.loadMode),
     updatedAt:
       typeof raw.updatedAt === "string" || raw.updatedAt === null
         ? raw.updatedAt
@@ -118,12 +129,13 @@ function createSavePayload(config: Partial<DanmakuFormValues>) {
     requestTimeoutSeconds: normalizeTimeout(
       String(config.requestTimeoutSeconds),
     ),
+    loadMode: normalizeLoadMode(config.loadMode),
   };
 }
 
 function validateDanmakuPayload(
   payload: Pick<DanmakuFormValues, "apiToken" | "apiUrl"> &
-    Partial<Pick<DanmakuFormValues, "requestTimeoutSeconds">>,
+    Partial<Pick<DanmakuFormValues, "requestTimeoutSeconds" | "loadMode">>,
 ) {
   if (!payload.apiToken.trim()) {
     return "请输入弹幕访问令牌。";
@@ -152,6 +164,10 @@ function validateDanmakuPayload(
     return "请求超时时间不能超过 120 秒。";
   }
 
+  if (payload.loadMode !== undefined && payload.loadMode !== "full" && payload.loadMode !== "segment") {
+    return "加载模式必须为全量请求或分片请求。";
+  }
+
   return null;
 }
 
@@ -161,6 +177,7 @@ function createFormValues(config: DanmakuConfig): DanmakuFormValues {
     apiUrl: config.apiUrl,
     apiToken: config.apiToken,
     requestTimeoutSeconds: config.requestTimeoutSeconds,
+    loadMode: config.loadMode,
   };
 }
 
@@ -412,6 +429,19 @@ export function DanmakuPanel() {
             max={120}
             controls={false}
             className="w-full"
+          />
+        </Form.Item>
+
+        <Form.Item
+          label="加载模式"
+          name="loadMode"
+          help="全量请求一次性拉取整集弹幕；分片请求按 60 秒分段边播边加载，首屏更快，适合弹幕量大的剧集。"
+        >
+          <Select
+            options={[
+              { value: "full", label: "全量请求" },
+              { value: "segment", label: "分片请求" },
+            ]}
           />
         </Form.Item>
 

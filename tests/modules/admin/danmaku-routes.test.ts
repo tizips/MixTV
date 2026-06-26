@@ -59,6 +59,7 @@ describe("danmaku API routes", () => {
       apiToken: "secret-token",
       apiUrl: "https://danmaku.test",
       requestTimeoutSeconds: 10,
+      loadMode: "full",
       updatedAt: "2026-05-15T00:00:00.000Z",
     });
     vi.mocked(testDanmakuConnection).mockResolvedValueOnce({
@@ -74,6 +75,7 @@ describe("danmaku API routes", () => {
           apiToken: " secret-token ",
           apiUrl: " https://danmaku.test ",
           requestTimeoutSeconds: 10,
+          loadMode: "full",
         }),
         method: "POST",
       }),
@@ -92,6 +94,7 @@ describe("danmaku API routes", () => {
       apiToken: "secret-token",
       apiUrl: "https://danmaku.test",
       requestTimeoutSeconds: 10,
+      loadMode: "full",
     });
     expect(testDanmakuConnection).toHaveBeenCalledWith({
       apiToken: "secret-token",

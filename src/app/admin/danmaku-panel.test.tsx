@@ -50,6 +50,7 @@ describe("DanmakuPanel", () => {
         apiUrl: "https://danmaku.test",
         apiToken: "secret-token",
         requestTimeoutSeconds: 12,
+        loadMode: "full",
         updatedAt: null,
       }),
       ok: true,
@@ -81,6 +82,7 @@ describe("DanmakuPanel", () => {
           apiUrl: "https://danmaku.test",
           apiToken: "secret-token",
           requestTimeoutSeconds: 12,
+          loadMode: "full",
           updatedAt: null,
         }),
         ok: true,
@@ -91,6 +93,7 @@ describe("DanmakuPanel", () => {
           apiUrl: "https://danmaku.test",
           apiToken: "secret-token",
           requestTimeoutSeconds: 12,
+          loadMode: "full",
           updatedAt: "2026-05-15T00:00:00.000Z",
         }),
         ok: true,
@@ -135,6 +138,7 @@ describe("DanmakuPanel", () => {
       apiUrl: "https://danmaku.test",
       apiToken: "secret-token",
       requestTimeoutSeconds: 12,
+      loadMode: "full",
     });
     expect(toastState.success).toHaveBeenCalledWith("弹幕配置已保存");
 

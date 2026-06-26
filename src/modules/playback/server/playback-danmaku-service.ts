@@ -21,6 +21,36 @@ export type PlaybackDanmakuItem = {
   time: number;
 };
 
+export type PlaybackDanmakuLoadMode = "full" | "segment";
+
+export interface PlaybackDanmakuSegment {
+  start: number;
+  end: number;
+  url: string;
+  type: string;
+  data?: string;
+  mH5Tk?: string;
+  mH5TkEnc?: string;
+}
+
+export interface PlaybackDanmakuResult {
+  loadMode: PlaybackDanmakuLoadMode;
+  items: PlaybackDanmakuItem[];
+  segments: PlaybackDanmakuSegment[];
+  episodeId: string;
+}
+
+export interface PlaybackDanmakuSegmentRequest {
+  segment: PlaybackDanmakuSegment;
+}
+
+const emptyDanmakuResult: PlaybackDanmakuResult = {
+  loadMode: "full",
+  items: [],
+  segments: [],
+  episodeId: "",
+};
+
 const jsonResponseHeaders = {
   "Cache-Control": "no-cache, no-transform",
   "Content-Type": "application/json; charset=utf-8",
@@ -220,6 +250,82 @@ function extractDanmakuItems(payload: unknown): PlaybackDanmakuItem[] {
   return result;
 }
 
+function readSegmentNumber(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return parsed;
+    }
+  }
+
+  return 0;
+}
+
+function extractSegments(payload: unknown): PlaybackDanmakuSegment[] {
+  const record = readJsonObject(payload);
+
+  if (!record) {
+    return [];
+  }
+
+  // 上游 segmentflag 响应结构：{ comments: { segmentList: [...], type, duration } }
+  // 兼容 segmentList 直接挂在顶层或 comments 字段下的两种形态。
+  const container = readJsonObject(record.comments) ?? record;
+  const segmentList = readJsonArray(container.segmentList);
+
+  if (!segmentList) {
+    return [];
+  }
+
+  const fallbackType = typeof container.type === "string" ? container.type : "";
+  const result: PlaybackDanmakuSegment[] = [];
+
+  for (const entry of segmentList) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      continue;
+    }
+
+    const segment = entry as Record<string, unknown>;
+    const url = typeof segment.url === "string" ? segment.url.trim() : "";
+
+    if (!url) {
+      continue;
+    }
+
+    const type = typeof segment.type === "string" && segment.type.trim()
+      ? segment.type.trim()
+      : fallbackType;
+
+    const extracted: PlaybackDanmakuSegment = {
+      start: readSegmentNumber(segment.segment_start),
+      end: readSegmentNumber(segment.segment_end),
+      url,
+      type,
+    };
+
+    if (typeof segment.data === "string") {
+      extracted.data = segment.data;
+    }
+
+    if (typeof segment._m_h5_tk === "string") {
+      extracted.mH5Tk = segment._m_h5_tk;
+    }
+
+    if (typeof segment._m_h5_tk_enc === "string") {
+      extracted.mH5TkEnc = segment._m_h5_tk_enc;
+    }
+
+    result.push(extracted);
+  }
+
+  return result;
+}
+
 async function fetchJson(fetcher: typeof fetch, url: URL, init: RequestInit, timeoutMs: number) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -242,19 +348,19 @@ async function fetchJson(fetcher: typeof fetch, url: URL, init: RequestInit, tim
   }
 }
 
-export async function getPlaybackDanmaku(request: PlaybackDanmakuRequest, options: PlaybackDanmakuServiceOptions = {}) {
+export async function getPlaybackDanmaku(request: PlaybackDanmakuRequest, options: PlaybackDanmakuServiceOptions = {}): Promise<PlaybackDanmakuResult> {
   const title = readSingleParam(request.title);
   const playEpisodes = readEpisodeNumber(request.play_episodes);
   const requestTitle = formatPlaybackDanmakuRequestTitle({ playEpisodes, title });
 
   if (!requestTitle) {
-    return [];
+    return emptyDanmakuResult;
   }
 
   const danmakuConfig = await getDanmakuConfig();
 
   if (!danmakuConfig.enabled) {
-    return [];
+    return emptyDanmakuResult;
   }
 
   const fetcher = options.fetcher ?? fetch;
@@ -272,13 +378,13 @@ export async function getPlaybackDanmaku(request: PlaybackDanmakuRequest, option
     }, timeoutMs);
 
     if (!matchResponse.ok || !matchPayload) {
-      return [];
+      return emptyDanmakuResult;
     }
 
     const episodeId = extractEpisodeId(matchPayload);
 
     if (!episodeId) {
-      return [];
+      return emptyDanmakuResult;
     }
 
     const commentUrl = createEndpointUrl(
@@ -287,6 +393,29 @@ export async function getPlaybackDanmaku(request: PlaybackDanmakuRequest, option
       `/api/v2/comment/${encodeURIComponent(episodeId)}`,
     );
     commentUrl.searchParams.set("format", "json");
+
+    if (danmakuConfig.loadMode === "segment") {
+      commentUrl.searchParams.set("segmentflag", "true");
+
+      const { payload: segmentPayload, response: segmentResponse } = await fetchJson(fetcher, commentUrl, {
+        headers: {
+          Accept: "application/json",
+        },
+        method: "GET",
+      }, timeoutMs);
+
+      if (!segmentResponse.ok || !segmentPayload) {
+        return { ...emptyDanmakuResult, loadMode: "segment", episodeId };
+      }
+
+      return {
+        loadMode: "segment",
+        items: [],
+        segments: extractSegments(segmentPayload),
+        episodeId,
+      };
+    }
+
     commentUrl.searchParams.set("duration", "true");
 
     const { payload: commentPayload, response: commentResponse } = await fetchJson(fetcher, commentUrl, {
@@ -297,18 +426,95 @@ export async function getPlaybackDanmaku(request: PlaybackDanmakuRequest, option
     }, timeoutMs);
 
     if (!commentResponse.ok || !commentPayload) {
+      return { ...emptyDanmakuResult, loadMode: "full", episodeId };
+    }
+
+    return {
+      loadMode: "full",
+      items: extractDanmakuItems(commentPayload),
+      segments: [],
+      episodeId,
+    };
+  } catch (error) {
+    console.error("Failed to load playback danmaku.", error);
+    return { ...emptyDanmakuResult, loadMode: danmakuConfig.loadMode };
+  }
+}
+
+export async function getPlaybackDanmakuSegment(
+  request: PlaybackDanmakuSegmentRequest,
+  options: PlaybackDanmakuServiceOptions = {},
+): Promise<PlaybackDanmakuItem[]> {
+  const segment = request.segment;
+  const url = segment.url.trim();
+  const type = segment.type.trim();
+
+  if (!url || !type) {
+    return [];
+  }
+
+  const danmakuConfig = await getDanmakuConfig();
+
+  if (!danmakuConfig.enabled) {
+    return [];
+  }
+
+  // 上游 Segment.fromJson 要求 segment_start/segment_end/url/type 为必需字段，
+  // data/_m_h5_tk/_m_h5_tk_enc 为可选字段（优酷分片需要 token 才能取到弹幕）。
+  const upstreamSegment: Record<string, unknown> = {
+    segment_start: segment.start,
+    segment_end: segment.end,
+    url,
+    type,
+  };
+
+  if (segment.data) {
+    upstreamSegment.data = segment.data;
+  }
+
+  if (segment.mH5Tk) {
+    upstreamSegment._m_h5_tk = segment.mH5Tk;
+  }
+
+  if (segment.mH5TkEnc) {
+    upstreamSegment._m_h5_tk_enc = segment.mH5TkEnc;
+  }
+
+  const fetcher = options.fetcher ?? fetch;
+  const timeoutMs = danmakuConfig.requestTimeoutSeconds * 1000;
+  const endpointUrl = createEndpointUrl(danmakuConfig.apiUrl, danmakuConfig.apiToken, "/api/v2/segmentcomment");
+  endpointUrl.searchParams.set("format", "json");
+
+  try {
+    const { payload, response } = await fetchJson(fetcher, endpointUrl, {
+      body: JSON.stringify(upstreamSegment),
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    }, timeoutMs);
+
+    if (!response.ok || !payload) {
       return [];
     }
 
-    return extractDanmakuItems(commentPayload);
+    return extractDanmakuItems(payload);
   } catch (error) {
-    console.error("Failed to load playback danmaku.", error);
+    console.error("Failed to load playback danmaku segment.", error);
     return [];
   }
 }
 
-export function createPlaybackDanmakuApiResponse(danmaku: PlaybackDanmakuItem[]) {
-  return new Response(JSON.stringify(danmaku), {
+export function createPlaybackDanmakuApiResponse(result: PlaybackDanmakuResult) {
+  return new Response(JSON.stringify(result), {
+    headers: jsonResponseHeaders,
+    status: 200,
+  });
+}
+
+export function createPlaybackDanmakuSegmentApiResponse(items: PlaybackDanmakuItem[]) {
+  return new Response(JSON.stringify({ items }), {
     headers: jsonResponseHeaders,
     status: 200,
   });

@@ -38,7 +38,10 @@ import { App, Button, Divider, Tag } from "antd";
 import { env } from "@/shared/env";
 import { createPlaceholderImageUrl } from "@/shared/media/placeholder-image";
 import type { Episode, PlayPageData } from "../domain/playback-page-data";
-import { createPlaybackDanmakuUrl } from "../domain/playback-danmaku";
+import {
+  createPlaybackDanmakuUrl,
+  playbackDanmakuSegmentEndpoint,
+} from "../domain/playback-danmaku";
 
 const episodeGroupSize = 50;
 const playbackDurationSeconds = 45 * 60 + 8;
@@ -577,6 +580,90 @@ function readPlaybackDanmakuItems(payload: unknown): Danmu[] {
   return result;
 }
 
+type PlaybackDanmakuSegment = {
+  start: number;
+  end: number;
+  url: string;
+  type: string;
+  data?: string;
+  mH5Tk?: string;
+  mH5TkEnc?: string;
+};
+
+type PlaybackDanmakuResult = {
+  loadMode: "full" | "segment";
+  items: Danmu[];
+  segments: PlaybackDanmakuSegment[];
+};
+
+function readPlaybackDanmakuSegments(value: unknown): PlaybackDanmakuSegment[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const result: PlaybackDanmakuSegment[] = [];
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      continue;
+    }
+
+    const segment = entry as Record<string, unknown>;
+    const url = typeof segment.url === "string" ? segment.url.trim() : "";
+
+    if (!url) {
+      continue;
+    }
+
+    const type = typeof segment.type === "string" ? segment.type.trim() : "";
+
+    if (!type) {
+      continue;
+    }
+
+    const start = typeof segment.start === "number" ? segment.start : Number(segment.start);
+    const end = typeof segment.end === "number" ? segment.end : Number(segment.end);
+
+    const parsed: PlaybackDanmakuSegment = {
+      start: Number.isFinite(start) && start >= 0 ? start : 0,
+      end: Number.isFinite(end) && end >= 0 ? end : 0,
+      url,
+      type,
+    };
+
+    if (typeof segment.data === "string") {
+      parsed.data = segment.data;
+    }
+
+    if (typeof segment.mH5Tk === "string") {
+      parsed.mH5Tk = segment.mH5Tk;
+    }
+
+    if (typeof segment.mH5TkEnc === "string") {
+      parsed.mH5TkEnc = segment.mH5TkEnc;
+    }
+
+    result.push(parsed);
+  }
+
+  return result;
+}
+
+function readPlaybackDanmakuResult(payload: unknown): PlaybackDanmakuResult {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { loadMode: "full", items: readPlaybackDanmakuItems(payload), segments: [] };
+  }
+
+  const record = payload as Record<string, unknown>;
+  const loadMode = record.loadMode === "segment" ? "segment" : "full";
+
+  return {
+    loadMode,
+    items: readPlaybackDanmakuItems(record.items),
+    segments: loadMode === "segment" ? readPlaybackDanmakuSegments(record.segments) : [],
+  };
+}
+
 type PlaybackSourceSwitchResponse = {
   episodes: Episode[];
   progress: {
@@ -804,6 +891,9 @@ export function PlayPageShell({
   const currentPlaybackDurationRef = useRef(playbackDurationSeconds);
   const currentPlaybackUrlRef = useRef("");
   const initialResumeTimeSecondsRef = useRef(initialResumeTimeSeconds);
+  const danmakuSegmentsRef = useRef<PlaybackDanmakuSegment[]>([]);
+  const loadedDanmakuSegmentIndexesRef = useRef<Set<number>>(new Set());
+  const activeDanmakuEpisodeRef = useRef<number>(activeEpisode);
 
   const episodeGroups = useMemo(
     () => (playbackData ? getEpisodeGroups(playbackData.episodes) : []),
@@ -872,9 +962,9 @@ export function PlayPageShell({
     },
     [],
   );
-  const loadPlaybackDanmaku = useCallback(async () => {
+  const loadPlaybackDanmaku = useCallback(async (): Promise<PlaybackDanmakuResult> => {
     if (!currentPlaybackDanmakuUrl) {
-      return [];
+      return { loadMode: "full", items: [], segments: [] };
     }
 
     try {
@@ -883,16 +973,82 @@ export function PlayPageShell({
       });
 
       if (!response.ok) {
-        return [];
+        return { loadMode: "full", items: [], segments: [] };
       }
 
       const payload = (await response.json()) as unknown;
 
-      return readPlaybackDanmakuItems(payload);
+      return readPlaybackDanmakuResult(payload);
     } catch {
-      return [];
+      return { loadMode: "full", items: [], segments: [] };
     }
   }, [currentPlaybackDanmakuUrl]);
+  const loadDanmakuSegmentByIndex = useCallback(async (index: number) => {
+    const segment = danmakuSegmentsRef.current[index];
+
+    if (!segment || loadedDanmakuSegmentIndexesRef.current.has(index)) {
+      return;
+    }
+
+    const art = artPlayerRef.current;
+
+    if (!art) {
+      return;
+    }
+
+    const danmakuPlugin = getArtplayerDanmakuPlugin(art);
+
+    if (!danmakuPlugin) {
+      return;
+    }
+
+    const segmentUrl = playbackDanmakuSegmentEndpoint;
+
+    loadedDanmakuSegmentIndexesRef.current.add(index);
+
+    try {
+      const response = await fetch(segmentUrl, {
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        method: "POST",
+        body: JSON.stringify({ segment }),
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = (await response.json()) as unknown;
+      const record = payload as { items?: unknown } | null;
+      const items = readPlaybackDanmakuItems(record?.items);
+
+      if (artPlayerRef.current !== art || !items.length) {
+        return;
+      }
+
+      await danmakuPlugin.load(items);
+    } catch {
+      // 分片加载失败不中断播放，后续 timeupdate 会重试相邻分片。
+    }
+  }, []);
+  const preloadUpcomingDanmakuSegments = useCallback(() => {
+    const currentTime = currentPlaybackSecondsRef.current;
+    const segments = danmakuSegmentsRef.current;
+
+    if (!segments.length) {
+      return;
+    }
+
+    // 预加载当前播放时间所在分片及下一个分片，保证边播边有弹幕。
+    for (let index = 0; index < segments.length; index += 1) {
+      const segment = segments[index];
+
+      if (currentTime < segment.end) {
+        void loadDanmakuSegmentByIndex(index);
+        void loadDanmakuSegmentByIndex(index + 1);
+        return;
+      }
+    }
+  }, [loadDanmakuSegmentByIndex]);
   const loadPlaybackDanmakuIntoPlugin = useCallback(async () => {
     const art = artPlayerRef.current;
 
@@ -906,20 +1062,44 @@ export function PlayPageShell({
       return;
     }
 
-    const danmaku = await loadPlaybackDanmaku();
+    const result = await loadPlaybackDanmaku();
 
     if (artPlayerRef.current !== art) {
       return;
     }
 
-    await danmakuPlugin.load(danmaku);
-  }, [loadPlaybackDanmaku]);
+    activeDanmakuEpisodeRef.current = activeEpisode;
+    danmakuSegmentsRef.current = [];
+    loadedDanmakuSegmentIndexesRef.current = new Set();
+
+    // 无参 load() 清空旧弹幕队列，避免切集残留。
+    await danmakuPlugin.load();
+
+    if (result.loadMode === "segment") {
+      danmakuSegmentsRef.current = result.segments;
+
+      // 首屏立即加载前两个分片（覆盖前 120 秒），其余随播放进度补齐。
+      void loadDanmakuSegmentByIndex(0);
+      void loadDanmakuSegmentByIndex(1);
+      return;
+    }
+
+    if (result.items.length) {
+      await danmakuPlugin.load(result.items);
+    }
+  }, [activeEpisode, loadPlaybackDanmaku, loadDanmakuSegmentByIndex]);
   const loadPlaybackDanmakuIntoPluginRef = useRef(
     loadPlaybackDanmakuIntoPlugin,
   );
   useEffect(() => {
     loadPlaybackDanmakuIntoPluginRef.current = loadPlaybackDanmakuIntoPlugin;
   }, [loadPlaybackDanmakuIntoPlugin]);
+  const preloadUpcomingDanmakuSegmentsRef = useRef(
+    preloadUpcomingDanmakuSegments,
+  );
+  useEffect(() => {
+    preloadUpcomingDanmakuSegmentsRef.current = preloadUpcomingDanmakuSegments;
+  }, [preloadUpcomingDanmakuSegments]);
   useEffect(() => {
     danmakuPreferencesRef.current = danmakuPreferences;
   }, [danmakuPreferences]);
@@ -1495,6 +1675,7 @@ export function PlayPageShell({
         });
         art.on("video:timeupdate", () => {
           currentPlaybackSecondsRef.current = art.currentTime;
+          preloadUpcomingDanmakuSegmentsRef.current();
         });
         art.on("video:loadeddata", () => capturePlaybackCoverRef.current(art));
         art.on("video:seeked", () => {

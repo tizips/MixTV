@@ -6,6 +6,7 @@ vi.mock("@/modules/admin", () => ({
     apiUrl: "https://danmaku.example.com",
     enabled: true,
     requestTimeoutSeconds: 30,
+    loadMode: "full",
     updatedAt: null,
   })),
 }));
@@ -46,13 +47,18 @@ describe("playback danmaku service", () => {
       title: "资源站标题",
     }, { fetcher: fetcher as typeof fetch });
 
-    expect(danmaku).toEqual([
-      {
-        text: "这女的戏份真多",
-        time: 0,
-        mode: 0,
-      },
-    ]);
+    expect(danmaku).toEqual({
+      loadMode: "full",
+      items: [
+        {
+          text: "这女的戏份真多",
+          time: 0,
+          mode: 0,
+        },
+      ],
+      segments: [],
+      episodeId: "episode-1",
+    });
     expect(consoleLogSpy).not.toHaveBeenCalled();
   });
 });

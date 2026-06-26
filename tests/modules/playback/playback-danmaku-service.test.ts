@@ -4,7 +4,7 @@ import {
   formatPlaybackDanmakuRequestTitle,
   parsePlaybackSeason,
 } from "@/modules/playback/domain/playback-danmaku";
-import { getPlaybackDanmaku } from "@/modules/playback/server/playback-danmaku-service";
+import { getPlaybackDanmaku, getPlaybackDanmakuSegment } from "@/modules/playback/server/playback-danmaku-service";
 
 const getDanmakuConfigMock = vi.hoisted(() => vi.fn());
 
@@ -45,6 +45,7 @@ describe("playback danmaku service", () => {
       apiUrl: "https://smonedanmu.vercel.app",
       enabled: true,
       requestTimeoutSeconds: 30,
+      loadMode: "full",
       updatedAt: "2026-05-18T00:00:00.000Z",
     });
 
@@ -77,12 +78,17 @@ describe("playback danmaku service", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const danmaku = await getPlaybackDanmaku({ title: "神墓年番 第三季", play_episodes: 11 });
+    const result = await getPlaybackDanmaku({ title: "神墓年番 第三季", play_episodes: 11 });
 
-    expect(danmaku).toEqual([
-      { color: "#ffffff", mode: 1, text: "hello", time: 12.5 },
-      { color: "#89D5FF", mode: 2, text: "world", time: 30 },
-    ]);
+    expect(result).toEqual({
+      loadMode: "full",
+      items: [
+        { color: "#ffffff", mode: 1, text: "hello", time: 12.5 },
+        { color: "#89D5FF", mode: 2, text: "world", time: 30 },
+      ],
+      segments: [],
+      episodeId: "episode-123",
+    });
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
@@ -120,6 +126,7 @@ describe("playback danmaku service", () => {
       apiUrl: "https://smonedanmu.vercel.app",
       enabled: true,
       requestTimeoutSeconds: 30,
+      loadMode: "full",
       updatedAt: null,
     });
 
@@ -138,7 +145,12 @@ describe("playback danmaku service", () => {
 
     await vi.advanceTimersByTimeAsync(30_000);
 
-    await expect(danmakuPromise).resolves.toEqual([]);
+    await expect(danmakuPromise).resolves.toEqual({
+      loadMode: "full",
+      items: [],
+      segments: [],
+      episodeId: "",
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       expect.any(URL),
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
@@ -152,13 +164,175 @@ describe("playback danmaku service", () => {
       apiUrl: "https://danmaku.test",
       enabled: false,
       requestTimeoutSeconds: 30,
+      loadMode: "full",
       updatedAt: null,
     });
 
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(getPlaybackDanmaku({ title: "神墓年番 第三季", play_episodes: 11 })).resolves.toEqual([]);
+    await expect(getPlaybackDanmaku({ title: "神墓年番 第三季", play_episodes: 11 })).resolves.toEqual({
+      loadMode: "full",
+      items: [],
+      segments: [],
+      episodeId: "",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns the segment list when loadMode is segment", async () => {
+    getDanmakuConfigMock.mockResolvedValue({
+      apiToken: "smonetv",
+      apiUrl: "https://smonedanmu.vercel.app",
+      enabled: true,
+      requestTimeoutSeconds: 30,
+      loadMode: "segment",
+      updatedAt: null,
+    });
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes("/api/v2/match")) {
+        return new Response(JSON.stringify({ isMatched: true, matches: [{ episodeId: "episode-456" }] }), {
+          headers: { "content-type": "application/json; charset=utf-8" },
+          status: 200,
+        });
+      }
+
+      if (url.includes("/api/v2/comment/episode-456")) {
+        return new Response(
+          JSON.stringify({
+            comments: {
+              type: "youku",
+              duration: 0,
+              segmentList: [
+                {
+                  type: "youku",
+                  segment_start: 0,
+                  segment_end: 60,
+                  url: "https://youku.test/seg/0",
+                  data: "{\"mat\":0}",
+                  _m_h5_tk: "token-0",
+                  _m_h5_tk_enc: "enc-0",
+                },
+                { type: "youku", segment_start: 60, segment_end: 120, url: "https://youku.test/seg/1" },
+              ],
+            },
+          }),
+          {
+            headers: { "content-type": "application/json; charset=utf-8" },
+            status: 200,
+          },
+        );
+      }
+
+      return new Response(null, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getPlaybackDanmaku({ title: "神墓年番 第三季", play_episodes: 11 });
+
+    expect(result).toEqual({
+      loadMode: "segment",
+      items: [],
+      episodeId: "episode-456",
+      segments: [
+        {
+          start: 0,
+          end: 60,
+          url: "https://youku.test/seg/0",
+          type: "youku",
+          data: "{\"mat\":0}",
+          mH5Tk: "token-0",
+          mH5TkEnc: "enc-0",
+        },
+        { start: 60, end: 120, url: "https://youku.test/seg/1", type: "youku" },
+      ],
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        pathname: "/smonetv/api/v2/comment/episode-456",
+        search: "?format=json&segmentflag=true",
+      }),
+      expect.objectContaining({
+        method: "GET",
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it("proxies a single segment via getPlaybackDanmakuSegment", async () => {
+    getDanmakuConfigMock.mockResolvedValue({
+      apiToken: "smonetv",
+      apiUrl: "https://smonedanmu.vercel.app",
+      enabled: true,
+      requestTimeoutSeconds: 30,
+      loadMode: "segment",
+      updatedAt: null,
+    });
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.includes("/api/v2/segmentcomment")) {
+        const body = JSON.parse(String(init?.body ?? "{}"));
+
+        // 上游 Segment.fromJson 要求完整 segment 对象。
+        expect(body).toEqual({
+          segment_start: 0,
+          segment_end: 60,
+          url: "https://youku.test/seg/0",
+          type: "youku",
+          data: "{\"mat\":0}",
+          _m_h5_tk: "token-0",
+          _m_h5_tk_enc: "enc-0",
+        });
+
+        return new Response(
+          JSON.stringify({
+            comments: [{ m: "nice", t: 5, p: "5,1,16777215,[youku]" }],
+          }),
+          {
+            headers: { "content-type": "application/json; charset=utf-8" },
+            status: 200,
+          },
+        );
+      }
+
+      return new Response(null, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const items = await getPlaybackDanmakuSegment({
+      segment: {
+        start: 0,
+        end: 60,
+        url: "https://youku.test/seg/0",
+        type: "youku",
+        data: "{\"mat\":0}",
+        mH5Tk: "token-0",
+        mH5TkEnc: "enc-0",
+      },
+    });
+
+    expect(items).toEqual([{ text: "nice", time: 5, mode: 0 }]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ pathname: "/smonetv/api/v2/segmentcomment", search: "?format=json" }),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          segment_start: 0,
+          segment_end: 60,
+          url: "https://youku.test/seg/0",
+          type: "youku",
+          data: "{\"mat\":0}",
+          _m_h5_tk: "token-0",
+          _m_h5_tk_enc: "enc-0",
+        }),
+        signal: expect.any(AbortSignal),
+      }),
+    );
   });
 });
