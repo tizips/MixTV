@@ -903,8 +903,14 @@ describe("PlayPageShell client playback cover", () => {
     });
 
     expect(art.poster).toBe("");
-    expect(fetchMock).toHaveBeenCalledWith("/api/play/progress/dyttzyapi.com/80474", {
-      body: JSON.stringify({ play_episodes: 1, play_time: 1061, total_time: 1247 }),
+    expect(fetchMock).toHaveBeenCalledWith("/api/play/progress", {
+      body: JSON.stringify({
+        id: "80474",
+        source: "dyttzyapi.com",
+        play_episodes: 1,
+        play_time: 1061,
+        total_time: 1247,
+      }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
@@ -1036,8 +1042,14 @@ describe("PlayPageShell client playback cover", () => {
       vi.advanceTimersByTime(20000);
     });
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/play/progress/dyttzyapi.com/80474", {
-      body: JSON.stringify({ play_episodes: 1, play_time: 25, total_time: 1247 }),
+    expect(fetchMock).toHaveBeenCalledWith("/api/play/progress", {
+      body: JSON.stringify({
+        id: "80474",
+        source: "dyttzyapi.com",
+        play_episodes: 1,
+        play_time: 25,
+        total_time: 1247,
+      }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
@@ -1427,12 +1439,15 @@ describe("PlayPageShell client playback cover", () => {
 
     const progressCalls = fetchMock.mock.calls.filter(([input, init]) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      return url.startsWith("/api/play/progress/") && init?.method === "POST";
+      return url === "/api/play/progress" && init?.method === "POST";
     });
 
     expect(progressCalls.map(([input]) => input)).toEqual([
-      "/api/play/progress/alpha/80474",
+      "/api/play/progress",
     ]);
+    expect(progressCalls.length).toBeGreaterThan(0);
+    const progressBody = JSON.parse(String(progressCalls[0]?.[1]?.body)) as Record<string, unknown>;
+    expect(progressBody).toMatchObject({ id: "80474", source: "alpha" });
 
     act(() => {
       root.unmount();

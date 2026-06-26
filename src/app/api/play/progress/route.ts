@@ -8,10 +8,6 @@ import { withApiTraffic } from "@/modules/stats";
 
 export const runtime = "nodejs";
 
-type PlaybackProgressRouteContext = {
-  params: Promise<{ id: string; source: string }>;
-};
-
 function readUserId(session: unknown) {
   if (!session || typeof session !== "object") {
     return "";
@@ -35,10 +31,6 @@ async function readJson(request: Request) {
   }
 }
 
-function readNumber(payload: Record<string, unknown>, key: "play_episodes" | "play_time" | "total_time") {
-  return payload[key];
-}
-
 function asObject(input: unknown) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new PlaybackProgressValidationError("Request body must be an object.");
@@ -47,7 +39,7 @@ function asObject(input: unknown) {
   return input as Record<string, unknown>;
 }
 
-export const POST = withApiTraffic(async function POST(request: Request, context: PlaybackProgressRouteContext) {
+export const POST = withApiTraffic(async function POST(request: Request) {
   const userId = readUserId(await auth());
 
   if (!userId) {
@@ -55,15 +47,14 @@ export const POST = withApiTraffic(async function POST(request: Request, context
   }
 
   try {
-    const { id, source } = await context.params;
     const payload = asObject(await readJson(request));
     const progress = await savePlaybackProgress(
       {
-        id,
-        play_episodes: readNumber(payload, "play_episodes") as number,
-        play_time: readNumber(payload, "play_time") as number,
-        source,
-        total_time: readNumber(payload, "total_time") as number,
+        id: payload.id as string,
+        play_episodes: payload.play_episodes as number,
+        play_time: payload.play_time as number,
+        source: payload.source as string,
+        total_time: payload.total_time as number,
       },
       { userId },
     );

@@ -14,7 +14,7 @@ vi.mock("@/modules/stats", () => ({
   withApiTraffic: (handler: unknown) => handler,
 }));
 
-describe("/api/play/progress/[source]/[id] route", () => {
+describe("/api/play/progress route", () => {
   it("uses the Node.js runtime", () => {
     expect(runtime).toBe("nodejs");
   });

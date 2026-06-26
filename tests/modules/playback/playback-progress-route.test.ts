@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import * as progressRoute from "@/app/api/play/progress/[source]/[id]/route";
+import * as progressRoute from "@/app/api/play/progress/route";
 import { PlaybackProgressValidationError } from "@/modules/playback/server/playback-progress-service";
 
 const authMock = vi.hoisted(() => vi.fn());
@@ -44,12 +44,11 @@ describe("playback progress API route", () => {
     });
 
     const response = await progressRoute.POST(
-      new Request("http://localhost/api/play/progress/alpha/100", {
-        body: JSON.stringify({ play_episodes: 2, play_time: 1061, total_time: 1247 }),
+      new Request("http://localhost/api/play/progress", {
+        body: JSON.stringify({ id: "100", source: "alpha", play_episodes: 2, play_time: 1061, total_time: 1247 }),
         headers: { "content-type": "application/json" },
         method: "POST",
       }),
-      { params: Promise.resolve({ id: "100", source: "alpha" }) },
     );
 
     expect(response.status).toBe(201);
@@ -66,11 +65,10 @@ describe("playback progress API route", () => {
     authMock.mockResolvedValue(null);
 
     const response = await progressRoute.POST(
-      new Request("http://localhost/api/play/progress/alpha/100", {
-        body: JSON.stringify({ play_episodes: 2, play_time: 1061, total_time: 1247 }),
+      new Request("http://localhost/api/play/progress", {
+        body: JSON.stringify({ id: "100", source: "alpha", play_episodes: 2, play_time: 1061, total_time: 1247 }),
         method: "POST",
       }),
-      { params: Promise.resolve({ id: "100", source: "alpha" }) },
     );
 
     expect(response.status).toBe(401);
@@ -81,11 +79,10 @@ describe("playback progress API route", () => {
     mockSession();
 
     const response = await progressRoute.POST(
-      new Request("http://localhost/api/play/progress/alpha/100", {
+      new Request("http://localhost/api/play/progress", {
         body: "{",
         method: "POST",
       }),
-      { params: Promise.resolve({ id: "100", source: "alpha" }) },
     );
 
     expect(response.status).toBe(400);
@@ -97,11 +94,10 @@ describe("playback progress API route", () => {
     savePlaybackProgressMock.mockRejectedValue(new PlaybackProgressValidationError("play_time must be non-negative."));
 
     const response = await progressRoute.POST(
-      new Request("http://localhost/api/play/progress/alpha/100", {
-        body: JSON.stringify({ play_episodes: 2, play_time: -1, total_time: 1247 }),
+      new Request("http://localhost/api/play/progress", {
+        body: JSON.stringify({ id: "100", source: "alpha", play_episodes: 2, play_time: -1, total_time: 1247 }),
         method: "POST",
       }),
-      { params: Promise.resolve({ id: "100", source: "alpha" }) },
     );
 
     expect(response.status).toBe(400);

@@ -923,17 +923,17 @@ export function PlayPageShell({
     title: playbackData?.title ?? "",
     playEpisodes: activeEpisode,
   });
-  const progressEndpoint = useMemo(() => {
+  const progressTarget = useMemo(() => {
     const progressSource = playbackData?.progress_source;
     const progressId = playbackData?.progress_id;
 
     if (!progressSource || !progressId) {
-      return "";
+      return null;
     }
 
-    return `/api/play/progress/${encodeURIComponent(progressSource)}/${encodeURIComponent(progressId)}`;
+    return { id: progressId, source: progressSource };
   }, [playbackData]);
-  const progressEndpointRef = useRef(progressEndpoint);
+  const progressTargetRef = useRef(progressTarget);
   const playbackActionsRef = useRef<{
     skipPlayback: (seconds: number) => void;
     playNextEpisode: () => void;
@@ -948,8 +948,8 @@ export function PlayPageShell({
     initialResumeTimeSecondsRef.current = initialResumeTimeSeconds;
   }, [initialResumeTimeSeconds]);
   useEffect(() => {
-    progressEndpointRef.current = progressEndpoint;
-  }, [progressEndpoint]);
+    progressTargetRef.current = progressTarget;
+  }, [progressTarget]);
   const setPlaybackPosterVisible = useCallback(
     (art: Artplayer, visible: boolean) => {
       const posterElement = artContainerRef.current?.querySelector(
@@ -1105,10 +1105,10 @@ export function PlayPageShell({
   }, [danmakuPreferences]);
   const uploadPlaybackProgress = useCallback(() => {
     const art = artPlayerRef.current;
-    const currentProgressEndpoint = progressEndpointRef.current;
+    const currentProgressTarget = progressTargetRef.current;
 
     if (
-      !currentProgressEndpoint ||
+      !currentProgressTarget ||
       hasPlaybackPlaceholderError ||
       !art ||
       !playbackData
@@ -1123,8 +1123,10 @@ export function PlayPageShell({
       Math.max(0, art.duration || currentPlaybackDurationRef.current),
     );
 
-    void fetch(currentProgressEndpoint, {
+    void fetch("/api/play/progress", {
       body: JSON.stringify({
+        id: currentProgressTarget.id,
+        source: currentProgressTarget.source,
         play_episodes: activeEpisodeRef.current,
         play_time: playTime,
         total_time: totalTime,
@@ -1286,7 +1288,7 @@ export function PlayPageShell({
           id: data.progress.id,
           source: data.progress.source,
         });
-        progressEndpointRef.current = `/api/play/progress/${encodeURIComponent(data.progress.source)}/${encodeURIComponent(data.progress.id)}`;
+        progressTargetRef.current = { id: data.progress.id, source: data.progress.source };
 
         setPlaybackData((current) => {
           if (!current) {
