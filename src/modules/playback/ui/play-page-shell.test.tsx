@@ -490,6 +490,169 @@ describe("PlayPageShell client playback cover", () => {
     });
   });
 
+  it("reloads segment danmaku for the next episode and drops in-flight segments from the previous episode", async () => {
+    const ep1DanmakuUrl = `/api/play/danmaku?${new URLSearchParams({ title: "资源站标题 S01E01", play_episodes: "1" })}`;
+    const ep2DanmakuUrl = `/api/play/danmaku?${new URLSearchParams({ title: "资源站标题 S01E02", play_episodes: "2" })}`;
+    // ep1 segment 0 is held back so it resolves only after the episode switch,
+    // simulating an in-flight request from the previous episode.
+    let resolveEp1Segment0: ((items: unknown[]) => void) | undefined;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+      if (url === ep1DanmakuUrl) {
+        return new Response(
+          JSON.stringify({
+            loadMode: "segment",
+            items: [],
+            segments: [
+              { start: 0, end: 60, url: "https://upstream.test/ep1/seg0", type: "xml", data: "ep1-seg0-data" },
+              { start: 60, end: 120, url: "https://upstream.test/ep1/seg1", type: "xml" },
+            ],
+            episodeId: "episode-1",
+          }),
+        );
+      }
+
+      if (url === ep2DanmakuUrl) {
+        return new Response(
+          JSON.stringify({
+            loadMode: "segment",
+            items: [],
+            segments: [
+              { start: 0, end: 60, url: "https://upstream.test/ep2/seg0", type: "xml" },
+              { start: 60, end: 120, url: "https://upstream.test/ep2/seg1", type: "xml" },
+            ],
+            episodeId: "episode-2",
+          }),
+        );
+      }
+
+      if (url === "/api/play/danmaku" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as { segment: { url: string } };
+
+        if (body.segment.url === "https://upstream.test/ep1/seg0") {
+          return new Promise<Response>((resolve) => {
+            resolveEp1Segment0 = (items: unknown[]) =>
+              resolve(new Response(JSON.stringify({ items })));
+          });
+        }
+
+        if (body.segment.url === "https://upstream.test/ep1/seg1") {
+          return new Response(
+            JSON.stringify({ items: [{ text: "ep1-seg1", time: 61, mode: 0 }] }),
+          );
+        }
+
+        if (body.segment.url === "https://upstream.test/ep2/seg0") {
+          return new Response(
+            JSON.stringify({ items: [{ text: "ep2-seg0", time: 2, mode: 0 }] }),
+          );
+        }
+
+        if (body.segment.url === "https://upstream.test/ep2/seg1") {
+          return new Response(
+            JSON.stringify({ items: [{ text: "ep2-seg1", time: 62, mode: 0 }] }),
+          );
+        }
+      }
+
+      return new Response(JSON.stringify({ favorites: [] }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const initialData = createInitialData();
+    initialData.sources = [
+      {
+        id: "episode-1",
+        latency: "在线播放",
+        name: "第1集",
+        quality: "HLS",
+        status: "流畅",
+        url: "https://media.test/1.m3u8",
+      },
+      {
+        id: "episode-2",
+        latency: "在线播放",
+        name: "第2集",
+        quality: "HLS",
+        status: "流畅",
+        url: "https://media.test/2.m3u8",
+      },
+    ];
+    initialData.episodes = [
+      { duration: "未知", number: 1, title: "第1集" },
+      { duration: "未知", number: 2, title: "第2集" },
+    ];
+
+    await act(async () => {
+      root.render(<PlayPageShell initialData={initialData} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // ep1 segment 0 is still in-flight; only the CLEAR and segment 1 land in the plugin.
+    expect(artplayerState.danmakuLoads).toEqual([
+      [],
+      [{ text: "ep1-seg1", time: 61, mode: 0 }],
+    ]);
+
+    const nextEpisodeButton = [...host.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "2",
+    ) as HTMLButtonElement | undefined;
+
+    if (!nextEpisodeButton) {
+      throw new Error("Episode button was not rendered");
+    }
+
+    await act(async () => {
+      nextEpisodeButton.click();
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // After switching to episode 2: a fresh CLEAR, then episode 2 segments 0 and 1.
+    expect(fetchMock).toHaveBeenCalledWith(
+      ep2DanmakuUrl,
+      expect.objectContaining({ headers: { Accept: "application/json" } }),
+    );
+    expect(artplayerState.danmakuLoads).toEqual([
+      [],
+      [{ text: "ep1-seg1", time: 61, mode: 0 }],
+      [],
+      [{ text: "ep2-seg0", time: 2, mode: 0 }],
+      [{ text: "ep2-seg1", time: 62, mode: 0 }],
+    ]);
+
+    // The in-flight episode 1 segment 0 finally resolves; it must NOT pollute episode 2.
+    await act(async () => {
+      resolveEp1Segment0?.([{ text: "ep1-seg0-late", time: 5, mode: 0 }]);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(artplayerState.danmakuLoads).toEqual([
+      [],
+      [{ text: "ep1-seg1", time: 61, mode: 0 }],
+      [],
+      [{ text: "ep2-seg0", time: 2, mode: 0 }],
+      [{ text: "ep2-seg1", time: 62, mode: 0 }],
+    ]);
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
   it("restores the saved playback volume before rendering the player", async () => {
     localStorage.setItem("mixtv.playback.volume", "83");
 

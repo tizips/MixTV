@@ -985,6 +985,7 @@ export function PlayPageShell({
   }, [currentPlaybackDanmakuUrl]);
   const loadDanmakuSegmentByIndex = useCallback(async (index: number) => {
     const segment = danmakuSegmentsRef.current[index];
+    const episodeAtRequest = activeDanmakuEpisodeRef.current;
 
     if (!segment || loadedDanmakuSegmentIndexesRef.current.has(index)) {
       return;
@@ -1021,7 +1022,13 @@ export function PlayPageShell({
       const record = payload as { items?: unknown } | null;
       const items = readPlaybackDanmakuItems(record?.items);
 
-      if (artPlayerRef.current !== art || !items.length) {
+      // 切集会重置 activeDanmakuEpisodeRef 并清空队列；此处丢弃上一集在途分片，
+      // 否则 plugin.load(items) 的追加语义会把旧剧集弹幕写进新剧集队列。
+      if (
+        artPlayerRef.current !== art ||
+        !items.length ||
+        activeDanmakuEpisodeRef.current !== episodeAtRequest
+      ) {
         return;
       }
 
