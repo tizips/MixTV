@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createPlaybackDanmakuUrl,
   formatPlaybackDanmakuRequestTitle,
@@ -17,6 +17,10 @@ describe("playback danmaku service", () => {
     getDanmakuConfigMock.mockReset();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("parses season markers from titles", () => {
@@ -91,6 +95,7 @@ describe("playback danmaku service", () => {
           "Content-Type": "application/json",
         }),
         method: "POST",
+        signal: expect.any(AbortSignal),
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -104,9 +109,42 @@ describe("playback danmaku service", () => {
           Accept: "application/json",
         }),
         method: "GET",
+        signal: expect.any(AbortSignal),
       }),
     );
   });
+
+  it("aborts the upstream request after the configured timeout and records the error", async () => {
+    getDanmakuConfigMock.mockResolvedValue({
+      apiToken: "smonetv",
+      apiUrl: "https://smonedanmu.vercel.app",
+      enabled: true,
+      requestTimeoutSeconds: 30,
+      updatedAt: null,
+    });
+
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new Error("This operation was aborted"));
+        });
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const danmakuPromise = getPlaybackDanmaku({ title: "神墓年番 第三季", play_episodes: 11 });
+
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    await expect(danmakuPromise).resolves.toEqual([]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(URL),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith("Failed to load playback danmaku.", expect.any(Error));
+  }, 15_000);
 
   it("returns an empty list when danmaku is disabled", async () => {
     getDanmakuConfigMock.mockResolvedValue({

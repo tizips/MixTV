@@ -220,18 +220,25 @@ function extractDanmakuItems(payload: unknown): PlaybackDanmakuItem[] {
   return result;
 }
 
-async function fetchJson(fetcher: typeof fetch, url: URL, init?: RequestInit) {
-  const response = await fetcher(url, init);
-  const text = await response.text();
-
-  if (!text.trim()) {
-    return { payload: null, response, text };
-  }
+async function fetchJson(fetcher: typeof fetch, url: URL, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return { payload: JSON.parse(text) as unknown, response, text };
-  } catch {
-    return { payload: null, response, text };
+    const response = await fetcher(url, { ...init, signal: controller.signal });
+    const text = await response.text();
+
+    if (!text.trim()) {
+      return { payload: null, response, text };
+    }
+
+    try {
+      return { payload: JSON.parse(text) as unknown, response, text };
+    } catch {
+      return { payload: null, response, text };
+    }
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -251,6 +258,7 @@ export async function getPlaybackDanmaku(request: PlaybackDanmakuRequest, option
   }
 
   const fetcher = options.fetcher ?? fetch;
+  const timeoutMs = danmakuConfig.requestTimeoutSeconds * 1000;
   const matchUrl = createEndpointUrl(danmakuConfig.apiUrl, danmakuConfig.apiToken, "/api/v2/match");
 
   try {
@@ -261,7 +269,7 @@ export async function getPlaybackDanmaku(request: PlaybackDanmakuRequest, option
         "Content-Type": "application/json",
       },
       method: "POST",
-    });
+    }, timeoutMs);
 
     if (!matchResponse.ok || !matchPayload) {
       return [];
@@ -286,14 +294,15 @@ export async function getPlaybackDanmaku(request: PlaybackDanmakuRequest, option
         Accept: "application/json",
       },
       method: "GET",
-    });
+    }, timeoutMs);
 
     if (!commentResponse.ok || !commentPayload) {
       return [];
     }
 
     return extractDanmakuItems(commentPayload);
-  } catch {
+  } catch (error) {
+    console.error("Failed to load playback danmaku.", error);
     return [];
   }
 }
